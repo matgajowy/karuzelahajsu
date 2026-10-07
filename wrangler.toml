@@ -1,6 +1,6 @@
 name = "karuzelahajsu"
 compatibility_date = "2026-10-06"
-main = "worker.js"
+main = "src/worker/index.js"
 
 [vars]
 GITHUB_CLIENT_ID = "Ov23liBBJtlHrJ0Ey1pf"
@@ -9,9 +9,28 @@ GITHUB_CLIENT_ID = "Ov23liBBJtlHrJ0Ey1pf"
 crons = ["*/15 8-22 * * 1-5"]
 
 [assets]
-directory = "."
+directory = "./public"
+binding = "ASSETS"
 
 [[d1_databases]]
 binding = "DB"
 database_name = "liga_db"
 database_id = "25af5b31-ca0f-4ba9-a159-bce41c9c9760"
+
+[env.dev]
+name = "karuzelahajsu-dev"
+
+[env.dev.vars]
+GITHUB_CLIENT_ID = "DEV_OAUTH_CLIENT_ID"
+
+[env.dev.assets]
+directory = "./public"
+binding = "ASSETS"
+
+[env.dev.triggers]
+crons = []
+
+[[env.dev.d1_databases]]
+binding = "DB"
+database_name = "liga_db_dev"
+database_id = "ebe01c8d-f57c-4e21-8626-b640ffdce71f"

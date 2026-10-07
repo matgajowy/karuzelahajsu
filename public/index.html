@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Karuzela Hajsu 🎠💸 — Biurowa Liga Spekulacyjna</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/assets/css/app.css">
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
+
+  <!-- ========================================== -->
+  <!-- GÓRNY PASEK NAWIGACJI                      -->
+  <!-- ========================================== -->
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+
+      <!-- Logo i Branding -->
+      <div class="flex items-center gap-3">
+        <a href="#" data-action="switch-tab" data-tab="arena" class="flex items-center gap-2 group">
+          <span class="text-2xl group-hover:scale-110 transition duration-200">🎠</span>
+          <div>
+            <h1 class="text-base font-extrabold tracking-tight text-white leading-tight flex items-center gap-1.5">
+              Karuzela Hajsu <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.2 rounded">v2.2</span>
+            </h1>
+            <p class="text-[11px] text-slate-400">Biurowa Liga Spekulacyjna</p>
+          </div>
+        </a>
+      </div>
+
+      <!-- Pasek stanu Crona & Akcje użytkownika -->
+      <div class="flex items-center gap-3">
+
+        <!-- Pigułka statusu rynku / Crona -->
+        <div id="syncStatusBadge" class="hidden sm:flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-full text-[11px] text-slate-400 font-mono">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span id="syncStatusText">Synchronizacja...</span>
+          <button data-action="quick-refresh" title="Odśwież dane z bazy" class="text-slate-400 hover:text-white transition ml-1">
+            <i data-lucide="refresh-cw" id="quickRefreshIcon" class="w-3.5 h-3.5"></i>
+          </button>
+        </div>
+
+        <!-- Przycisk Zasad Gry -->
+        <button data-action="open-rules" class="flex items-center gap-1.5 text-xs text-slate-300 hover:text-indigo-300 bg-slate-800/70 hover:bg-slate-800 border border-slate-700/60 px-3 py-1.5 rounded-lg transition">
+          <i data-lucide="scroll" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span class="hidden md:inline">Zasady</span>
+        </button>
+
+        <!-- Profil / Logowanie GitHub -->
+        <div id="authContainer">
+          <a href="/api/auth/github" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition">
+            <i data-lucide="github" class="w-4 h-4"></i>
+            <span>Zaloguj z GitHub</span>
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- ZAKŁADKI NAWIGACYJNE                      -->
+  <!-- ========================================== -->
+  <nav class="border-b border-slate-800/80 bg-slate-950/80">
+    <div class="max-w-6xl mx-auto px-4 flex items-center justify-between">
+      <div class="flex gap-2">
+        <button id="tabBtnArena" data-action="switch-tab" data-tab="arena" class="py-3 px-4 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition">
+          <i data-lucide="swords" class="w-4 h-4"></i> 🥊 Ring Spekulantów
+        </button>
+        <button id="tabBtnPortfolio" data-action="switch-tab" data-tab="portfolio" style="display: none;" class="py-3 px-4 text-xs font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition">
+          <i data-lucide="wallet" class="w-4 h-4"></i> Mój Portfel
+        </button>
+        <button id="tabBtnAdmin" data-action="switch-tab" data-tab="admin" style="display: none;" class="py-3 px-4 text-xs font-bold border-b-2 border-transparent text-amber-400 hover:text-amber-300 flex items-center gap-2 transition">
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Panel Audytu & Whitelist
+        </button>
+      </div>
+
+      <!-- Szybki przycisk nowego zlecenia w belce -->
+      <div id="quickTradeBtnContainer" style="display: none;" class="py-2">
+        <button data-action="open-trade" data-trade-type="BUY" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+          <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+          <span>Złóż zlecenie</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- GŁÓWNA TREŚĆ STRONY -->
+  <main class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
+
+    <!-- ========================================== -->
+    <!-- WIDOK 1: RING SPEKULANTÓW                 -->
+    <!-- ========================================== -->
+    <div id="viewArena" class="space-y-8">
+
+      <!-- Karty KPI -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+
+        <!-- KARTA 1: AKTUALNY LIDER -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
+              <span>Aktualny Lider Ringu</span>
+              <span class="text-amber-400 text-sm">👑</span>
+            </div>
+            <div class="flex items-center gap-3 mt-3">
+              <img id="kpiLeaderAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=leader" alt="Lider" class="w-11 h-11 rounded-full border border-amber-500/40 bg-slate-800 object-cover">
+              <div>
+                <div id="leaderName" class="text-lg font-bold text-white truncate max-w-[170px]">Ładowanie...</div>
+                <div id="leaderReturn" class="text-sm font-extrabold text-emerald-400 font-mono">--</div>
+              </div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-400 mt-4 pt-2 border-t border-slate-800/80">
+            Prowadzi w klasyfikacji generalnej ligi
+          </div>
+          <div class="absolute -right-4 -bottom-4 text-amber-500/5 pointer-events-none">
+            <i data-lucide="crown" class="w-24 h-24"></i>
+          </div>
+        </div>
+
+        <!-- KARTA 2: BENCHMARKI RYNKOWE -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
+              <span>Benchmarki Rynkowe</span>
+              <span class="text-indigo-400 text-xs font-mono">Indeksy</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 mt-3">
+              <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                <div class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">🇺🇸 S&P 500</div>
+                <div id="benchSp500Val" class="text-base font-bold text-white font-mono mt-0.5">--</div>
+              </div>
+              <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                <div class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">🇵🇱 WIG 20</div>
+                <div id="benchWig20Val" class="text-base font-bold text-white font-mono mt-0.5">--</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+            Punkt odniesienia dla portfeli
+          </div>
+        </div>
+
+        <!-- KARTA 3: ŚREDNIA ZESPOŁU -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
+              <span>Średnia Drużyny</span>
+              <i data-lucide="users" class="w-4 h-4 text-slate-500"></i>
+            </div>
+            <div class="mt-2">
+              <div id="avgReturn" class="text-2xl font-black text-white font-mono">--</div>
+              <div id="activeParticipantsCount" class="text-xs text-slate-400 mt-1">Sprawdzanie wyników...</div>
+            </div>
+          </div>
+          <div id="beatTheMarketNote" class="text-[11px] text-indigo-300 mt-4 pt-2 border-t border-slate-800/80 font-medium">
+            Rywalizacja trwa
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TABELA RANKINGU -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2 bg-slate-900/70">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="award" class="w-4 h-4 text-amber-400"></i> Oficjalny Ranking Inwestycyjny
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Wycena portfeli na żywo z uwzględnieniem kursów giełdowych</p>
+          </div>
+          <span id="dataTimestamp" class="text-xs text-slate-400 font-mono">Ładowanie danych...</span>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="text-[11px] uppercase bg-slate-950/70 text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
+              <tr>
+                <th scope="col" class="py-3 px-4 w-14 text-center">#</th>
+                <th scope="col" class="py-3 px-4">Uczestnik</th>
+                <th scope="col" class="py-3 px-4 text-right">Wycena całkowita</th>
+                <th scope="col" class="py-3 px-4 text-right">Gotówka</th>
+                <th scope="col" class="py-3 px-4 text-right">Wynik (PLN)</th>
+                <th scope="col" class="py-3 px-4 text-right">Stopa zwrotu</th>
+              </tr>
+            </thead>
+            <tbody id="leaderboardBody" class="divide-y divide-slate-800/60 font-medium">
+              <tr>
+                <td colspan="6" class="py-12 text-center text-slate-400">Pobieranie wyników ligi...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- FEED: OSTATNIE TRANSAKCJE -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/70">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Ruchy & Tezy Inwestycyjne
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Podgląd strategii i uzasadnień zespołu</p>
+          </div>
+          <span class="text-xs text-slate-400">Na żywo</span>
+        </div>
+
+        <div id="feedContainer" class="p-6 space-y-3">
+          <div class="text-center text-slate-400 text-xs py-8">Ładowanie ostatnich zleceń...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- WIDOK 2: MÓJ PORTFEL                      -->
+    <!-- ========================================== -->
+    <div id="viewPortfolio" style="display: none;" class="space-y-6">
+
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-800">
+          <div class="flex items-center gap-4">
+            <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar" class="w-14 h-14 rounded-full border-2 border-indigo-500/40 bg-slate-800 object-cover">
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-indigo-400 font-bold uppercase tracking-wider">Rachunek Inwestycyjny</span>
+                <button data-action="open-profile" class="text-[11px] text-slate-400 hover:text-indigo-300 bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded transition">
+                  ✏️ Edytuj profil
+                </button>
+              </div>
+              <h2 id="userNameDisplay" class="text-2xl font-black text-white mt-0.5">--</h2>
+              <p class="text-xs text-slate-400">Limit dywersyfikacji: max 35% na pojedynczą spółkę</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-6">
+            <div class="text-right">
+              <div class="text-xs text-slate-400">Dostępna Gotówka:</div>
+              <div id="userCashDisplay" class="text-xl font-black text-emerald-400 font-mono">0.00 zł</div>
+            </div>
+            <button data-action="open-trade" data-trade-type="BUY" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 transition">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Nowe Zlecenie
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabela pozycji -->
+        <div class="mt-6">
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Twoje Otwarte Pozycje</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 uppercase border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5">Walor</th>
+                  <th class="py-2.5 text-right">Liczba akcji</th>
+                  <th class="py-2.5 text-right">Śr. zakup</th>
+                  <th class="py-2.5 text-right">Kurs bieżący</th>
+                  <th class="py-2.5 text-right">Wycena (PLN)</th>
+                  <th class="py-2.5 text-right">Wynik</th>
+                  <th class="py-2.5 text-center">Szybka Akcja</th>
+                </tr>
+              </thead>
+              <tbody id="portfolioTableBody" class="divide-y divide-slate-800/40 font-mono">
+                <tr><td colspan="7" class="py-6 text-center text-slate-400 font-sans">Brak otwartych pozycji</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- WIDOK 3: PANEL AUDYTU & WHITELIST (ADMIN)  -->
+    <!-- ========================================== -->
+    <div id="viewAdmin" style="display: none;" class="space-y-6">
+
+      <!-- SEKCJA: ZARZĄDZANIE BIAŁĄ LISTĄ (WHITELIST) -->
+      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="user-plus" class="w-4 h-4 text-indigo-400"></i> Dodaj Uczestnika do Gry (Biała Lista)
+            </h3>
+            <p class="text-xs text-slate-400">Tylko dodani użytkownicy będą mogli zalogować się kontem GitHub.</p>
+          </div>
+        </div>
+
+        <form id="addUserForm" data-action="add-user" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">GitHub Login (dokładny nick)</label>
+            <input type="text" id="newGhLogin" placeholder="np. jankowalski" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Wyświetlana nazwa / Ksywka</label>
+            <input type="text" id="newDisplayName" placeholder="np. Janek (Książę GPW)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div class="flex items-center gap-2 py-2">
+            <input type="checkbox" id="newIsAdmin" class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0">
+            <label for="newIsAdmin" class="text-xs text-slate-300 cursor-pointer">Uprawnienia Admina</label>
+          </div>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
+            + Wpuść na Karuzelę
+          </button>
+        </form>
+
+        <div id="addUserMsg" class="hidden text-xs p-2.5 rounded-lg"></div>
+
+        <!-- Tabela zarejestrowanych osób -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80">
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Obecna Biała Lista:</h4>
+          <div class="overflow-x-auto max-h-48">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 border-b border-slate-800 uppercase">
+                <tr>
+                  <th class="py-2">Gracz</th>
+                  <th class="py-2">GitHub Login</th>
+                  <th class="py-2 text-right">Gotówka</th>
+                  <th class="py-2 text-center">Rola</th>
+                </tr>
+              </thead>
+              <tbody id="whitelistTableBody" class="divide-y divide-slate-800/40 font-mono">
+                <tr><td colspan="4" class="py-4 text-center text-slate-500">Ładowanie uczestników...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEKCJA: DZIENNIK AUDYTU -->
+      <div class="bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+          <div>
+            <h2 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i> Dziennik Audytu Bezpieczeństwa
+            </h2>
+            <p class="text-xs text-slate-400">Rejestr zdarzeń i adresów IP</p>
+          </div>
+          <div class="flex gap-2">
+            <button data-action="manual-sync" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-1.5 rounded-lg transition">
+              Wymuś synchronizację kursów
+            </button>
+            <button data-action="fetch-audit" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg transition">
+              Odśwież
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto max-h-[400px]">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="text-slate-400 uppercase bg-slate-950/40 border-b border-slate-800 sticky top-0">
+              <tr>
+                <th class="py-2.5 px-4">Czas</th>
+                <th class="py-2.5 px-4">Użytkownik</th>
+                <th class="py-2.5 px-4">Akcja</th>
+                <th class="py-2.5 px-4">Status</th>
+                <th class="py-2.5 px-4">IP</th>
+                <th class="py-2.5 px-4">Payload</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody" class="divide-y divide-slate-800/60 font-mono">
+              <tr><td colspan="6" class="py-6 text-center text-slate-400">Brak logów audytowych</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: EDYTOR PROFILU & AWATARA            -->
+  <!-- ========================================== -->
+  <div id="profileModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🎭</span> Twoje Biurowe Alter-Ego
+        </h3>
+        <button data-action="close-profile" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        <!-- Podgląd Awatara -->
+        <div class="flex flex-col items-center justify-center py-2">
+          <img id="editAvatarPreview" src="" alt="Podgląd" class="w-20 h-20 rounded-full border-2 border-indigo-500 bg-slate-800 object-cover shadow-lg">
+          <span class="text-[11px] text-slate-400 mt-2">Podgląd Twojej tożsamości na Ringu</span>
+        </div>
+
+        <!-- Losowanie stylu awatara -->
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" data-action="randomize-avatar" data-avatar="bottts" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            🤖 Losuj Robota
+          </button>
+          <button type="button" data-action="randomize-avatar" data-avatar="pixel-art" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            👾 Losuj Pixel-Art
+          </button>
+          <button type="button" data-action="randomize-avatar" data-avatar="fun-emoji" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            😎 Losuj Emotkę
+          </button>
+          <button type="button" data-action="reset-avatar" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg border border-slate-700 transition">
+            🐙 Awatar z GitHuba
+          </button>
+        </div>
+
+        <!-- Ksywka i Generator -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Wyświetlana Ksywka</label>
+            <button type="button" data-action="generate-nick" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">
+              🎲 Wylosuj ksywkę
+            </button>
+          </div>
+          <input type="text" id="editDisplayNameInput" maxlength="30" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div id="profileError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-profile" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+          <button type="button" data-action="save-profile" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Zapisz Zmiany</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: KODEKS SPEKULANTA                   -->
+  <!-- ========================================== -->
+  <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>📜</span> Kodeks Spekulanta — Zasady Gry
+        </h3>
+        <button data-action="close-rules" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-3.5 text-xs text-slate-300 leading-relaxed">
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-white block mb-0.5">💵 1. Kapitał Startowy: 100 000 PLN</span>
+          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. Handlujemy na realnych cenach giełdowych.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-amber-300 block mb-0.5">⚖️ 2. Zasada Dywersyfikacji (Max 35%)</span>
+          Żaden walor nie może przekraczać 35% łącznej wyceny Twojego portfela w chwili zakupu.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-indigo-300 block mb-0.5">🗣️ 3. Teza Inwestycyjna (min. 15 znaków)</span>
+          Każda transakcja wymaga publicznego uzasadnienia. Trafia ono do wspólnego feedu zespołu.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW & USA</span>
+          Akceptujemy symbole z USA (np. <code class="text-indigo-300">NVDA, AAPL</code>) oraz z GPW z końcówką <code class="text-indigo-300">.WA</code> (np. <code class="text-indigo-300">CDR.WA</code>).
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-rose-300 block mb-0.5">🚫 5. Brak Dźwigni i Pozycji Krótkich</span>
+          Brak lewara, brak gry na spadek. Kupujesz wyłącznie to, na co masz pokrycie w gotówce.
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <button data-action="close-rules" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">
+          Zrozumiałem, wchodzę na parkiet!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: FORMULARZ ZLECENIA                  -->
+  <!-- ========================================== -->
+  <div id="tradeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="trending-up" class="w-4 h-4 text-indigo-400"></i> Złóż Zlecenie Giełdowe
+        </h3>
+        <button data-action="close-trade" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="tradeForm" data-action="submit-trade" class="mt-4 space-y-4">
+        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+          <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition">KUPNO</button>
+          <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL" class="py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
+        </div>
+
+        <div id="buyInstrumentSection">
+          <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
+          <div class="flex gap-2">
+            <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
+            <button type="button" id="verifyBtn" data-action="verify-ticker" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+              Sprawdź
+            </button>
+          </div>
+        </div>
+
+        <div id="sellInstrumentSection" class="hidden">
+          <label class="block text-xs font-medium text-slate-300 mb-1">Wybierz ze swojego portfela</label>
+          <select id="userHoldingsSelect" data-action="holding-selected" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
+            <option value="">Wybierz walor do sprzedaży...</option>
+          </select>
+        </div>
+
+        <div id="verifiedInstrumentCard" class="hidden p-3 rounded-xl bg-indigo-950/20 border border-indigo-500/30 text-xs">
+          <div class="flex justify-between items-start">
+            <div>
+              <div id="instFullName" class="font-bold text-white text-sm">--</div>
+              <div id="instTickerDisplay" class="text-slate-400 font-mono mt-0.5">--</div>
+            </div>
+            <div class="text-right">
+              <div id="instPriceDisplay" class="font-bold text-indigo-200 font-mono">--</div>
+              <div id="instFxDisplay" class="text-slate-400 text-[10px] font-mono">--</div>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Liczba akcji (szt.)</label>
+            <span id="availableSharesBadge" class="hidden text-[11px] text-slate-400 font-mono">Dostępne: <b id="availableSharesCount" class="text-indigo-300">0</b></span>
+          </div>
+          <input type="number" step="0.001" min="0.001" id="tradeShares" data-action="update-estimated-cost" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
+
+          <div id="quickSharesButtons" class="hidden grid grid-cols-3 gap-2 mt-2">
+            <button type="button" data-action="set-shares-percentage" data-percent="0.25" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">25%</button>
+            <button type="button" data-action="set-shares-percentage" data-percent="0.50" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">50%</button>
+            <button type="button" data-action="set-shares-percentage" data-percent="1.00" class="py-1 text-[11px] bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 rounded border border-rose-800/40 font-semibold">MAX (Wszystko)</button>
+          </div>
+        </div>
+
+        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
+          <span class="text-slate-400">Wartość zlecenia:</span>
+          <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0.00 zł</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (min. 15 znaków)</label>
+          <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wykonujesz ten ruch?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
+        </div>
+
+        <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-trade" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+          <button type="submit" id="submitTradeBtn" disabled class="w-1/2 bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Złóż zlecenie</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- STOPKA                                     -->
+  <!-- ========================================== -->
+  <footer class="mt-auto border-t border-slate-850 bg-slate-950/80 py-8 text-center text-xs text-slate-400">
+    <div class="max-w-6xl mx-auto px-4 space-y-2">
+      <p class="font-medium text-slate-400">Karuzela Hajsu • Biurowa Liga Spekulacyjna</p>
+      <p class="text-slate-500 max-w-xl mx-auto text-[11px] leading-relaxed">
+        Żadna z informacji na tej platformie nie stanowi rekomendacji finansowej. Wszystkie transakcje są fikcyjne,
+        ale ból po przegraniu z benchmarkiem S&P 500 — w 100% autentyczny.
+      </p>
+      <div class="flex justify-center items-center gap-3 pt-2 text-[11px] text-slate-400">
+        <button data-action="open-rules" class="hover:text-indigo-400 transition">📜 Kodeks Spekulanta</button>
+        <span>•</span>
+        <span>Cron: Cloudflare Workers (*/15 min)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================== -->
+  <!-- SKRYPT APLIKACJI                           -->
+  <!-- ========================================== -->
+  <script defer src="/assets/js/state.js"></script>
+  <script defer src="/assets/js/api.js"></script>
+  <script defer src="/assets/js/utils.js"></script>
+  <script defer src="/assets/js/leaderboard.js"></script>
+<script defer src="/assets/js/portfolio.js"></script>
+<script defer src="/assets/js/profile.js"></script>
+<script defer src="/assets/js/admin.js"></script>
+<script defer src="/assets/js/trading.js"></script>
+<script defer src="/assets/js/app.js"></script>
+<script defer src="/assets/js/events.js"></script>
+</body>
+</html>
