@@ -4,9 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Karuzela Hajsu 🎠💸 — Biurowa Liga Spekulacyjna</title>
-  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
@@ -28,7 +26,7 @@
           <span class="text-2xl group-hover:scale-110 transition duration-200">🎠</span>
           <div>
             <h1 class="text-base font-extrabold tracking-tight text-white leading-tight flex items-center gap-1.5">
-              Karuzela Hajsu <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.2 rounded">v2.1</span>
+              Karuzela Hajsu <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.2 rounded">v2.2</span>
             </h1>
             <p class="text-[11px] text-slate-400">Biurowa Liga Spekulacyjna</p>
           </div>
@@ -77,12 +75,11 @@
         <button id="tabBtnArena" onclick="switchTab('arena')" class="py-3 px-4 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition">
           <i data-lucide="swords" class="w-4 h-4"></i> 🥊 Ring Spekulantów
         </button>
-        <!-- Ukryte domyślnie przez inline style aż do potwierdzenia sesji -->
         <button id="tabBtnPortfolio" onclick="switchTab('portfolio')" style="display: none;" class="py-3 px-4 text-xs font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition">
           <i data-lucide="wallet" class="w-4 h-4"></i> Mój Portfel
         </button>
         <button id="tabBtnAdmin" onclick="switchTab('admin')" style="display: none;" class="py-3 px-4 text-xs font-bold border-b-2 border-transparent text-amber-400 hover:text-amber-300 flex items-center gap-2 transition">
-          <i data-lucide="shield-check" class="w-4 h-4"></i> Panel Audytu
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Panel Audytu & Whitelist
         </button>
       </div>
 
@@ -236,7 +233,12 @@
           <div class="flex items-center gap-4">
             <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar" class="w-14 h-14 rounded-full border-2 border-indigo-500/40 bg-slate-800 object-cover">
             <div>
-              <span class="text-xs text-indigo-400 font-bold uppercase tracking-wider">Rachunek Inwestycyjny</span>
+              <div class="flex items-center gap-2">
+                <span class="text-xs text-indigo-400 font-bold uppercase tracking-wider">Rachunek Inwestycyjny</span>
+                <button onclick="openProfileModal()" class="text-[11px] text-slate-400 hover:text-indigo-300 bg-slate-800/80 border border-slate-700/80 px-2 py-0.5 rounded transition">
+                  ✏️ Edytuj profil
+                </button>
+              </div>
               <h2 id="userNameDisplay" class="text-2xl font-black text-white mt-0.5">--</h2>
               <p class="text-xs text-slate-400">Limit dywersyfikacji: max 35% na pojedynczą spółkę</p>
             </div>
@@ -253,7 +255,7 @@
           </div>
         </div>
 
-        <!-- Tabela otwartych pozycji -->
+        <!-- Tabela pozycji -->
         <div class="mt-6">
           <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Twoje Otwarte Pozycje</h3>
           <div class="overflow-x-auto">
@@ -280,9 +282,63 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- WIDOK 3: PANEL AUDYTU (ADMIN)             -->
+    <!-- WIDOK 3: PANEL AUDYTU & WHITELIST (ADMIN)  -->
     <!-- ========================================== -->
     <div id="viewAdmin" style="display: none;" class="space-y-6">
+      
+      <!-- SEKCJA: ZARZĄDZANIE BIAŁĄ LISTĄ (WHITELIST) -->
+      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="user-plus" class="w-4 h-4 text-indigo-400"></i> Dodaj Uczestnika do Gry (Biała Lista)
+            </h3>
+            <p class="text-xs text-slate-400">Tylko dodani użytkownicy będą mogli zalogować się kontem GitHub.</p>
+          </div>
+        </div>
+
+        <form id="addUserForm" onsubmit="handleAddUser(event)" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">GitHub Login (dokładny nick)</label>
+            <input type="text" id="newGhLogin" placeholder="np. jankowalski" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Wyświetlana nazwa / Ksywka</label>
+            <input type="text" id="newDisplayName" placeholder="np. Janek (Książę GPW)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div class="flex items-center gap-2 py-2">
+            <input type="checkbox" id="newIsAdmin" class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0">
+            <label for="newIsAdmin" class="text-xs text-slate-300 cursor-pointer">Uprawnienia Admina</label>
+          </div>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
+            + Wpuść na Karuzelę
+          </button>
+        </form>
+
+        <div id="addUserMsg" class="hidden text-xs p-2.5 rounded-lg"></div>
+
+        <!-- Tabela zarejestrowanych osób -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80">
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Obecna Biała Lista:</h4>
+          <div class="overflow-x-auto max-h-48">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 border-b border-slate-800 uppercase">
+                <tr>
+                  <th class="py-2">Gracz</th>
+                  <th class="py-2">GitHub Login</th>
+                  <th class="py-2 text-right">Gotówka</th>
+                  <th class="py-2 text-center">Rola</th>
+                </tr>
+              </thead>
+              <tbody id="whitelistTableBody" class="divide-y divide-slate-800/40 font-mono">
+                <tr><td colspan="4" class="py-4 text-center text-slate-500">Ładowanie uczestników...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEKCJA: DZIENNIK AUDYTU -->
       <div class="bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
         <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
           <div>
@@ -300,7 +356,7 @@
             </button>
           </div>
         </div>
-        <div class="overflow-x-auto max-h-[500px]">
+        <div class="overflow-x-auto max-h-[400px]">
           <table class="w-full text-left text-xs text-slate-300">
             <thead class="text-slate-400 uppercase bg-slate-950/40 border-b border-slate-800 sticky top-0">
               <tr>
@@ -318,9 +374,68 @@
           </table>
         </div>
       </div>
+
     </div>
 
   </main>
+
+  <!-- ========================================== -->
+  <!-- MODAL: EDYTOR PROFILU & AWATARA            -->
+  <!-- ========================================== -->
+  <div id="profileModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🎭</span> Twoje Biurowe Alter-Ego
+        </h3>
+        <button onclick="closeProfileModal()" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        <!-- Podgląd Awatara -->
+        <div class="flex flex-col items-center justify-center py-2">
+          <img id="editAvatarPreview" src="" alt="Podgląd" class="w-20 h-20 rounded-full border-2 border-indigo-500 bg-slate-800 object-cover shadow-lg">
+          <span class="text-[11px] text-slate-400 mt-2">Podgląd Twojej tożsamości na Ringu</span>
+        </div>
+
+        <!-- Losowanie stylu awatara -->
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" onclick="randomizeAvatar('bottts')" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            🤖 Losuj Robota
+          </button>
+          <button type="button" onclick="randomizeAvatar('pixel-art')" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            👾 Losuj Pixel-Art
+          </button>
+          <button type="button" onclick="randomizeAvatar('fun-emoji')" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            😎 Losuj Emotkę
+          </button>
+          <button type="button" onclick="resetToGithubAvatar()" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg border border-slate-700 transition">
+            🐙 Awatar z GitHuba
+          </button>
+        </div>
+
+        <!-- Ksywka i Generator -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Wyświetlana Ksywka</label>
+            <button type="button" onclick="generateFunnyNick()" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">
+              🎲 Wylosuj ksywkę
+            </button>
+          </div>
+          <input type="text" id="editDisplayNameInput" maxlength="30" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div id="profileError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeProfileModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+          <button type="button" onclick="saveProfile()" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Zapisz Zmiany</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <!-- ========================================== -->
   <!-- MODAL: KODEKS SPEKULANTA                   -->
@@ -372,7 +487,7 @@
   </div>
 
   <!-- ========================================== -->
-  <!-- MODAL: FORMULARZ ZLECENIA (SMART BUY/SELL) -->
+  <!-- MODAL: FORMULARZ ZLECENIA                  -->
   <!-- ========================================== -->
   <div id="tradeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
@@ -386,13 +501,11 @@
       </div>
 
       <form id="tradeForm" onsubmit="submitTrade(event)" class="mt-4 space-y-4">
-        <!-- Przełącznik KUPNO / SPRZEDAŻ -->
         <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
           <button type="button" id="btnBuy" onclick="setTradeType('BUY')" class="py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition">KUPNO</button>
           <button type="button" id="btnSell" onclick="setTradeType('SELL')" class="py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
         </div>
 
-        <!-- SEKCJA KUPNA: Wyszukiwarka Waloru -->
         <div id="buyInstrumentSection">
           <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
           <div class="flex gap-2">
@@ -403,7 +516,6 @@
           </div>
         </div>
 
-        <!-- SEKCJA SPRZEDAŻY: Wybór z Twoich posiadanych pozycji -->
         <div id="sellInstrumentSection" class="hidden">
           <label class="block text-xs font-medium text-slate-300 mb-1">Wybierz ze swojego portfela</label>
           <select id="userHoldingsSelect" onchange="onHoldingSelected()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
@@ -411,7 +523,6 @@
           </select>
         </div>
 
-        <!-- Karta zweryfikowanego instrumentu -->
         <div id="verifiedInstrumentCard" class="hidden p-3 rounded-xl bg-indigo-950/20 border border-indigo-500/30 text-xs">
           <div class="flex justify-between items-start">
             <div>
@@ -425,7 +536,6 @@
           </div>
         </div>
 
-        <!-- Liczba akcji + Szybkie przyciski procentowe w trybie sprzedaży -->
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="text-xs font-medium text-slate-300">Liczba akcji (szt.)</label>
@@ -433,7 +543,6 @@
           </div>
           <input type="number" step="0.001" min="0.001" id="tradeShares" oninput="updateEstimatedCost()" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
           
-          <!-- Szybkie przyciski kalkulacji przy sprzedaży -->
           <div id="quickSharesButtons" class="hidden grid grid-cols-3 gap-2 mt-2">
             <button type="button" onclick="setSharesPercentage(0.25)" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">25%</button>
             <button type="button" onclick="setSharesPercentage(0.50)" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">50%</button>
@@ -441,13 +550,11 @@
           </div>
         </div>
 
-        <!-- Szacowana wartość -->
         <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
           <span class="text-slate-400">Wartość zlecenia:</span>
           <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0.00 zł</span>
         </div>
 
-        <!-- Teza inwestycyjna -->
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (min. 15 znaków)</label>
           <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wykonujesz ten ruch?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
@@ -482,7 +589,7 @@
   </footer>
 
   <!-- ========================================== -->
-  <!-- LOGIKA JS                                  -->
+  <!-- SKRYPT APLIKACJI                           -->
   <!-- ========================================== -->
   <script>
     let currentUser = null;
@@ -491,6 +598,14 @@
     let currentTradeType = 'BUY';
     let currentTab = 'arena';
     let selectedHoldingMaxShares = 0;
+    let tempAvatarUrl = "";
+
+    const FUNNY_NAMES = [
+      "Wilk z Mordoru", "Książę GPW", "Pan Maruda (Wieczny Short)", 
+      "Krypto Szaman", "Mistrz All-In", "Złoty Strzał", "Spekulant przy ekspresie", 
+      "Królowa Dywidendy", "HODL Ape", "Prezes Zarządu ds. Strat", 
+      "Łowca Dołków", "Wieloryb z Korpo", "Ryzykant Piątkowy", "Rekin z Mordoru"
+    ];
 
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
@@ -505,7 +620,6 @@
       });
     });
 
-    // Ścisła kontrola zakładek
     function switchTab(tabId) {
       if ((tabId === 'portfolio' || tabId === 'admin') && !currentUser) {
         alert("Zaloguj się kontem GitHub, aby uzyskać dostęp!");
@@ -522,7 +636,6 @@
       document.getElementById("viewPortfolio").style.display = tabId === 'portfolio' ? 'block' : 'none';
       document.getElementById("viewAdmin").style.display = tabId === 'admin' ? 'block' : 'none';
 
-      // Style nawigacji
       const tabs = {
         arena: document.getElementById("tabBtnArena"),
         portfolio: document.getElementById("tabBtnPortfolio"),
@@ -539,7 +652,10 @@
       });
 
       if (tabId === 'portfolio') fetchUserPortfolio();
-      if (tabId === 'admin') fetchAuditLogs();
+      if (tabId === 'admin') {
+        fetchAuditLogs();
+        fetchAdminUsers();
+      }
       lucide.createIcons();
     }
 
@@ -563,7 +679,6 @@
             </div>
           `;
 
-          // Ujawnienie elementów po weryfikacji tożsamości
           document.getElementById("tabBtnPortfolio").style.display = 'flex';
           document.getElementById("quickTradeBtnContainer").style.display = 'block';
           document.getElementById("userNameDisplay").innerText = currentUser.display_name;
@@ -686,32 +801,61 @@
         const isBench = isBenchmarkRow(item.Uczestnik);
         const retCol = item.Stopa_Zwrotu > 0 ? "text-emerald-400" : (item.Stopa_Zwrotu < 0 ? "text-rose-400" : "text-slate-400");
         const rowBg = isBench 
-          ? "bg-indigo-950/25 border-l-4 border-indigo-500 font-semibold" 
+          ? "bg-indigo-950/20 border-l-4 border-indigo-500 font-semibold" 
           : "hover:bg-slate-900/60 transition";
 
-        let rankBadge = `<span class="text-slate-500 font-mono text-xs">${idx + 1}</span>`;
-        if (idx === 0 && !isBench) rankBadge = `<span class="text-amber-400 text-base">🥇</span>`;
-        if (idx === 1 && !isBench) rankBadge = `<span class="text-slate-300 text-base">🥈</span>`;
-        if (idx === 2 && !isBench) rankBadge = `<span class="text-amber-600 text-base">🥉</span>`;
-        if (isBench) rankBadge = `<span class="text-indigo-400 text-xs">📊</span>`;
+        // Rozpoznawanie flagi dla benchmarku
+        const nLower = (item.Uczestnik || '').toLowerCase();
+        const isSpFlag = nLower.includes("s&p") || nLower.includes("500") || (item.github_login === 'benchmark_sp500');
+        const isWigFlag = nLower.includes("wig") || (item.github_login === 'benchmark_wig20');
+        const flag = isSpFlag ? '🇺🇸' : (isWigFlag ? '🇵🇱' : '📊');
 
-        const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.Uczestnik)}`;
+        // Kolumna #
+        let rankBadge = `<span class="text-slate-500 font-mono text-xs">${idx + 1}</span>`;
+        if (isBench) {
+          rankBadge = `<span class="text-base" title="Oficjalny Benchmark">${flag}</span>`;
+        } else if (idx === 0) {
+          rankBadge = `<span class="text-amber-400 text-base">🥇</span>`;
+        } else if (idx === 1) {
+          rankBadge = `<span class="text-slate-300 text-base">🥈</span>`;
+        } else if (idx === 2) {
+          rankBadge = `<span class="text-amber-600 text-base">🥉</span>`;
+        }
+
+        // Kolumna Uczestnik (BEZ awatara przy benchmarkach)
+        let participantCell = "";
+        if (isBench) {
+          participantCell = `
+            <div class="flex items-center gap-2 py-0.5">
+              <span class="text-base">${flag}</span>
+              <div class="flex flex-col">
+                <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                  ${item.Uczestnik}
+                  <span class="text-[9px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-mono">Indeks</span>
+                </span>
+                <span class="text-[10px] text-slate-500 font-mono">Oficjalny Punkt Odniesienia</span>
+              </div>
+            </div>
+          `;
+        } else {
+          const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.Uczestnik)}`;
+          participantCell = `
+            <div class="flex items-center gap-2.5">
+              <img src="${avatar}" alt="${item.Uczestnik}" class="w-7 h-7 rounded-full bg-slate-800 object-cover border border-slate-700">
+              <div class="flex flex-col">
+                <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                  ${item.Uczestnik}
+                </span>
+                ${item.github_login ? `<span class="text-[10px] text-slate-500">@${item.github_login}</span>` : ''}
+              </div>
+            </div>
+          `;
+        }
 
         tbody.innerHTML += `
           <tr class="${rowBg} border-b border-slate-800/60">
             <td class="py-3.5 px-4 text-center font-mono">${rankBadge}</td>
-            <td class="py-3.5 px-4">
-              <div class="flex items-center gap-2.5">
-                <img src="${avatar}" alt="${item.Uczestnik}" class="w-7 h-7 rounded-full bg-slate-800 object-cover border border-slate-700">
-                <div class="flex flex-col">
-                  <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5">
-                    ${item.Uczestnik}
-                    ${isBench ? '<span class="text-[9px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-mono">Indeks</span>' : ''}
-                  </span>
-                  ${item.github_login && !isBench ? `<span class="text-[10px] text-slate-500">@${item.github_login}</span>` : ''}
-                </div>
-              </div>
-            </td>
+            <td class="py-3.5 px-4">${participantCell}</td>
             <td class="py-3.5 px-4 text-right font-mono text-slate-200">${formatPLN(item.Wycena_Calkowita_PLN)}</td>
             <td class="py-3.5 px-4 text-right font-mono text-slate-400">${formatPLN(item.Gotowka_PLN)}</td>
             <td class="py-3.5 px-4 text-right font-mono ${retCol}">${formatPLN(item.Zysk_Strata_PLN)}</td>
@@ -806,7 +950,139 @@
       }
     }
 
-    // Inteligentny Modal Zleceń (Smart Buy/Sell)
+    // ==========================================
+    // EDYCJA PROFILU & GENERATOR AWATARÓW
+    // ==========================================
+    function openProfileModal() {
+      if (!currentUser) return;
+      document.getElementById("profileError").classList.add("hidden");
+      document.getElementById("editDisplayNameInput").value = currentUser.display_name;
+      tempAvatarUrl = currentUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentUser.display_name)}`;
+      document.getElementById("editAvatarPreview").src = tempAvatarUrl;
+      document.getElementById("profileModal").classList.remove("hidden");
+    }
+
+    function closeProfileModal() {
+      document.getElementById("profileModal").classList.add("hidden");
+    }
+
+    function generateFunnyNick() {
+      const randomNick = FUNNY_NAMES[Math.floor(Math.random() * FUNNY_NAMES.length)];
+      document.getElementById("editDisplayNameInput").value = randomNick;
+    }
+
+    function randomizeAvatar(collection) {
+      const randomSeed = Math.random().toString(36).substring(2, 9);
+      tempAvatarUrl = `https://api.dicebear.com/7.x/${collection}/svg?seed=${randomSeed}`;
+      document.getElementById("editAvatarPreview").src = tempAvatarUrl;
+    }
+
+    function resetToGithubAvatar() {
+      if (currentUser?.github_login) {
+        tempAvatarUrl = `https://github.com/${currentUser.github_login}.png`;
+        document.getElementById("editAvatarPreview").src = tempAvatarUrl;
+      }
+    }
+
+    async function saveProfile() {
+      const errDiv = document.getElementById("profileError");
+      errDiv.classList.add("hidden");
+
+      const newName = document.getElementById("editDisplayNameInput").value.trim();
+      if (!newName || newName.length < 2) {
+        errDiv.innerText = "Nazwa musi mieć min. 2 znaki.";
+        errDiv.classList.remove("hidden");
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/profile', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ display_name: newName, avatar_url: tempAvatarUrl })
+        });
+        const data = await res.json();
+
+        if (data.status === "success") {
+          closeProfileModal();
+          await checkAuth();
+          await fetchAllData();
+          alert("Profil zaktualizowany!");
+        } else {
+          errDiv.innerText = data.message || "Błąd zapisu profilu.";
+          errDiv.classList.remove("hidden");
+        }
+      } catch (err) {
+        errDiv.innerText = "Błąd połączenia z serwerem.";
+        errDiv.classList.remove("hidden");
+      }
+    }
+
+    // ==========================================
+    // PANEL ADMINA: WHITELIST
+    // ==========================================
+    async function fetchAdminUsers() {
+      try {
+        const res = await fetch('/api/admin/users');
+        const json = await res.json();
+        const tbody = document.getElementById("whitelistTableBody");
+
+        if (json.status === "success" && json.data) {
+          tbody.innerHTML = "";
+          json.data.forEach(u => {
+            const isAdm = u.is_admin === 1;
+            const roleBadge = isAdm ? `<span class="text-amber-400 font-bold">Admin</span>` : `<span class="text-slate-400">Gracz</span>`;
+            tbody.innerHTML += `
+              <tr class="border-b border-slate-800/40 hover:bg-slate-950/40">
+                <td class="py-2 text-white font-sans font-semibold">${u.display_name}</td>
+                <td class="py-2 text-slate-400">@${u.github_login}</td>
+                <td class="py-2 text-right text-emerald-400">${formatPLN(u.current_cash)}</td>
+                <td class="py-2 text-center">${roleBadge}</td>
+              </tr>
+            `;
+          });
+        }
+      } catch (e) {
+        console.error("Admin users error:", e);
+      }
+    }
+
+    async function handleAddUser(e) {
+      e.preventDefault();
+      const msgDiv = document.getElementById("addUserMsg");
+      msgDiv.className = "hidden text-xs p-2.5 rounded-lg";
+
+      const ghLogin = document.getElementById("newGhLogin").value.trim();
+      const dispName = document.getElementById("newDisplayName").value.trim();
+      const isAdmin = document.getElementById("newIsAdmin").checked;
+
+      try {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ github_login: ghLogin, display_name: dispName, is_admin: isAdmin })
+        });
+        const data = await res.json();
+
+        if (data.status === "success") {
+          msgDiv.innerText = data.message;
+          msgDiv.className = "text-xs p-2.5 rounded-lg bg-emerald-950/40 text-emerald-400 border border-emerald-900/50 block";
+          document.getElementById("addUserForm").reset();
+          fetchAdminUsers();
+          fetchAllData();
+        } else {
+          msgDiv.innerText = data.message;
+          msgDiv.className = "text-xs p-2.5 rounded-lg bg-rose-950/40 text-rose-400 border border-rose-900/50 block";
+        }
+      } catch (err) {
+        msgDiv.innerText = "Błąd sieci podczas dodawania gracza.";
+        msgDiv.className = "text-xs p-2.5 rounded-lg bg-rose-950/40 text-rose-400 border border-rose-900/50 block";
+      }
+    }
+
+    // ==========================================
+    // TRANSAKCJE
+    // ==========================================
     function openTradeModal(type = 'BUY') {
       if (!currentUser) {
         alert("Musisz być zalogowany!");
