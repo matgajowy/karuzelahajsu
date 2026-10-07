@@ -5,6 +5,9 @@ main = "worker.js"
 [vars]
 GITHUB_CLIENT_ID = "Ov23liBBJtlHrJ0Ey1pf"
 
+[triggers]
+crons = ["*/15 8-22 * * 1-5"]
+
 [assets]
 directory = "."
 

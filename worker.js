@@ -1,4 +1,56 @@
+// Pomocnicza funkcja pobierająca aktualne kursy z Yahoo Finance
+async function syncMarketPrices(env) {
+  const log = [];
+  
+  // 1. Pobranie aktualnego kursu USD/PLN
+  let usdPlnRate = 4.00;
+  try {
+    const fxRes = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/USDPLN=X?interval=1d&range=1d", {
+      headers: { "User-Agent": "Mozilla/5.0" }
+    });
+    const fxData = await fxRes.json();
+    usdPlnRate = fxData.chart.result[0].meta.regularMarketPrice || usdPlnRate;
+    log.push(`FX USD/PLN zaktualizowany: ${usdPlnRate}`);
+  } catch (e) {
+    log.push(`Błąd pobierania USD/PLN, użyto fallbacku: ${usdPlnRate}`);
+  }
+
+  // 2. Pobranie listy tickerów z bazy
+  const { results: tickers } = await env.DB.prepare("SELECT ticker, currency FROM market_prices").all();
+
+  for (const item of tickers) {
+    try {
+      // Mapowanie tickera na symbol Yahoo (dla WIG20 wymagane jest WIG20.WA)
+      const yahooSymbol = item.ticker === "WIG20" ? "WIG20.WA" : item.ticker;
+      const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`, {
+        headers: { "User-Agent": "Mozilla/5.0" }
+      });
+      const data = await res.json();
+      const currentPrice = data.chart?.result?.[0]?.meta?.regularMarketPrice;
+
+      if (currentPrice && Number.isFinite(currentPrice)) {
+        const fx = item.currency === "USD" ? usdPlnRate : 1.0;
+        await env.DB.prepare(`
+          UPDATE market_prices 
+          SET price = ?, fx_to_pln = ?, updated_at = CURRENT_TIMESTAMP 
+          WHERE ticker = ?
+        `).bind(currentPrice, fx, item.ticker).run();
+        log.push(`${item.ticker}: ${currentPrice} ${item.currency}`);
+      }
+    } catch (err) {
+      log.push(`Błąd aktualizacji ${item.ticker}: ${err.message}`);
+    }
+  }
+
+  return log;
+}
+
 export default {
+  // Obsługa zadań w tle (Cloudflare Cron Triggers)
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil(syncMarketPrices(env));
+  },
+
   async fetch(request, env) {
     const url = new URL(request.url);
     const clientIp = request.headers.get("cf-connecting-ip") || "unknown";
@@ -16,14 +68,12 @@ export default {
       if (!match) return null;
 
       const token = match[1];
-      const session = await env.DB.prepare(`
+      return await env.DB.prepare(`
         SELECT u.id, u.github_login, u.display_name, u.current_cash, u.is_admin 
         FROM sessions s 
         JOIN users u ON s.user_id = u.id 
         WHERE s.token = ? AND s.expires_at > datetime('now')
       `).bind(token).first();
-
-      return session || null;
     }
 
     async function logAudit(userId, action, payload, status) {
@@ -35,6 +85,16 @@ export default {
       } catch (e) {
         console.error("Audit log error:", e);
       }
+    }
+
+    // --- RĘCZNA SYNCHRONIZACJA KURSÓW (Dla Admina / do testów) ---
+    if (url.pathname === "/api/admin/sync-prices") {
+      const user = await getAuthenticatedUser();
+      if (!user || user.is_admin !== 1) {
+        return new Response(JSON.stringify({ status: "error", message: "Wymagane uprawnienia administratora." }), { status: 403, headers: corsHeaders });
+      }
+      const logs = await syncMarketPrices(env);
+      return new Response(JSON.stringify({ status: "success", logs }), { headers: corsHeaders });
     }
 
     // --- 1. AUTH GITHUB ---
@@ -128,15 +188,15 @@ export default {
       });
     }
 
-    // --- 5. LISTA DOSTĘPNYCH INSTRUMENTÓW (/api/instruments) ---
+    // --- 5. INSTRUMENTY (/api/instruments) ---
     if (url.pathname === "/api/instruments") {
       const { results } = await env.DB.prepare(
-        "SELECT ticker, name, price, currency, fx_to_pln, (price * fx_to_pln) AS price_pln FROM market_prices ORDER BY ticker ASC"
+        "SELECT ticker, name, price, currency, fx_to_pln, (price * fx_to_pln) AS price_pln FROM market_prices WHERE ticker NOT IN ('^GSPC', 'WIG20') ORDER BY ticker ASC"
       ).all();
       return new Response(JSON.stringify({ status: "success", data: results }), { headers: corsHeaders });
     }
 
-    // --- 6. PORTFEL ZALOGOWANEGO UŻYTKOWNIKA (/api/portfolio) ---
+    // --- 6. PORTFEL (/api/portfolio) ---
     if (url.pathname === "/api/portfolio") {
       const user = await getAuthenticatedUser();
       if (!user) return new Response(JSON.stringify({ status: "error", message: "Wymagane logowanie" }), { status: 401, headers: corsHeaders });
@@ -159,7 +219,7 @@ export default {
       return new Response(JSON.stringify({ status: "success", data: results, cash: user.current_cash }), { headers: corsHeaders });
     }
 
-    // --- 7. SILNIK TRANSAKCYJNY Z REGUŁAMI GRY (/api/trade) ---
+    // --- 7. TRANSAKCJE (/api/trade) ---
     if (url.pathname === "/api/trade" && request.method === "POST") {
       const user = await getAuthenticatedUser();
       if (!user) return new Response(JSON.stringify({ status: "error", message: "Brak autoryzacji" }), { status: 401, headers: corsHeaders });
@@ -167,18 +227,15 @@ export default {
       try {
         const { ticker, type, shares, thesis } = await request.json();
 
-        // Walidacja formatu
         if (!ticker || typeof ticker !== "string") throw new Error("Nieprawidłowy ticker.");
         if (type !== "BUY" && type !== "SELL") throw new Error("Typ zlecenia musi wynosić BUY lub SELL.");
         const parsedShares = Number(shares);
         if (!Number.isFinite(parsedShares) || parsedShares <= 0) throw new Error("Liczba akcji musi być większa od 0.");
         
-        // Reguła: Wymóg uzasadnienia (min. 15 znaków)
         if (!thesis || typeof thesis !== "string" || thesis.trim().length < 15) {
-          throw new Error("Regulamin ligi: Uzasadnienie transakcji (thesis) musi mieć co najmniej 15 znaków.");
+          throw new Error("Regulamin ligi: Uzasadnienie transakcji musi mieć co najmniej 15 znaków.");
         }
 
-        // Pobranie aktualnej ceny rynkowej z bazy
         const market = await env.DB.prepare(
           "SELECT price, fx_to_pln FROM market_prices WHERE ticker = ?"
         ).bind(ticker.toUpperCase()).first();
@@ -187,7 +244,6 @@ export default {
 
         const tradeValuePLN = parsedShares * market.price * market.fx_to_pln;
 
-        // Pobranie aktualnej całkowitej wyceny portfela gracza
         const portfolioValRes = await env.DB.prepare(`
           SELECT (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0)) as total_val
           FROM users u
@@ -199,7 +255,6 @@ export default {
         const totalPortfolioValue = portfolioValRes ? portfolioValRes.total_val : user.current_cash;
 
         if (type === "BUY") {
-          // Pobranie aktualnie posiadanej liczby tych akcji
           const currentHolding = await env.DB.prepare(
             "SELECT shares FROM holdings WHERE user_id = ? AND ticker = ?"
           ).bind(user.id, ticker.toUpperCase()).first();
@@ -207,23 +262,20 @@ export default {
           const existingShares = currentHolding ? currentHolding.shares : 0;
           const targetValuePLN = (existingShares + parsedShares) * market.price * market.fx_to_pln;
 
-          // Reguła: Max 35% na jedną spółkę
           const maxAllowedExposure = totalPortfolioValue * 0.35;
           if (targetValuePLN > maxAllowedExposure) {
             const limitPct = ((targetValuePLN / totalPortfolioValue) * 100).toFixed(1);
-            throw new Error(`Limit dywersyfikacji przekroczony: Pozycja stanowiłaby ${limitPct}% portfela (maksimum regulaminowe to 35.0%).`);
+            throw new Error(`Limit dywersyfikacji przekroczony: Pozycja stanowiłaby ${limitPct}% portfela (maksimum to 35.0%).`);
           }
 
-          // Atomowa weryfikacja i pobranie gotówki
           const cashUpdate = await env.DB.prepare(`
             UPDATE users SET current_cash = current_cash - ? WHERE id = ? AND current_cash >= ?
           `).bind(tradeValuePLN, user.id, tradeValuePLN).run();
 
           if (cashUpdate.meta.changes === 0) {
-            throw new Error("Niewystarczające saldo gotówki na zrealizowanie zlecenia.");
+            throw new Error("Niewystarczające saldo gotówki na rachunku.");
           }
 
-          // Zapis pozycji (UPSERT) i transakcji
           await env.DB.batch([
             env.DB.prepare(`
               INSERT INTO holdings (user_id, ticker, shares, avg_buy_price) 
@@ -239,13 +291,12 @@ export default {
           ]);
 
         } else if (type === "SELL") {
-          // Atomowe sprawdzenie i odjęcie akcji
           const holdingUpdate = await env.DB.prepare(`
             UPDATE holdings SET shares = shares - ? WHERE user_id = ? AND ticker = ? AND shares >= ?
           `).bind(parsedShares, user.id, ticker.toUpperCase(), parsedShares).run();
 
           if (holdingUpdate.meta.changes === 0) {
-            throw new Error("Nie posiadasz wystarczającej liczby akcji do sprzedaży (zakaz krótkiej sprzedaży).");
+            throw new Error("Brak wystarczającej liczby akcji do sprzedaży.");
           }
 
           await env.DB.batch([
@@ -258,7 +309,7 @@ export default {
         }
 
         await logAudit(user.id, `TRADE_${type}`, { ticker, shares: parsedShares, value: tradeValuePLN, thesis }, "SUCCESS");
-        return new Response(JSON.stringify({ status: "success", message: `Zlecenie ${type} na ${ticker} zostało zrealizowane pomyślnie!` }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ status: "success", message: `Zlecenie ${type} na ${ticker} zrealizowane!` }), { headers: corsHeaders });
 
       } catch (err) {
         await logAudit(user.id, "TRADE_ERROR", { error: err.message }, "FAILED");
@@ -266,7 +317,7 @@ export default {
       }
     }
 
-    // --- 8. RANKING LIGI (/api/leaderboard) ---
+    // --- 8. RANKING (/api/leaderboard) ---
     if (url.pathname === "/api/leaderboard") {
       try {
         const query = `
