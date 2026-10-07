@@ -22,7 +22,7 @@
           <i data-lucide="trending-up" class="w-4 h-4"></i> Paper Trading Challenge
         </div>
         <h1 class="text-3xl font-bold tracking-tight text-white">Karuzela Hajsu 🎠💸</h1>
-        <p class="text-slate-400 text-sm mt-1">Śledź stopy zwrotu, tezy inwestycyjne i rywalizację z rynkiem.</p>
+        <p class="text-slate-400 text-sm mt-1">Graj na realnych kursach GPW i USA. Maksymalna ekspozycja: 35% na walor.</p>
       </div>
 
       <div class="flex items-center gap-3">
@@ -38,7 +38,7 @@
       </div>
     </header>
 
-    <!-- Panel Inwestora (dla zalogowanych) -->
+    <!-- Panel Inwestora -->
     <div id="userPanel" class="hidden mt-6 bg-slate-900 border border-indigo-500/30 rounded-2xl p-6">
       <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-800">
         <div>
@@ -56,7 +56,7 @@
         </div>
       </div>
 
-      <!-- Pozycje portfela -->
+      <!-- Tabela portfela -->
       <div class="mt-4">
         <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Twoje Otwarte Pozycje</h3>
         <div class="overflow-x-auto">
@@ -69,21 +69,22 @@
                 <th class="py-2 text-right">Kurs bieżący</th>
                 <th class="py-2 text-right">Wycena (PLN)</th>
                 <th class="py-2 text-right">Wynik</th>
+                <th class="py-2 text-center">Akcja</th>
               </tr>
             </thead>
             <tbody id="portfolioTableBody">
-              <tr><td colspan="6" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>
+              <tr><td colspan="7" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- Modal Zlecenia -->
+    <!-- Modal Zlecenia z Dynamiczną Walidacją Walorów -->
     <div id="tradeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
         <h3 class="text-lg font-bold text-white mb-1">Złóż Zlecenie Giełdowe</h3>
-        <p class="text-slate-400 text-xs mb-4">Maksymalna ekspozycja: 35% wartości portfela.</p>
+        <p class="text-slate-400 text-xs mb-4">Wpisz dowolny ticker GPW (np. CDR.WA) lub USA (np. PLTR, NVDA).</p>
 
         <form id="tradeForm" onsubmit="submitTrade(event)" class="space-y-4">
           <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-lg border border-slate-800">
@@ -91,16 +92,34 @@
             <button type="button" id="btnSell" onclick="setTradeType('SELL')" class="py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
           </div>
 
+          <!-- Wyszukiwarka Tickera -->
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Instrument</label>
-            <select id="tradeTicker" onchange="updateEstimatedCost()" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
-              <option value="">Wybierz walor...</option>
-            </select>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
+            <div class="flex gap-2">
+              <input type="text" id="tradeTickerInput" placeholder="np. PLTR, AAPL, CDR.WA" uppercase class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
+              <button type="button" id="verifyBtn" onclick="verifyTicker()" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+                Sprawdź
+              </button>
+            </div>
+          </div>
+
+          <!-- Karta zweryfikowanego waloru -->
+          <div id="verifiedInstrumentCard" class="hidden p-3 rounded-lg bg-indigo-950/20 border border-indigo-500/30 text-xs">
+            <div class="flex justify-between items-start">
+              <div>
+                <div id="instFullName" class="font-bold text-white text-sm">--</div>
+                <div id="instTickerDisplay" class="text-slate-400 font-mono mt-0.5">--</div>
+              </div>
+              <div class="text-right">
+                <div id="instPriceDisplay" class="font-bold text-indigo-200">--</div>
+                <div id="instFxDisplay" class="text-slate-400 text-[10px]">--</div>
+              </div>
+            </div>
           </div>
 
           <div>
             <label class="block text-xs font-medium text-slate-300 mb-1">Liczba akcji (szt.)</label>
-            <input type="number" step="0.01" min="0.01" id="tradeShares" oninput="updateEstimatedCost()" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+            <input type="number" step="0.001" min="0.001" id="tradeShares" oninput="updateEstimatedCost()" required placeholder="np. 15" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
           </div>
 
           <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800 text-xs flex justify-between items-center">
@@ -110,14 +129,14 @@
 
           <div>
             <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (Thesis - min. 15 znaków)</label>
-            <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wchodzisz/wychodzisz z tej pozycji?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100"></textarea>
+            <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wchodzisz/wychodzisz z tej pozycji?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
           </div>
 
           <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/30 p-2.5 rounded-lg border border-rose-900/50"></div>
 
           <div class="flex gap-2 pt-2">
             <button type="button" onclick="closeTradeModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-sm font-medium transition cursor-pointer">Anuluj</button>
-            <button type="submit" id="submitTradeBtn" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-medium transition cursor-pointer">Złóż zlecenie</button>
+            <button type="submit" id="submitTradeBtn" disabled class="w-1/2 bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-medium transition cursor-pointer">Złóż zlecenie</button>
           </div>
         </form>
       </div>
@@ -188,7 +207,7 @@
       </div>
     </div>
 
-    <!-- Panel Audytu (tylko dla Admina) -->
+    <!-- Panel Audytu (Admin) -->
     <div id="adminAuditSection" class="hidden mt-8 bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
       <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
         <h2 class="text-base font-semibold text-amber-300 flex items-center gap-2">
@@ -219,21 +238,27 @@
 
   <script>
     let currentUser = null;
-    let instrumentsCache = [];
+    let verifiedInstrument = null;
     let currentTradeType = 'BUY';
 
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
       checkAuth();
       fetchAllData();
+
+      // Enter w wyszukiwarce waloru
+      document.getElementById("tradeTickerInput").addEventListener("keypress", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          verifyTicker();
+        }
+      });
     });
 
     async function fetchAllData() {
       fetchLeaderboard();
       fetchFeed();
-      if (currentUser && currentUser.is_admin === 1) {
-        fetchAuditLogs();
-      }
+      if (currentUser && currentUser.is_admin === 1) fetchAuditLogs();
     }
 
     async function checkAuth() {
@@ -278,6 +303,195 @@
       }
     }
 
+    async function verifyTicker() {
+      const input = document.getElementById("tradeTickerInput");
+      const ticker = input.value.trim().toUpperCase();
+      const errDiv = document.getElementById("tradeError");
+      const btn = document.getElementById("verifyBtn");
+      const submitBtn = document.getElementById("submitTradeBtn");
+
+      if (!ticker) return;
+
+      errDiv.classList.add("hidden");
+      btn.innerText = "...";
+      btn.disabled = true;
+
+      try {
+        const res = await fetch(`/api/instruments/search?q=${encodeURIComponent(ticker)}`);
+        const json = await res.json();
+
+        if (json.status === "success") {
+          verifiedInstrument = json.data;
+          document.getElementById("instFullName").innerText = verifiedInstrument.name;
+          document.getElementById("instTickerDisplay").innerText = verifiedInstrument.ticker;
+          document.getElementById("instPriceDisplay").innerText = `${verifiedInstrument.price.toFixed(2)} ${verifiedInstrument.currency}`;
+          document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "PLN" ? "1.00 PLN" : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN (kurs: ${verifiedInstrument.fx_to_pln.toFixed(2)})`;
+          
+          document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
+          submitBtn.disabled = false;
+          updateEstimatedCost();
+        } else {
+          verifiedInstrument = null;
+          document.getElementById("verifiedInstrumentCard").classList.add("hidden");
+          submitBtn.disabled = true;
+          errDiv.innerText = json.message || "Błąd walidacji waloru";
+          errDiv.classList.remove("hidden");
+        }
+      } catch (e) {
+        errDiv.innerText = "Błąd połączenia z API wyszukiwania.";
+        errDiv.classList.remove("hidden");
+      } finally {
+        btn.innerText = "Sprawdź";
+        btn.disabled = false;
+      }
+    }
+
+    function quickSell(ticker, shares) {
+      openTradeModal();
+      setTradeType('SELL');
+      document.getElementById("tradeTickerInput").value = ticker;
+      document.getElementById("tradeShares").value = shares;
+      verifyTicker();
+    }
+
+    async function fetchUserPortfolio() {
+      try {
+        const res = await fetch('/api/portfolio');
+        const json = await res.json();
+        if (json.status === "success") {
+          document.getElementById("userCashDisplay").innerText = formatPLN(json.cash);
+          const tbody = document.getElementById("portfolioTableBody");
+          if (json.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>';
+            return;
+          }
+          tbody.innerHTML = "";
+          json.data.forEach(p => {
+            const retCol = p.return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400';
+            tbody.innerHTML += `
+              <tr class="border-b border-slate-800/40">
+                <td class="py-2.5 font-semibold text-white">${p.ticker} <span class="text-slate-500 font-normal">(${p.name})</span></td>
+                <td class="py-2.5 text-right font-mono">${p.shares}</td>
+                <td class="py-2.5 text-right text-slate-400">${p.avg_buy_price.toFixed(2)} ${p.currency}</td>
+                <td class="py-2.5 text-right text-slate-200">${p.current_price.toFixed(2)} ${p.currency}</td>
+                <td class="py-2.5 text-right text-slate-200">${formatPLN(p.current_value_pln)}</td>
+                <td class="py-2.5 text-right font-semibold ${retCol}">${p.return_pct >= 0 ? '+' : ''}${p.return_pct.toFixed(2)}%</td>
+                <td class="py-2.5 text-center">
+                  <button onclick="quickSell('${p.ticker}', ${p.shares})" class="text-[11px] bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 px-2 py-0.5 rounded transition">
+                    Sprzedaj
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+        }
+      } catch (e) {
+        console.error("Portfolio error:", e);
+      }
+    }
+
+    async function openTradeModal() {
+      document.getElementById("tradeError").classList.add("hidden");
+      document.getElementById("tradeTickerInput").value = "";
+      document.getElementById("tradeShares").value = "";
+      document.getElementById("tradeThesis").value = "";
+      document.getElementById("estimatedCost").innerText = "0.00 zł";
+      document.getElementById("verifiedInstrumentCard").classList.add("hidden");
+      document.getElementById("submitTradeBtn").disabled = true;
+      verifiedInstrument = null;
+      document.getElementById("tradeModal").classList.remove("hidden");
+    }
+
+    function closeTradeModal() {
+      document.getElementById("tradeModal").classList.add("hidden");
+    }
+
+    function setTradeType(type) {
+      currentTradeType = type;
+      const bBuy = document.getElementById("btnBuy");
+      const bSell = document.getElementById("btnSell");
+      if (type === 'BUY') {
+        bBuy.className = "py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white transition";
+        bSell.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
+      } else {
+        bSell.className = "py-1.5 text-xs font-bold rounded-md bg-rose-600 text-white transition";
+        bBuy.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
+      }
+      updateEstimatedCost();
+    }
+
+    function updateEstimatedCost() {
+      const shares = Number(document.getElementById("tradeShares").value) || 0;
+      if (verifiedInstrument && shares > 0) {
+        const val = shares * verifiedInstrument.price_pln;
+        document.getElementById("estimatedCost").innerText = formatPLN(val);
+      } else {
+        document.getElementById("estimatedCost").innerText = "0.00 zł";
+      }
+    }
+
+    async function submitTrade(e) {
+      e.preventDefault();
+      const errDiv = document.getElementById("tradeError");
+      errDiv.classList.add("hidden");
+
+      if (!verifiedInstrument) {
+        errDiv.innerText = "Najpierw sprawdź walor za pomocą przycisku 'Sprawdź'.";
+        errDiv.classList.remove("hidden");
+        return;
+      }
+
+      const payload = {
+        ticker: verifiedInstrument.ticker,
+        type: currentTradeType,
+        shares: Number(document.getElementById("tradeShares").value),
+        thesis: document.getElementById("tradeThesis").value
+      };
+
+      try {
+        const res = await fetch('/api/trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+
+        if (data.status === "success") {
+          closeTradeModal();
+          fetchAllData();
+          fetchUserPortfolio();
+        } else {
+          errDiv.innerText = data.message || "Błąd transakcji";
+          errDiv.classList.remove("hidden");
+        }
+      } catch (err) {
+        errDiv.innerText = "Błąd sieci";
+        errDiv.classList.remove("hidden");
+      }
+    }
+
+    async function handleLogout() {
+      await fetch('/api/logout', { method: 'POST' });
+      location.reload();
+    }
+
+    async function fetchLeaderboard() {
+      const icon = document.getElementById("refreshIcon");
+      if (icon) icon.classList.add("animate-spin");
+
+      try {
+        const res = await fetch('/api/leaderboard');
+        const json = await res.json();
+        if (json.status === "success") {
+          renderDashboard(json.data, `Zaktualizowano: ${new Date().toLocaleTimeString()}`);
+        }
+      } catch (e) {
+        console.error(e);
+      } finally {
+        if (icon) icon.classList.remove("animate-spin");
+      }
+    }
+
     async function fetchFeed() {
       try {
         const res = await fetch('/api/feed');
@@ -310,11 +524,9 @@
               </div>
             `;
           });
-        } else {
-          container.innerHTML = '<div class="text-center text-slate-500 text-xs py-4">Brak ostatnich transakcji. Bądź pierwszym, który złoży zlecenie!</div>';
         }
       } catch (e) {
-        console.error("Feed error:", e);
+        console.error(e);
       }
     }
 
@@ -328,13 +540,12 @@
           tbody.innerHTML = "";
           json.data.forEach(log => {
             const isOk = log.status === "SUCCESS";
-            const stColor = isOk ? "text-emerald-400" : "text-rose-400 font-bold";
             tbody.innerHTML += `
               <tr class="border-b border-slate-800/40 hover:bg-slate-950/40">
                 <td class="py-2 px-4 text-slate-500 text-[11px]">${log.created_at}</td>
                 <td class="py-2 px-4 text-slate-300">${log.user_name}</td>
                 <td class="py-2 px-4 text-indigo-300 font-semibold">${log.action}</td>
-                <td class="py-2 px-4 ${stColor}">${log.status}</td>
+                <td class="py-2 px-4 ${isOk ? 'text-emerald-400' : 'text-rose-400 font-bold'}">${log.status}</td>
                 <td class="py-2 px-4 text-slate-400 text-[11px]">${log.ip_address}</td>
                 <td class="py-2 px-4 text-slate-400 text-[11px] truncate max-w-xs" title='${log.payload}'>${log.payload}</td>
               </tr>
@@ -342,144 +553,7 @@
           });
         }
       } catch (e) {
-        console.error("Audit log error:", e);
-      }
-    }
-
-    async function fetchUserPortfolio() {
-      try {
-        const res = await fetch('/api/portfolio');
-        const json = await res.json();
-        if (json.status === "success") {
-          document.getElementById("userCashDisplay").innerText = formatPLN(json.cash);
-          const tbody = document.getElementById("portfolioTableBody");
-          if (json.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>';
-            return;
-          }
-          tbody.innerHTML = "";
-          json.data.forEach(p => {
-            const retCol = p.return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400';
-            tbody.innerHTML += `
-              <tr class="border-b border-slate-800/40">
-                <td class="py-2.5 font-semibold text-white">${p.ticker} <span class="text-slate-500 font-normal">(${p.name})</span></td>
-                <td class="py-2.5 text-right font-mono">${p.shares}</td>
-                <td class="py-2.5 text-right text-slate-400">${p.avg_buy_price.toFixed(2)} ${p.currency}</td>
-                <td class="py-2.5 text-right text-slate-200">${p.current_price.toFixed(2)} ${p.currency}</td>
-                <td class="py-2.5 text-right text-slate-200">${formatPLN(p.current_value_pln)}</td>
-                <td class="py-2.5 text-right font-semibold ${retCol}">${p.return_pct >= 0 ? '+' : ''}${p.return_pct.toFixed(2)}%</td>
-              </tr>
-            `;
-          });
-        }
-      } catch (e) {
-        console.error("Portfolio fetch error:", e);
-      }
-    }
-
-    async function openTradeModal() {
-      document.getElementById("tradeError").classList.add("hidden");
-      document.getElementById("tradeShares").value = "";
-      document.getElementById("tradeThesis").value = "";
-      document.getElementById("estimatedCost").innerText = "0.00 zł";
-
-      if (instrumentsCache.length === 0) {
-        const res = await fetch('/api/instruments');
-        const json = await res.json();
-        instrumentsCache = json.data || [];
-        const select = document.getElementById("tradeTicker");
-        select.innerHTML = '<option value="">Wybierz walor...</option>';
-        instrumentsCache.forEach(i => {
-          select.innerHTML += `<option value="${i.ticker}">${i.ticker} - ${i.name} (${i.price} ${i.currency})</option>`;
-        });
-      }
-
-      document.getElementById("tradeModal").classList.remove("hidden");
-    }
-
-    function closeTradeModal() {
-      document.getElementById("tradeModal").classList.add("hidden");
-    }
-
-    function setTradeType(type) {
-      currentTradeType = type;
-      const bBuy = document.getElementById("btnBuy");
-      const bSell = document.getElementById("btnSell");
-      if (type === 'BUY') {
-        bBuy.className = "py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white transition";
-        bSell.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
-      } else {
-        bSell.className = "py-1.5 text-xs font-bold rounded-md bg-rose-600 text-white transition";
-        bBuy.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
-      }
-      updateEstimatedCost();
-    }
-
-    function updateEstimatedCost() {
-      const ticker = document.getElementById("tradeTicker").value;
-      const shares = Number(document.getElementById("tradeShares").value) || 0;
-      const inst = instrumentsCache.find(i => i.ticker === ticker);
-      if (inst && shares > 0) {
-        const val = shares * inst.price_pln;
-        document.getElementById("estimatedCost").innerText = formatPLN(val);
-      } else {
-        document.getElementById("estimatedCost").innerText = "0.00 zł";
-      }
-    }
-
-    async function submitTrade(e) {
-      e.preventDefault();
-      const errDiv = document.getElementById("tradeError");
-      errDiv.classList.add("hidden");
-
-      const payload = {
-        ticker: document.getElementById("tradeTicker").value,
-        type: currentTradeType,
-        shares: Number(document.getElementById("tradeShares").value),
-        thesis: document.getElementById("tradeThesis").value
-      };
-
-      try {
-        const res = await fetch('/api/trade', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        const data = await res.json();
-
-        if (data.status === "success") {
-          closeTradeModal();
-          fetchAllData();
-          fetchUserPortfolio();
-        } else {
-          errDiv.innerText = data.message || "Błąd wykonania zlecenia";
-          errDiv.classList.remove("hidden");
-        }
-      } catch (err) {
-        errDiv.innerText = "Błąd sieci";
-        errDiv.classList.remove("hidden");
-      }
-    }
-
-    async function handleLogout() {
-      await fetch('/api/logout', { method: 'POST' });
-      location.reload();
-    }
-
-    async function fetchLeaderboard() {
-      const icon = document.getElementById("refreshIcon");
-      if (icon) icon.classList.add("animate-spin");
-
-      try {
-        const res = await fetch('/api/leaderboard');
-        const json = await res.json();
-        if (json.status === "success") {
-          renderDashboard(json.data, `Zaktualizowano: ${new Date().toLocaleTimeString()}`);
-        }
-      } catch (e) {
         console.error(e);
-      } finally {
-        if (icon) icon.classList.remove("animate-spin");
       }
     }
 
