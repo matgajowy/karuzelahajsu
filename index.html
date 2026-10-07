@@ -3,251 +3,483 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Karuzela Hajsu — Firmowa Liga Inwestycyjna</title>
+  <title>Karuzela Hajsu 🎠💸 — Biurowa Liga Spekulacyjna</title>
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
     body { font-family: 'Inter', sans-serif; }
+    .font-mono { font-family: 'JetBrains Mono', monospace; }
   </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen">
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
-  <div class="max-w-6xl mx-auto px-4 py-8">
-    
-    <!-- Header -->
-    <header class="flex flex-col md:flex-row md:items-center justify-between pb-8 border-b border-slate-800 gap-4">
-      <div>
-        <div class="flex items-center gap-2 text-indigo-400 font-semibold tracking-wide text-xs uppercase mb-1">
-          <i data-lucide="trending-up" class="w-4 h-4"></i> Paper Trading Challenge
-        </div>
-        <h1 class="text-3xl font-bold tracking-tight text-white">Karuzela Hajsu 🎠💸</h1>
-        <p class="text-slate-400 text-sm mt-1">Graj na realnych kursach GPW i USA. Maksymalna ekspozycja: 35% na walor.</p>
-      </div>
-
+  <!-- ========================================== -->
+  <!-- GÓRNY PASEK NAWIGACJI I NAGŁÓWEK          -->
+  <!-- ========================================== -->
+  <header class="border-b border-slate-850 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
+    <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
+      
+      <!-- Logo i Branding -->
       <div class="flex items-center gap-3">
-        <button onclick="fetchAllData()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer">
-          <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4"></i> Odśwież
-        </button>
-
-        <div id="authContainer">
-          <a href="/api/auth/github" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
-            <i data-lucide="github" class="w-4 h-4"></i> Zaloguj z GitHub
-          </a>
-        </div>
-      </div>
-    </header>
-
-    <!-- Panel Inwestora -->
-    <div id="userPanel" class="hidden mt-6 bg-slate-900 border border-indigo-500/30 rounded-2xl p-6">
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-800">
-        <div>
-          <span class="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Twój Rachunek</span>
-          <h2 id="userNameDisplay" class="text-xl font-bold text-white mt-0.5">--</h2>
-        </div>
-        <div class="flex items-center gap-6">
+        <a href="#" onclick="switchTab('arena')" class="flex items-center gap-2 group">
+          <span class="text-2xl group-hover:scale-110 transition duration-200">🎠</span>
           <div>
-            <div class="text-xs text-slate-400">Dostępna Gotówka:</div>
-            <div id="userCashDisplay" class="text-lg font-bold text-emerald-400">--</div>
+            <h1 class="text-base font-extrabold tracking-tight text-white leading-tight flex items-center gap-1.5">
+              Karuzela Hajsu <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.2 rounded">v2.0</span>
+            </h1>
+            <p class="text-[11px] text-slate-400">Wewnętrzna Liga Spekulacyjna</p>
           </div>
-          <button onclick="openTradeModal()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/20 transition cursor-pointer">
-            <i data-lucide="plus-circle" class="w-4 h-4"></i> Nowe Zlecenie
+        </a>
+      </div>
+
+      <!-- Pasek stanu Crona & Akcje użytkownika -->
+      <div class="flex items-center gap-3">
+        
+        <!-- Pigułka statusu rynku / Crona -->
+        <div id="syncStatusBadge" class="hidden sm:flex items-center gap-2 bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-full text-[11px] text-slate-400 font-mono">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          </span>
+          <span id="syncStatusText">Synchronizacja...</span>
+          <button onclick="triggerQuickRefresh()" title="Odśwież dane z bazy" class="text-slate-400 hover:text-white transition ml-1">
+            <i data-lucide="refresh-cw" id="quickRefreshIcon" class="w-3.5 h-3.5"></i>
           </button>
         </div>
+
+        <!-- Przycisk Zasad Gry -->
+        <button onclick="openRulesModal()" class="flex items-center gap-1.5 text-xs text-slate-300 hover:text-indigo-300 bg-slate-800/70 hover:bg-slate-800 border border-slate-700/60 px-3 py-1.5 rounded-lg transition">
+          <i data-lucide="scroll" class="w-3.5 h-3.5 text-indigo-400"></i>
+          <span class="hidden md:inline">Zasady</span>
+        </button>
+
+        <!-- Profil / Logowanie GitHub -->
+        <div id="authContainer">
+          <a href="/api/auth/github" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition">
+            <i data-lucide="github" class="w-4 h-4"></i>
+            <span>Zaloguj z GitHub</span>
+          </a>
+        </div>
+
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- ZAKŁADKI NAWIGACYJNE                      -->
+  <!-- ========================================== -->
+  <nav class="border-b border-slate-800/80 bg-slate-950/80">
+    <div class="max-w-6xl mx-auto px-4 flex items-center justify-between">
+      <div class="flex gap-2">
+        <button id="tabBtnArena" onclick="switchTab('arena')" class="py-3 px-4 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition">
+          <i data-lucide="trophy" class="w-4 h-4"></i> Arena Główna
+        </button>
+        <button id="tabBtnPortfolio" onclick="switchTab('portfolio')" class="hidden py-3 px-4 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition">
+          <i data-lucide="wallet" class="w-4 h-4"></i> Mój Portfel
+        </button>
+        <button id="tabBtnAdmin" onclick="switchTab('admin')" class="hidden py-3 px-4 text-xs font-semibold border-b-2 border-transparent text-amber-400 hover:text-amber-300 flex items-center gap-2 transition">
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Panel Audytu
+        </button>
       </div>
 
-      <!-- Tabela portfela -->
-      <div class="mt-4">
-        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Twoje Otwarte Pozycje</h3>
+      <!-- Szybki przycisk nowego zlecenia w belce -->
+      <div id="quickTradeBtnContainer" class="hidden py-2">
+        <button onclick="openTradeModal()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+          <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
+          <span>Złóż zlecenie</span>
+        </button>
+      </div>
+    </div>
+  </nav>
+
+  <!-- GŁÓWNA TREŚĆ STRONY -->
+  <main class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
+
+    <!-- ========================================== -->
+    <!-- WIDOK 1: ARENA GŁÓWNA                     -->
+    <!-- ========================================== -->
+    <div id="viewArena" class="space-y-8">
+      
+      <!-- Karty KPI (3 Kolumny) -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
+        
+        <!-- KARTA 1: AKTUALNY LIDER -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
+              <span>Aktualny Lider</span>
+              <span class="text-amber-400 text-sm">👑</span>
+            </div>
+            <div class="flex items-center gap-3 mt-3">
+              <img id="kpiLeaderAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=leader" alt="Lider" class="w-11 h-11 rounded-full border border-amber-500/40 bg-slate-800 object-cover">
+              <div>
+                <div id="leaderName" class="text-lg font-bold text-white truncate max-w-[170px]">Ładowanie...</div>
+                <div id="leaderReturn" class="text-sm font-extrabold text-emerald-400 font-mono">--</div>
+              </div>
+            </div>
+          </div>
+          <div class="text-[11px] text-slate-400 mt-4 pt-2 border-t border-slate-800/80">
+            Prowadzi w klasyfikacji generalnej ligi
+          </div>
+          <div class="absolute -right-4 -bottom-4 text-amber-500/5 pointer-events-none">
+            <i data-lucide="crown" class="w-24 h-24"></i>
+          </div>
+        </div>
+
+        <!-- KARTA 2: BENCHMARKI RYNKOWE (S&P 500 + WIG 20) -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
+              <span>Benchmarki Rynkowe</span>
+              <span class="text-indigo-400 text-xs font-mono">Rynek</span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-3 mt-3">
+              <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                <div class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">🇺🇸 S&P 500</div>
+                <div id="benchSp500Val" class="text-base font-bold text-white font-mono mt-0.5">--</div>
+              </div>
+              <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
+                <div class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">🇵🇱 WIG 20</div>
+                <div id="benchWig20Val" class="text-base font-bold text-white font-mono mt-0.5">--</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
+            Oficjalny punkt odniesienia dla portfeli
+          </div>
+        </div>
+
+        <!-- KARTA 3: ŚREDNIA ZESPOŁU -->
+        <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
+          <div>
+            <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
+              <span>Średnia Zespołu</span>
+              <i data-lucide="users" class="w-4 h-4 text-slate-500"></i>
+            </div>
+            <div class="mt-2">
+              <div id="avgReturn" class="text-2xl font-black text-white font-mono">--</div>
+              <div id="activeParticipantsCount" class="text-xs text-slate-400 mt-1">Sprawdzanie wyników...</div>
+            </div>
+          </div>
+          <div id="beatTheMarketNote" class="text-[11px] text-indigo-300 mt-4 pt-2 border-t border-slate-800/80 font-medium">
+            Rywalizacja trwa
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TABELA RANKINGU -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2 bg-slate-900/70">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="award" class="w-4 h-4 text-amber-400"></i> Oficjalny Ranking Inwestycyjny
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Wycena portfeli na żywo z uwzględnieniem kursów giełdowych</p>
+          </div>
+          <span id="dataTimestamp" class="text-xs text-slate-400 font-mono">Ładowanie danych...</span>
+        </div>
+
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs text-slate-300">
-            <thead class="text-slate-500 uppercase border-b border-slate-800">
+          <table class="w-full text-left text-sm text-slate-300">
+            <thead class="text-[11px] uppercase bg-slate-950/70 text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
               <tr>
-                <th class="py-2">Walor</th>
-                <th class="py-2 text-right">Liczba akcji</th>
-                <th class="py-2 text-right">Śr. zakup</th>
-                <th class="py-2 text-right">Kurs bieżący</th>
-                <th class="py-2 text-right">Wycena (PLN)</th>
-                <th class="py-2 text-right">Wynik</th>
-                <th class="py-2 text-center">Akcja</th>
+                <th scope="col" class="py-3 px-4 w-14 text-center">#</th>
+                <th scope="col" class="py-3 px-4">Uczestnik</th>
+                <th scope="col" class="py-3 px-4 text-right">Wycena całkowita</th>
+                <th scope="col" class="py-3 px-4 text-right">Gotówka</th>
+                <th scope="col" class="py-3 px-4 text-right">Wynik (PLN)</th>
+                <th scope="col" class="py-3 px-4 text-right">Stopa zwrotu</th>
               </tr>
             </thead>
-            <tbody id="portfolioTableBody">
-              <tr><td colspan="7" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>
+            <tbody id="leaderboardBody" class="divide-y divide-slate-800/60 font-medium">
+              <tr>
+                <td colspan="6" class="py-12 text-center text-slate-400">Pobieranie wyników ligi...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- FEED: OSTATNIE TRANSAKCJE & TEZY INWESTYCYJNE -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/70">
+          <div>
+            <h2 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Zlecenia & Tezy Inwestycyjne
+            </h2>
+            <p class="text-xs text-slate-400 mt-0.5">Podgląd zagrań i uzasadnień kolegów z biura</p>
+          </div>
+          <span class="text-xs text-slate-400">Na żywo</span>
+        </div>
+        
+        <div id="feedContainer" class="p-6 space-y-3">
+          <div class="text-center text-slate-400 text-xs py-8">Ładowanie ostatnich zleceń...</div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- WIDOK 2: MÓJ PORTFEL (TYLKO DLA ZALOGOWANEGO)-->
+    <!-- ========================================== -->
+    <div id="viewPortfolio" class="hidden space-y-6">
+      
+      <!-- Nagłówek Portfela Gracza -->
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-800">
+          <div class="flex items-center gap-4">
+            <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar" class="w-14 h-14 rounded-full border-2 border-indigo-500/40 bg-slate-800 object-cover">
+            <div>
+              <span class="text-xs text-indigo-400 font-bold uppercase tracking-wider">Rachunek Inwestycyjny</span>
+              <h2 id="userNameDisplay" class="text-2xl font-black text-white mt-0.5">--</h2>
+              <p class="text-xs text-slate-400">Limit dywersyfikacji: max 35% na walor</p>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-6">
+            <div class="text-right">
+              <div class="text-xs text-slate-400">Dostępna Gotówka:</div>
+              <div id="userCashDisplay" class="text-xl font-black text-emerald-400 font-mono">0.00 zł</div>
+            </div>
+            <button onclick="openTradeModal()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 transition">
+              <i data-lucide="plus-circle" class="w-4 h-4"></i> Nowe Zlecenie
+            </button>
+          </div>
+        </div>
+
+        <!-- Tabela otwartych pozycji -->
+        <div class="mt-6">
+          <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">Twoje Otwarte Pozycje</h3>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 uppercase border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5">Walor</th>
+                  <th class="py-2.5 text-right">Liczba akcji</th>
+                  <th class="py-2.5 text-right">Śr. zakup</th>
+                  <th class="py-2.5 text-right">Kurs bieżący</th>
+                  <th class="py-2.5 text-right">Wycena (PLN)</th>
+                  <th class="py-2.5 text-right">Wynik</th>
+                  <th class="py-2.5 text-center">Akcja</th>
+                </tr>
+              </thead>
+              <tbody id="portfolioTableBody" class="divide-y divide-slate-800/40 font-mono">
+                <tr><td colspan="7" class="py-6 text-center text-slate-400 font-sans">Brak otwartych pozycji</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- WIDOK 3: PANEL AUDYTU (ADMIN ONLY)        -->
+    <!-- ========================================== -->
+    <div id="viewAdmin" class="hidden space-y-6">
+      <div class="bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+          <div>
+            <h2 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i> Dziennik Audytu Bezpieczeństwa
+            </h2>
+            <p class="text-xs text-slate-400">Rejestr logowań, zleceń i operacji systemowych</p>
+          </div>
+          <div class="flex gap-2">
+            <button onclick="triggerManualSync()" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-1.5 rounded-lg transition">
+              Wymuś synchronizację kursów
+            </button>
+            <button onclick="fetchAuditLogs()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg transition">
+              Odśwież
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto max-h-[500px]">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="text-slate-400 uppercase bg-slate-950/40 border-b border-slate-800 sticky top-0">
+              <tr>
+                <th class="py-2.5 px-4">Czas</th>
+                <th class="py-2.5 px-4">Użytkownik</th>
+                <th class="py-2.5 px-4">Akcja</th>
+                <th class="py-2.5 px-4">Status</th>
+                <th class="py-2.5 px-4">IP</th>
+                <th class="py-2.5 px-4">Payload</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody" class="divide-y divide-slate-800/60 font-mono">
+              <tr><td colspan="6" class="py-6 text-center text-slate-400">Brak logów audytowych</td></tr>
             </tbody>
           </table>
         </div>
       </div>
     </div>
 
-    <!-- Modal Zlecenia z Dynamiczną Walidacją Walorów -->
-    <div id="tradeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
-        <h3 class="text-lg font-bold text-white mb-1">Złóż Zlecenie Giełdowe</h3>
-        <p class="text-slate-400 text-xs mb-4">Wpisz dowolny ticker GPW (np. CDR.WA) lub USA (np. PLTR, NVDA).</p>
+  </main>
 
-        <form id="tradeForm" onsubmit="submitTrade(event)" class="space-y-4">
-          <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-lg border border-slate-800">
-            <button type="button" id="btnBuy" onclick="setTradeType('BUY')" class="py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white transition">KUPNO</button>
-            <button type="button" id="btnSell" onclick="setTradeType('SELL')" class="py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
-          </div>
+  <!-- ========================================== -->
+  <!-- MODAL: KODEKS SPEKULANTA (ZASADY GRY)      -->
+  <!-- ========================================== -->
+  <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>📜</span> Kodeks Spekulanta — Zasady Gry
+        </h3>
+        <button onclick="closeRulesModal()" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
 
-          <!-- Wyszukiwarka Tickera -->
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
-            <div class="flex gap-2">
-              <input type="text" id="tradeTickerInput" placeholder="np. PLTR, AAPL, CDR.WA" uppercase class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
-              <button type="button" id="verifyBtn" onclick="verifyTicker()" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-3 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
-                Sprawdź
-              </button>
-            </div>
-          </div>
+      <div class="mt-4 space-y-3.5 text-xs text-slate-300 leading-relaxed">
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-white block mb-0.5">💵 1. Kapitał Startowy: 100 000 PLN</span>
+          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. Gramy na realnych, bieżących kursach giełdowych.
+        </div>
 
-          <!-- Karta zweryfikowanego waloru -->
-          <div id="verifiedInstrumentCard" class="hidden p-3 rounded-lg bg-indigo-950/20 border border-indigo-500/30 text-xs">
-            <div class="flex justify-between items-start">
-              <div>
-                <div id="instFullName" class="font-bold text-white text-sm">--</div>
-                <div id="instTickerDisplay" class="text-slate-400 font-mono mt-0.5">--</div>
-              </div>
-              <div class="text-right">
-                <div id="instPriceDisplay" class="font-bold text-indigo-200">--</div>
-                <div id="instFxDisplay" class="text-slate-400 text-[10px]">--</div>
-              </div>
-            </div>
-          </div>
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-amber-300 block mb-0.5">⚖️ 2. Zasada Dywersyfikacji (Max 35%)</span>
+          Żaden pojedynczy walor nie może przekraczać 35% całkowitej wyceny Twojego portfela w momencie zakupu. Nie ma pójścia "all-in" w jedną spółkę.
+        </div>
 
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Liczba akcji (szt.)</label>
-            <input type="number" step="0.001" min="0.001" id="tradeShares" oninput="updateEstimatedCost()" required placeholder="np. 15" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
-          </div>
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-indigo-300 block mb-0.5">🗣️ 3. Obowiązkowa Teza Inwestycyjna (min. 15 znaków)</span>
+          Każde zlecenie wymaga publicznego uzasadnienia. Twoja teza trafia bezpośrednio na wspólny feed – niech koledzy wiedzą, dlaczego kupujesz ten dołek.
+        </div>
 
-          <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800 text-xs flex justify-between items-center">
-            <span class="text-slate-400">Szacowana wartość:</span>
-            <span id="estimatedCost" class="font-bold text-white">0.00 zł</span>
-          </div>
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW & Wall Street</span>
+          Wpisuj tickery z rynku USA (np. <code class="text-indigo-300">NVDA, PLTR, AAPL</code>) lub GPW z końcówką <code class="text-indigo-300">.WA</code> (np. <code class="text-indigo-300">CDR.WA, PKO.WA</code>).
+        </div>
 
-          <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (Thesis - min. 15 znaków)</label>
-            <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wchodzisz/wychodzisz z tej pozycji?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
-          </div>
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-rose-300 block mb-0.5">🚫 5. Brak Dźwigni i Shortów</span>
+          Gramy czysto pozycjami długimi (kupujesz to, na co pozwala Ci gotówka). Brak marży i lewarowania.
+        </div>
+      </div>
 
-          <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/30 p-2.5 rounded-lg border border-rose-900/50"></div>
-
-          <div class="flex gap-2 pt-2">
-            <button type="button" onclick="closeTradeModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-sm font-medium transition cursor-pointer">Anuluj</button>
-            <button type="submit" id="submitTradeBtn" disabled class="w-1/2 bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-medium transition cursor-pointer">Złóż zlecenie</button>
-          </div>
-        </form>
+      <div class="mt-6">
+        <button onclick="closeRulesModal()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">
+          Zrozumiałem, wchodzę do gry!
+        </button>
       </div>
     </div>
-
-    <!-- Karty podsumowania -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-8">
-      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
-        <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Aktualny Lider</div>
-        <div id="leaderName" class="text-2xl font-bold text-white mt-1">--</div>
-        <div id="leaderReturn" class="text-sm font-semibold text-emerald-400 mt-0.5">--</div>
-        <div class="absolute right-4 top-4 text-amber-400/20"><i data-lucide="crown" class="w-12 h-12"></i></div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
-        <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Benchmark (S&P 500)</div>
-        <div id="benchmarkReturn" class="text-2xl font-bold text-white mt-1">--</div>
-        <div class="text-slate-400 text-xs mt-0.5">Punkt odniesienia dla portfeli</div>
-        <div class="absolute right-4 top-4 text-indigo-400/20"><i data-lucide="bar-chart-2" class="w-12 h-12"></i></div>
-      </div>
-
-      <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
-        <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Średni Zwrot Graczy</div>
-        <div id="avgReturn" class="text-2xl font-bold text-white mt-1">--</div>
-        <div id="activeParticipantsCount" class="text-slate-400 text-xs mt-0.5">Ładowanie...</div>
-        <div class="absolute right-4 top-4 text-slate-600/20"><i data-lucide="users" class="w-12 h-12"></i></div>
-      </div>
-    </div>
-
-    <!-- Tabela rankingu -->
-    <div class="mt-8 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-      <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
-        <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
-          <i data-lucide="award" class="w-4 h-4 text-indigo-400"></i> Oficjalny Ranking
-        </h2>
-        <span id="dataTimestamp" class="text-xs text-slate-500">Pobieranie danych...</span>
-      </div>
-
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-sm text-slate-300">
-          <thead class="text-xs uppercase bg-slate-950/60 text-slate-400 border-b border-slate-800">
-            <tr>
-              <th class="py-3.5 px-6 w-16 text-center">#</th>
-              <th class="py-3.5 px-6">Uczestnik</th>
-              <th class="py-3.5 px-6 text-right">Wycena portfela</th>
-              <th class="py-3.5 px-6 text-right">Gotówka</th>
-              <th class="py-3.5 px-6 text-right">Wynik (PLN)</th>
-              <th class="py-3.5 px-6 text-right">Stopa zwrotu</th>
-            </tr>
-          </thead>
-          <tbody id="leaderboardBody" class="divide-y divide-slate-800/60 font-medium">
-            <tr><td colspan="6" class="py-8 text-center text-slate-500">Ładowanie danych...</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <!-- Feed Ostatnich Transakcji -->
-    <div class="mt-8 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-      <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
-        <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
-          <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Zlecenia i Tezy Inwestycyjne
-        </h2>
-        <span class="text-xs text-slate-500">Podgląd strategii w zespole</span>
-      </div>
-      <div id="feedContainer" class="p-6 space-y-4">
-        <div class="text-center text-slate-500 text-xs py-4">Brak ostatnich transakcji</div>
-      </div>
-    </div>
-
-    <!-- Panel Audytu (Admin) -->
-    <div id="adminAuditSection" class="hidden mt-8 bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
-      <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
-        <h2 class="text-base font-semibold text-amber-300 flex items-center gap-2">
-          <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i> Dziennik Audytu Bezpieczeństwa (Admin)
-        </h2>
-        <button onclick="fetchAuditLogs()" class="text-xs text-slate-400 hover:text-white transition">Odśwież logi</button>
-      </div>
-      <div class="overflow-x-auto max-h-96">
-        <table class="w-full text-left text-xs text-slate-300">
-          <thead class="text-slate-500 uppercase bg-slate-950/40 border-b border-slate-800 sticky top-0">
-            <tr>
-              <th class="py-2.5 px-4">Czas</th>
-              <th class="py-2.5 px-4">Użytkownik</th>
-              <th class="py-2.5 px-4">Akcja</th>
-              <th class="py-2.5 px-4">Status</th>
-              <th class="py-2.5 px-4">IP</th>
-              <th class="py-2.5 px-4">Payload</th>
-            </tr>
-          </thead>
-          <tbody id="auditTableBody" class="divide-y divide-slate-800/60 font-mono">
-            <tr><td colspan="6" class="py-4 text-center text-slate-500">Brak wpisów audytowych</td></tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
   </div>
 
+  <!-- ========================================== -->
+  <!-- MODAL: ZŁÓŻ ZLECENIE (TRADE)              -->
+  <!-- ========================================== -->
+  <div id="tradeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="trending-up" class="w-4 h-4 text-indigo-400"></i> Złóż Zlecenie Giełdowe
+        </h3>
+        <button onclick="closeTradeModal()" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="tradeForm" onsubmit="submitTrade(event)" class="mt-4 space-y-4">
+        <!-- Przełącznik KUP / SPRZEDAJ -->
+        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+          <button type="button" id="btnBuy" onclick="setTradeType('BUY')" class="py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition">KUPNO</button>
+          <button type="button" id="btnSell" onclick="setTradeType('SELL')" class="py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
+        </div>
+
+        <!-- Wyszukiwarka Waloru -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
+          <div class="flex gap-2">
+            <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
+            <button type="button" id="verifyBtn" onclick="verifyTicker()" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+              Sprawdź
+            </button>
+          </div>
+        </div>
+
+        <!-- Karta zweryfikowanego instrumentu -->
+        <div id="verifiedInstrumentCard" class="hidden p-3 rounded-xl bg-indigo-950/20 border border-indigo-500/30 text-xs">
+          <div class="flex justify-between items-start">
+            <div>
+              <div id="instFullName" class="font-bold text-white text-sm">--</div>
+              <div id="instTickerDisplay" class="text-slate-400 font-mono mt-0.5">--</div>
+            </div>
+            <div class="text-right">
+              <div id="instPriceDisplay" class="font-bold text-indigo-200 font-mono">--</div>
+              <div id="instFxDisplay" class="text-slate-400 text-[10px] font-mono">--</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Liczba akcji -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Liczba akcji (szt.)</label>
+          <input type="number" step="0.001" min="0.001" id="tradeShares" oninput="updateEstimatedCost()" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
+        </div>
+
+        <!-- Szacowana wartość -->
+        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
+          <span class="text-slate-400">Wartość zlecenia:</span>
+          <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0.00 zł</span>
+        </div>
+
+        <!-- Teza inwestycyjna -->
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (min. 15 znaków)</label>
+          <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wchodzisz w tę pozycję? (Trafi do feedu zespołu)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
+        </div>
+
+        <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" onclick="closeTradeModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+          <button type="submit" id="submitTradeBtn" disabled class="w-1/2 bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Złóż zlecenie</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- FOOTER                                     -->
+  <!-- ========================================== -->
+  <footer class="mt-auto border-t border-slate-850 bg-slate-950/80 py-8 text-center text-xs text-slate-400">
+    <div class="max-w-6xl mx-auto px-4 space-y-2">
+      <p class="font-medium text-slate-400">Karuzela Hajsu • Biurowa Liga Spekulacyjna</p>
+      <p class="text-slate-400 max-w-xl mx-auto text-[11px] leading-relaxed">
+        Żadna z informacji na tej platformie nie stanowi porady inwestycyjnej. Wszystkie transakcje są fikcyjne,
+        ale ból po przegraniu z benchmarkiem S&P 500 — w 100% autentyczny.
+      </p>
+      <div class="flex justify-center items-center gap-3 pt-2 text-[11px] text-slate-400">
+        <button onclick="openRulesModal()" class="hover:text-indigo-400 transition">📜 Kodeks Spekulanta</button>
+        <span>•</span>
+        <span>Cron: Cloudflare Workers (*/15 min)</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- ========================================== -->
+  <!-- SKRYPT APLIKACJI                           -->
+  <!-- ========================================== -->
   <script>
     let currentUser = null;
     let verifiedInstrument = null;
     let currentTradeType = 'BUY';
+    let currentTab = 'arena';
+    let leaderboardCache = [];
 
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
       checkAuth();
       fetchAllData();
 
-      // Enter w wyszukiwarce waloru
-      document.getElementById("tradeTickerInput").addEventListener("keypress", (e) => {
+      // Enter w polu wyszukiwarki tickera
+      document.getElementById("tradeTickerInput")?.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
           verifyTicker();
@@ -255,47 +487,79 @@
       });
     });
 
-    async function fetchAllData() {
-      fetchLeaderboard();
-      fetchFeed();
-      if (currentUser && currentUser.is_admin === 1) fetchAuditLogs();
+    // Przełączanie zakładek
+    function switchTab(tabId) {
+      currentTab = tabId;
+
+      document.getElementById("viewArena").classList.toggle("hidden", tabId !== 'arena');
+      document.getElementById("viewPortfolio").classList.toggle("hidden", tabId !== 'portfolio');
+      document.getElementById("viewAdmin").classList.toggle("hidden", tabId !== 'admin');
+
+      // Style przycisków
+      const tabs = {
+        arena: document.getElementById("tabBtnArena"),
+        portfolio: document.getElementById("tabBtnPortfolio"),
+        admin: document.getElementById("tabBtnAdmin")
+      };
+
+      Object.keys(tabs).forEach(key => {
+        if (!tabs[key]) return;
+        if (key === tabId) {
+          tabs[key].className = "py-3 px-4 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition";
+        } else {
+          tabs[key].className = "py-3 px-4 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition";
+        }
+      });
+
+      if (tabId === 'portfolio') fetchUserPortfolio();
+      if (tabId === 'admin') fetchAuditLogs();
+      lucide.createIcons();
     }
 
     async function checkAuth() {
       try {
         const res = await fetch('/api/me');
         const data = await res.json();
-        const container = document.getElementById("authContainer");
+        const authContainer = document.getElementById("authContainer");
 
         if (data.authenticated) {
           currentUser = data.user;
-          container.innerHTML = `
-            <div class="flex items-center gap-2 bg-indigo-950/40 border border-indigo-500/30 px-3 py-1.5 rounded-lg text-xs">
-              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span class="text-indigo-200 font-semibold">${currentUser.display_name}</span>
-              ${currentUser.is_admin ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold">ADMIN</span>' : ''}
-              <button onclick="handleLogout()" class="text-slate-400 hover:text-rose-400 ml-2 transition cursor-pointer" title="Wyloguj">
+          const userAvatar = currentUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentUser.display_name)}`;
+
+          authContainer.innerHTML = `
+            <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 py-1 px-2 rounded-xl text-xs">
+              <img src="${userAvatar}" alt="${currentUser.display_name}" class="w-6 h-6 rounded-full bg-slate-800 object-cover border border-indigo-500/30">
+              <span class="text-white font-semibold hidden md:inline">${currentUser.display_name}</span>
+              <button onclick="handleLogout()" class="text-slate-400 hover:text-rose-400 p-1 transition" title="Wyloguj">
                 <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
               </button>
             </div>
           `;
-          document.getElementById("userPanel").classList.remove("hidden");
-          document.getElementById("userNameDisplay").innerText = currentUser.display_name;
-          fetchUserPortfolio();
 
+          // Aktywuj zakładkę portfela i przycisk zlecenia
+          document.getElementById("tabBtnPortfolio").classList.remove("hidden");
+          document.getElementById("quickTradeBtnContainer").classList.remove("hidden");
+          document.getElementById("userNameDisplay").innerText = currentUser.display_name;
+          document.getElementById("myPortfolioAvatar").src = userAvatar;
+
+          // Jeśli Admin, pokaż zakładkę Admina
           if (currentUser.is_admin === 1) {
-            document.getElementById("adminAuditSection").classList.remove("hidden");
-            fetchAuditLogs();
+            document.getElementById("tabBtnAdmin").classList.remove("hidden");
           }
+
+          fetchUserPortfolio();
         } else {
           currentUser = null;
-          container.innerHTML = `
-            <a href="/api/auth/github" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
-              <i data-lucide="github" class="w-4 h-4"></i> Zaloguj z GitHub
+          authContainer.innerHTML = `
+            <a href="/api/auth/github" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition">
+              <i data-lucide="github" class="w-4 h-4"></i>
+              <span>Zaloguj z GitHub</span>
             </a>
           `;
-          document.getElementById("userPanel").classList.add("hidden");
-          document.getElementById("adminAuditSection").classList.add("hidden");
+          document.getElementById("tabBtnPortfolio").classList.add("hidden");
+          document.getElementById("quickTradeBtnContainer").classList.add("hidden");
+          document.getElementById("tabBtnAdmin").classList.add("hidden");
+          if (currentTab !== 'arena') switchTab('arena');
         }
         lucide.createIcons();
       } catch (e) {
@@ -303,6 +567,229 @@
       }
     }
 
+    async function fetchAllData() {
+      await fetchLeaderboard();
+      await fetchFeed();
+    }
+
+    async function triggerQuickRefresh() {
+      const icon = document.getElementById("quickRefreshIcon");
+      if (icon) icon.classList.add("animate-spin");
+      await fetchAllData();
+      if (currentUser) await fetchUserPortfolio();
+      setTimeout(() => {
+        if (icon) icon.classList.remove("animate-spin");
+      }, 500);
+    }
+
+    async function fetchLeaderboard() {
+      try {
+        const res = await fetch('/api/leaderboard');
+        const json = await res.json();
+        if (json.status === "success") {
+          leaderboardCache = json.data;
+          renderDashboard(json.data, json.last_sync);
+        }
+      } catch (e) {
+        console.error("Leaderboard fetch error:", e);
+      }
+    }
+
+    function formatPLN(val) {
+      return (Number(val) || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
+    }
+
+    function formatPct(val) {
+      const num = (Number(val) || 0) * 100;
+      return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
+    }
+
+    function renderDashboard(items, lastSyncTs) {
+      // 1. Pasek statusu synchronizacji
+      const statusText = document.getElementById("syncStatusText");
+      if (lastSyncTs) {
+        const syncDate = new Date(lastSyncTs);
+        const timeStr = syncDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        statusText.innerText = `Kursy: ${timeStr} • Cron: 15m`;
+      } else {
+        statusText.innerText = `Brak synchronizacji`;
+      }
+      document.getElementById("syncStatusBadge").classList.remove("hidden");
+      document.getElementById("dataTimestamp").innerText = `Stan z bazy SQLite (D1)`;
+
+      // Rozdzielenie graczy od obu benchmarków
+      const isBenchmarkRow = (name) => {
+        const n = (name || '').toLowerCase();
+        return n.includes("benchmark") || n.includes("index") || n.includes("s&p") || n.includes("wig");
+      };
+
+      const participants = items.filter(i => !isBenchmarkRow(i.Uczestnik));
+      const sp500 = items.find(i => (i.Uczestnik || '').includes("S&P 500"));
+      const wig20 = items.find(i => (i.Uczestnik || '').includes("WIG20") || (i.Uczestnik || '').includes("WIG 20"));
+
+      // Karta 1: Lider
+      if (participants.length > 0) {
+        const leader = participants[0];
+        document.getElementById("leaderName").innerText = leader.Uczestnik;
+        document.getElementById("leaderReturn").innerText = formatPct(leader.Stopa_Zwrotu);
+        const leaderAvatar = leader.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(leader.Uczestnik)}`;
+        document.getElementById("kpiLeaderAvatar").src = leaderAvatar;
+      } else {
+        document.getElementById("leaderName").innerText = "Brak graczy";
+        document.getElementById("leaderReturn").innerText = "--";
+      }
+
+      // Karta 2: Benchmarki
+      if (sp500) {
+        const ret = formatPct(sp500.Stopa_Zwrotu);
+        const col = sp500.Stopa_Zwrotu >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        document.getElementById("benchSp500Val").innerHTML = `<span class="${col}">${ret}</span>`;
+      }
+      if (wig20) {
+        const ret = formatPct(wig20.Stopa_Zwrotu);
+        const col = wig20.Stopa_Zwrotu >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        document.getElementById("benchWig20Val").innerHTML = `<span class="${col}">${ret}</span>`;
+      }
+
+      // Karta 3: Średnia Zespołu
+      if (participants.length > 0) {
+        const totalRet = participants.reduce((acc, c) => acc + (c.Stopa_Zwrotu || 0), 0);
+        const avg = totalRet / participants.length;
+        document.getElementById("avgReturn").innerText = formatPct(avg);
+        document.getElementById("activeParticipantsCount").innerText = `${participants.length} zarejestrowanych graczy`;
+
+        // Licznik ile osób bije S&P 500
+        const benchRet = sp500 ? sp500.Stopa_Zwrotu : 0;
+        const winners = participants.filter(p => p.Stopa_Zwrotu > benchRet).length;
+        document.getElementById("beatTheMarketNote").innerText = `${winners} z ${participants.length} graczy pokonuje rynek 🚀`;
+      }
+
+      // Tabela rankingu
+      const tbody = document.getElementById("leaderboardBody");
+      tbody.innerHTML = "";
+
+      items.forEach((item, idx) => {
+        const isBench = isBenchmarkRow(item.Uczestnik);
+        const retCol = item.Stopa_Zwrotu > 0 ? "text-emerald-400" : (item.Stopa_Zwrotu < 0 ? "text-rose-400" : "text-slate-400");
+        const rowBg = isBench 
+          ? "bg-indigo-950/25 border-l-4 border-indigo-500 font-semibold" 
+          : "hover:bg-slate-900/60 transition";
+
+        let rankBadge = `<span class="text-slate-500 font-mono text-xs">${idx + 1}</span>`;
+        if (idx === 0 && !isBench) rankBadge = `<span class="text-amber-400 text-base">🥇</span>`;
+        if (idx === 1 && !isBench) rankBadge = `<span class="text-slate-300 text-base">🥈</span>`;
+        if (idx === 2 && !isBench) rankBadge = `<span class="text-amber-600 text-base">🥉</span>`;
+        if (isBench) rankBadge = `<span class="text-indigo-400 text-xs">📊</span>`;
+
+        const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.Uczestnik)}`;
+
+        tbody.innerHTML += `
+          <tr class="${rowBg} border-b border-slate-800/60">
+            <td class="py-3.5 px-4 text-center font-mono">${rankBadge}</td>
+            <td class="py-3.5 px-4">
+              <div class="flex items-center gap-2.5">
+                <img src="${avatar}" alt="${item.Uczestnik}" class="w-7 h-7 rounded-full bg-slate-800 object-cover border border-slate-700">
+                <div class="flex flex-col">
+                  <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                    ${item.Uczestnik}
+                    ${isBench ? '<span class="text-[9px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-mono">Rynek</span>' : ''}
+                  </span>
+                  ${item.github_login && !isBench ? `<span class="text-[10px] text-slate-500">@${item.github_login}</span>` : ''}
+                </div>
+              </div>
+            </td>
+            <td class="py-3.5 px-4 text-right font-mono text-slate-200">${formatPLN(item.Wycena_Calkowita_PLN)}</td>
+            <td class="py-3.5 px-4 text-right font-mono text-slate-400">${formatPLN(item.Gotowka_PLN)}</td>
+            <td class="py-3.5 px-4 text-right font-mono ${retCol}">${formatPLN(item.Zysk_Strata_PLN)}</td>
+            <td class="py-3.5 px-4 text-right font-mono font-bold ${retCol}">${formatPct(item.Stopa_Zwrotu)}</td>
+          </tr>
+        `;
+      });
+
+      lucide.createIcons();
+    }
+
+    async function fetchFeed() {
+      try {
+        const res = await fetch('/api/feed');
+        const json = await res.json();
+        const container = document.getElementById("feedContainer");
+
+        if (json.status === "success" && json.data.length > 0) {
+          container.innerHTML = "";
+          json.data.forEach(item => {
+            const isBuy = item.type === "BUY";
+            const badgeColor = isBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30";
+            const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+            const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.user_name)}`;
+
+            container.innerHTML += `
+              <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div class="flex items-start gap-3">
+                  <img src="${avatar}" alt="${item.user_name}" class="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700 mt-0.5">
+                  <div class="space-y-1">
+                    <div class="flex items-center flex-wrap gap-2">
+                      <span class="font-bold text-white text-xs">${item.user_name}</span>
+                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${item.type}</span>
+                      <span class="font-semibold text-slate-200 text-xs font-mono">${item.shares} szt. ${item.ticker}</span>
+                      <span class="text-[11px] text-slate-500 font-mono">(${formatPLN(item.total_value_pln)})</span>
+                    </div>
+                    <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
+                      "${item.thesis}"
+                    </p>
+                  </div>
+                </div>
+                <div class="text-[10px] text-slate-400 font-mono whitespace-nowrap self-end md:self-center">
+                  ${dateStr}
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          container.innerHTML = '<div class="text-center text-slate-400 text-xs py-6">Brak ostatnich transakcji. Bądź pierwszym, który wykona ruch!</div>';
+        }
+      } catch (e) {
+        console.error("Feed error:", e);
+      }
+    }
+
+    async function fetchUserPortfolio() {
+      try {
+        const res = await fetch('/api/portfolio');
+        const json = await res.json();
+        if (json.status === "success") {
+          document.getElementById("userCashDisplay").innerText = formatPLN(json.cash);
+          const tbody = document.getElementById("portfolioTableBody");
+          if (!json.data || json.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-400 font-sans">Brak otwartych pozycji. Kliknij "+ Nowe Zlecenie", aby zainwestować.</td></tr>';
+            return;
+          }
+          tbody.innerHTML = "";
+          json.data.forEach(p => {
+            const retCol = p.return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400';
+            tbody.innerHTML += `
+              <tr class="border-b border-slate-800/40 hover:bg-slate-900/40 transition">
+                <td class="py-3 font-semibold text-white font-sans">${p.ticker} <span class="text-slate-400 font-normal">(${p.name})</span></td>
+                <td class="py-3 text-right font-mono text-slate-200">${p.shares}</td>
+                <td class="py-3 text-right text-slate-400">${p.avg_buy_price.toFixed(2)} ${p.currency}</td>
+                <td class="py-3 text-right text-slate-200">${p.current_price.toFixed(2)} ${p.currency}</td>
+                <td class="py-3 text-right text-slate-200 font-bold">${formatPLN(p.current_value_pln)}</td>
+                <td class="py-3 text-right font-semibold ${retCol}">${p.return_pct >= 0 ? '+' : ''}${p.return_pct.toFixed(2)}%</td>
+                <td class="py-3 text-center font-sans">
+                  <button onclick="quickSell('${p.ticker}', ${p.shares})" class="text-[11px] bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 px-2.5 py-1 rounded-md transition">
+                    Sprzedaj
+                  </button>
+                </td>
+              </tr>
+            `;
+          });
+        }
+      } catch (e) {
+        console.error("Portfolio error:", e);
+      }
+    }
+
+    // Walidacja instrumentu giełdowego (Ticker)
     async function verifyTicker() {
       const input = document.getElementById("tradeTickerInput");
       const ticker = input.value.trim().toUpperCase();
@@ -325,7 +812,9 @@
           document.getElementById("instFullName").innerText = verifiedInstrument.name;
           document.getElementById("instTickerDisplay").innerText = verifiedInstrument.ticker;
           document.getElementById("instPriceDisplay").innerText = `${verifiedInstrument.price.toFixed(2)} ${verifiedInstrument.currency}`;
-          document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "PLN" ? "1.00 PLN" : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN (kurs: ${verifiedInstrument.fx_to_pln.toFixed(2)})`;
+          document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "PLN" 
+            ? "1.00 PLN" 
+            : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN (USD/PLN: ${verifiedInstrument.fx_to_pln.toFixed(2)})`;
           
           document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
           submitBtn.disabled = false;
@@ -334,7 +823,7 @@
           verifiedInstrument = null;
           document.getElementById("verifiedInstrumentCard").classList.add("hidden");
           submitBtn.disabled = true;
-          errDiv.innerText = json.message || "Błąd walidacji waloru";
+          errDiv.innerText = json.message || "Walor nie został znaleziony.";
           errDiv.classList.remove("hidden");
         }
       } catch (e) {
@@ -354,43 +843,11 @@
       verifyTicker();
     }
 
-    async function fetchUserPortfolio() {
-      try {
-        const res = await fetch('/api/portfolio');
-        const json = await res.json();
-        if (json.status === "success") {
-          document.getElementById("userCashDisplay").innerText = formatPLN(json.cash);
-          const tbody = document.getElementById("portfolioTableBody");
-          if (json.data.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="7" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>';
-            return;
-          }
-          tbody.innerHTML = "";
-          json.data.forEach(p => {
-            const retCol = p.return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400';
-            tbody.innerHTML += `
-              <tr class="border-b border-slate-800/40">
-                <td class="py-2.5 font-semibold text-white">${p.ticker} <span class="text-slate-500 font-normal">(${p.name})</span></td>
-                <td class="py-2.5 text-right font-mono">${p.shares}</td>
-                <td class="py-2.5 text-right text-slate-400">${p.avg_buy_price.toFixed(2)} ${p.currency}</td>
-                <td class="py-2.5 text-right text-slate-200">${p.current_price.toFixed(2)} ${p.currency}</td>
-                <td class="py-2.5 text-right text-slate-200">${formatPLN(p.current_value_pln)}</td>
-                <td class="py-2.5 text-right font-semibold ${retCol}">${p.return_pct >= 0 ? '+' : ''}${p.return_pct.toFixed(2)}%</td>
-                <td class="py-2.5 text-center">
-                  <button onclick="quickSell('${p.ticker}', ${p.shares})" class="text-[11px] bg-rose-950/40 hover:bg-rose-900/50 text-rose-300 border border-rose-800/40 px-2 py-0.5 rounded transition">
-                    Sprzedaj
-                  </button>
-                </td>
-              </tr>
-            `;
-          });
-        }
-      } catch (e) {
-        console.error("Portfolio error:", e);
+    function openTradeModal() {
+      if (!currentUser) {
+        alert("Musisz być zalogowany, aby składać zlecenia!");
+        return;
       }
-    }
-
-    async function openTradeModal() {
       document.getElementById("tradeError").classList.add("hidden");
       document.getElementById("tradeTickerInput").value = "";
       document.getElementById("tradeShares").value = "";
@@ -406,16 +863,24 @@
       document.getElementById("tradeModal").classList.add("hidden");
     }
 
+    function openRulesModal() {
+      document.getElementById("rulesModal").classList.remove("hidden");
+    }
+
+    function closeRulesModal() {
+      document.getElementById("rulesModal").classList.add("hidden");
+    }
+
     function setTradeType(type) {
       currentTradeType = type;
       const bBuy = document.getElementById("btnBuy");
       const bSell = document.getElementById("btnSell");
       if (type === 'BUY') {
-        bBuy.className = "py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white transition";
-        bSell.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
+        bBuy.className = "py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition";
+        bSell.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
       } else {
-        bSell.className = "py-1.5 text-xs font-bold rounded-md bg-rose-600 text-white transition";
-        bBuy.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
+        bSell.className = "py-2 text-xs font-bold rounded-lg bg-rose-600 text-white transition";
+        bBuy.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
       }
       updateEstimatedCost();
     }
@@ -436,7 +901,7 @@
       errDiv.classList.add("hidden");
 
       if (!verifiedInstrument) {
-        errDiv.innerText = "Najpierw sprawdź walor za pomocą przycisku 'Sprawdź'.";
+        errDiv.innerText = "Najpierw sprawdź walor przyciskiem 'Sprawdź'.";
         errDiv.classList.remove("hidden");
         return;
       }
@@ -458,14 +923,15 @@
 
         if (data.status === "success") {
           closeTradeModal();
-          fetchAllData();
-          fetchUserPortfolio();
+          await fetchAllData();
+          await fetchUserPortfolio();
+          alert("Zlecenie zrealizowane pomyślnie! Sprawdź tabelę oraz feed transakcji.");
         } else {
-          errDiv.innerText = data.message || "Błąd transakcji";
+          errDiv.innerText = data.message || "Błąd wykonania zlecenia";
           errDiv.classList.remove("hidden");
         }
       } catch (err) {
-        errDiv.innerText = "Błąd sieci";
+        errDiv.innerText = "Błąd sieci podczas wysyłania zlecenia.";
         errDiv.classList.remove("hidden");
       }
     }
@@ -475,61 +941,7 @@
       location.reload();
     }
 
-    async function fetchLeaderboard() {
-      const icon = document.getElementById("refreshIcon");
-      if (icon) icon.classList.add("animate-spin");
-
-      try {
-        const res = await fetch('/api/leaderboard');
-        const json = await res.json();
-        if (json.status === "success") {
-          renderDashboard(json.data, `Zaktualizowano: ${new Date().toLocaleTimeString()}`);
-        }
-      } catch (e) {
-        console.error(e);
-      } finally {
-        if (icon) icon.classList.remove("animate-spin");
-      }
-    }
-
-    async function fetchFeed() {
-      try {
-        const res = await fetch('/api/feed');
-        const json = await res.json();
-        const container = document.getElementById("feedContainer");
-
-        if (json.status === "success" && json.data.length > 0) {
-          container.innerHTML = "";
-          json.data.forEach(item => {
-            const isBuy = item.type === "BUY";
-            const badgeColor = isBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30";
-            const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
-
-            container.innerHTML += `
-              <div class="p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div class="space-y-1">
-                  <div class="flex items-center gap-2">
-                    <span class="font-bold text-white text-sm">${item.user_name}</span>
-                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border ${badgeColor}">${item.type}</span>
-                    <span class="font-semibold text-slate-200 text-sm">${item.shares} szt. ${item.ticker}</span>
-                    <span class="text-xs text-slate-500">(${formatPLN(item.total_value_pln)})</span>
-                  </div>
-                  <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
-                    "${item.thesis}"
-                  </p>
-                </div>
-                <div class="text-[11px] text-slate-500 font-mono whitespace-nowrap self-end md:self-center">
-                  ${dateStr}
-                </div>
-              </div>
-            `;
-          });
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    }
-
+    // Panel Audytu (Tylko Admin)
     async function fetchAuditLogs() {
       try {
         const res = await fetch('/api/admin/audit');
@@ -542,77 +954,35 @@
             const isOk = log.status === "SUCCESS";
             tbody.innerHTML += `
               <tr class="border-b border-slate-800/40 hover:bg-slate-950/40">
-                <td class="py-2 px-4 text-slate-500 text-[11px]">${log.created_at}</td>
-                <td class="py-2 px-4 text-slate-300">${log.user_name}</td>
-                <td class="py-2 px-4 text-indigo-300 font-semibold">${log.action}</td>
-                <td class="py-2 px-4 ${isOk ? 'text-emerald-400' : 'text-rose-400 font-bold'}">${log.status}</td>
-                <td class="py-2 px-4 text-slate-400 text-[11px]">${log.ip_address}</td>
-                <td class="py-2 px-4 text-slate-400 text-[11px] truncate max-w-xs" title='${log.payload}'>${log.payload}</td>
+                <td class="py-2.5 px-4 text-slate-400 text-[11px]">${log.created_at}</td>
+                <td class="py-2.5 px-4 text-slate-300 font-sans">${log.user_name}</td>
+                <td class="py-2.5 px-4 text-indigo-300 font-semibold">${log.action}</td>
+                <td class="py-2.5 px-4 ${isOk ? 'text-emerald-400' : 'text-rose-400 font-bold'}">${log.status}</td>
+                <td class="py-2.5 px-4 text-slate-400 text-[11px]">${log.ip_address}</td>
+                <td class="py-2.5 px-4 text-slate-400 text-[11px] truncate max-w-xs" title='${log.payload}'>${log.payload}</td>
               </tr>
             `;
           });
         }
       } catch (e) {
-        console.error(e);
+        console.error("Audit log error:", e);
       }
     }
 
-    function formatPLN(val) {
-      return (Number(val) || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
-    }
-
-    function formatPct(val) {
-      const num = (Number(val) || 0) * 100;
-      return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
-    }
-
-    function renderDashboard(items, ts) {
-      document.getElementById("dataTimestamp").innerText = ts;
-      items.sort((a, b) => b.Stopa_Zwrotu - a.Stopa_Zwrotu);
-
-      const benchmark = items.find(i => i.Uczestnik.toLowerCase().includes("s&p 500") || i.Uczestnik.toLowerCase().includes("benchmark"));
-      const participants = items.filter(i => !i.Uczestnik.toLowerCase().includes("benchmark"));
-
-      if (participants.length > 0) {
-        document.getElementById("leaderName").innerText = participants[0].Uczestnik;
-        document.getElementById("leaderReturn").innerText = formatPct(participants[0].Stopa_Zwrotu);
-        const avg = participants.reduce((acc, c) => acc + (c.Stopa_Zwrotu || 0), 0) / participants.length;
-        document.getElementById("avgReturn").innerText = formatPct(avg);
-        document.getElementById("activeParticipantsCount").innerText = `${participants.length} uczestników ligi`;
+    async function triggerManualSync() {
+      if (!confirm("Czy na pewno chcesz wymusić natychmiastową synchronizację kursów?")) return;
+      try {
+        const res = await fetch('/api/admin/sync-prices');
+        const json = await res.json();
+        if (json.status === "success") {
+          alert("Synchronizacja kursów zakończona pomyślnie!");
+          fetchAllData();
+        } else {
+          alert("Błąd: " + json.message);
+        }
+      } catch (e) {
+        alert("Błąd połączenia z serwerem.");
       }
-
-      if (benchmark) document.getElementById("benchmarkReturn").innerText = formatPct(benchmark.Stopa_Zwrotu);
-
-      const tbody = document.getElementById("leaderboardBody");
-      tbody.innerHTML = "";
-
-      items.forEach((item, idx) => {
-        const isBench = item.Uczestnik.toLowerCase().includes("benchmark");
-        const retCol = item.Stopa_Zwrotu > 0 ? "text-emerald-400" : (item.Stopa_Zwrotu < 0 ? "text-rose-400" : "text-slate-400");
-        const rowBg = isBench ? "bg-indigo-950/20 border-l-4 border-indigo-500 font-semibold" : "hover:bg-slate-850";
-
-        let badge = `<span class="text-slate-500 font-mono text-xs">${idx + 1}</span>`;
-        if (idx === 0 && !isBench) badge = `<span class="text-amber-400 text-base">🥇</span>`;
-        if (idx === 1 && !isBench) badge = `<span class="text-slate-300 text-base">🥈</span>`;
-        if (idx === 2 && !isBench) badge = `<span class="text-amber-600 text-base">🥉</span>`;
-
-        tbody.innerHTML += `
-          <tr class="${rowBg} border-b border-slate-800/60 transition">
-            <td class="py-4 px-6 text-center">${badge}</td>
-            <td class="py-4 px-6">
-              <div class="flex items-center gap-2">
-                <span class="text-white">${item.Uczestnik}</span>
-                ${isBench ? '<span class="text-[10px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">Benchmark</span>' : ''}
-              </div>
-            </td>
-            <td class="py-4 px-6 text-right text-slate-200">${formatPLN(item.Wycena_Calkowita_PLN)}</td>
-            <td class="py-4 px-6 text-right text-slate-400">${formatPLN(item.Gotowka_PLN)}</td>
-            <td class="py-4 px-6 text-right ${retCol}">${formatPLN(item.Zysk_Strata_PLN)}</td>
-            <td class="py-4 px-6 text-right font-bold ${retCol}">${formatPct(item.Stopa_Zwrotu)}</td>
-          </tr>
-        `;
-      });
-      lucide.createIcons();
     }
   </script>
 </body>
