@@ -55,7 +55,7 @@ export default {
         status: 302,
         headers: {
           "Location": githubUrl,
-          "Set-Cookie": `oauth_state=${state}; Path=/; HttpOnly; SameSite=Lax; Max-Age=300`
+          "Set-Cookie": `oauth_state_${state}=${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=300`
         }
       });
     }
@@ -67,10 +67,19 @@ export default {
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
 
-      const cookieHeader = request.headers.get("Cookie") || "";
-      const stateMatch = cookieHeader.match(/oauth_state=([a-zA-Z0-9_-]+)/);
+      if (!state || !/^[a-f0-9-]{36}$/i.test(state)) {
+        return new Response("Błąd bezpieczeństwa (brak lub nieprawidłowy parametr state)", { status: 403 });
+      }
 
-      if (!stateMatch || stateMatch[1] !== state) {
+      const cookieHeader = request.headers.get("Cookie") || "";
+      const stateCookieName = `oauth_state_${state}`;
+      const stateCookie = cookieHeader
+        .split(";")
+        .map(cookie => cookie.trim())
+        .find(cookie => cookie.startsWith(`${stateCookieName}=`));
+      const storedState = stateCookie?.slice(stateCookieName.length + 1);
+
+      if (storedState !== state) {
         return new Response("Błąd bezpieczeństwa (CSRF State Mismatch)", { status: 403 });
       }
 
