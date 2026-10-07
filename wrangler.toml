@@ -2,6 +2,9 @@ name = "karuzelahajsu"
 compatibility_date = "2026-10-06"
 main = "worker.js"
 
+[vars]
+GITHUB_CLIENT_ID = "Ov23liBBJtlHrJ0Ey1pf"
+
 [assets]
 directory = "."
 
