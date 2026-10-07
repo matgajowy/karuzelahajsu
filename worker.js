@@ -1,9 +1,7 @@
-// Pomocnicza funkcja pobierająca aktualne kursy z Yahoo Finance
 async function syncMarketPrices(env) {
   const log = [];
-  
-  // 1. Pobranie aktualnego kursu USD/PLN
   let usdPlnRate = 4.00;
+
   try {
     const fxRes = await fetch("https://query1.finance.yahoo.com/v8/finance/chart/USDPLN=X?interval=1d&range=1d", {
       headers: { "User-Agent": "Mozilla/5.0" }
@@ -12,15 +10,13 @@ async function syncMarketPrices(env) {
     usdPlnRate = fxData.chart.result[0].meta.regularMarketPrice || usdPlnRate;
     log.push(`FX USD/PLN zaktualizowany: ${usdPlnRate}`);
   } catch (e) {
-    log.push(`Błąd pobierania USD/PLN, użyto fallbacku: ${usdPlnRate}`);
+    log.push(`Błąd FX USD/PLN, użyto domyślnego: ${usdPlnRate}`);
   }
 
-  // 2. Pobranie listy tickerów z bazy
   const { results: tickers } = await env.DB.prepare("SELECT ticker, currency FROM market_prices").all();
 
   for (const item of tickers) {
     try {
-      // Mapowanie tickera na symbol Yahoo (dla WIG20 wymagane jest WIG20.WA)
       const yahooSymbol = item.ticker === "WIG20" ? "WIG20.WA" : item.ticker;
       const res = await fetch(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(yahooSymbol)}?interval=1d&range=1d`, {
         headers: { "User-Agent": "Mozilla/5.0" }
@@ -46,7 +42,6 @@ async function syncMarketPrices(env) {
 }
 
 export default {
-  // Obsługa zadań w tle (Cloudflare Cron Triggers)
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncMarketPrices(env));
   },
@@ -87,7 +82,7 @@ export default {
       }
     }
 
-    // --- RĘCZNA SYNCHRONIZACJA KURSÓW (Dla Admina / do testów) ---
+    // --- ADMIN: RĘCZNY SYNC KURSÓW ---
     if (url.pathname === "/api/admin/sync-prices") {
       const user = await getAuthenticatedUser();
       if (!user || user.is_admin !== 1) {
@@ -95,6 +90,52 @@ export default {
       }
       const logs = await syncMarketPrices(env);
       return new Response(JSON.stringify({ status: "success", logs }), { headers: corsHeaders });
+    }
+
+    // --- ADMIN: DZIENNIK AUDYTU (/api/admin/audit) ---
+    if (url.pathname === "/api/admin/audit") {
+      const user = await getAuthenticatedUser();
+      if (!user || user.is_admin !== 1) {
+        return new Response(JSON.stringify({ status: "error", message: "Brak uprawnień." }), { status: 403, headers: corsHeaders });
+      }
+      const query = `
+        SELECT 
+          a.id,
+          COALESCE(u.display_name, 'Niezalogowany / Gość') AS user_name,
+          a.action,
+          a.payload,
+          a.ip_address,
+          a.status,
+          a.created_at
+        FROM audit_log a
+        LEFT JOIN users u ON a.user_id = u.id
+        ORDER BY a.created_at DESC
+        LIMIT 50
+      `;
+      const { results } = await env.DB.prepare(query).all();
+      return new Response(JSON.stringify({ status: "success", data: results }), { headers: corsHeaders });
+    }
+
+    // --- FEED TRANSAKCJI DLA GRACZY (/api/feed) ---
+    if (url.pathname === "/api/feed") {
+      const query = `
+        SELECT 
+          t.id,
+          u.display_name AS user_name,
+          t.ticker,
+          t.type,
+          t.shares,
+          t.price,
+          t.total_value_pln,
+          t.thesis,
+          t.created_at
+        FROM transactions t
+        JOIN users u ON t.user_id = u.id
+        ORDER BY t.created_at DESC
+        LIMIT 20
+      `;
+      const { results } = await env.DB.prepare(query).all();
+      return new Response(JSON.stringify({ status: "success", data: results }), { headers: corsHeaders });
     }
 
     // --- 1. AUTH GITHUB ---
@@ -228,19 +269,19 @@ export default {
         const { ticker, type, shares, thesis } = await request.json();
 
         if (!ticker || typeof ticker !== "string") throw new Error("Nieprawidłowy ticker.");
-        if (type !== "BUY" && type !== "SELL") throw new Error("Typ zlecenia musi wynosić BUY lub SELL.");
+        if (type !== "BUY" && type !== "SELL") throw new Error("Typ zlecenia: BUY lub SELL.");
         const parsedShares = Number(shares);
-        if (!Number.isFinite(parsedShares) || parsedShares <= 0) throw new Error("Liczba akcji musi być większa od 0.");
+        if (!Number.isFinite(parsedShares) || parsedShares <= 0) throw new Error("Liczba akcji musi być > 0.");
         
         if (!thesis || typeof thesis !== "string" || thesis.trim().length < 15) {
-          throw new Error("Regulamin ligi: Uzasadnienie transakcji musi mieć co najmniej 15 znaków.");
+          throw new Error("Regulamin: Uzasadnienie transakcji musi mieć co najmniej 15 znaków.");
         }
 
         const market = await env.DB.prepare(
           "SELECT price, fx_to_pln FROM market_prices WHERE ticker = ?"
         ).bind(ticker.toUpperCase()).first();
 
-        if (!market) throw new Error(`Instrument ${ticker} nie znajduje się na liście dozwolonych.`);
+        if (!market) throw new Error(`Instrument ${ticker} niedozwolony.`);
 
         const tradeValuePLN = parsedShares * market.price * market.fx_to_pln;
 
@@ -265,7 +306,7 @@ export default {
           const maxAllowedExposure = totalPortfolioValue * 0.35;
           if (targetValuePLN > maxAllowedExposure) {
             const limitPct = ((targetValuePLN / totalPortfolioValue) * 100).toFixed(1);
-            throw new Error(`Limit dywersyfikacji przekroczony: Pozycja stanowiłaby ${limitPct}% portfela (maksimum to 35.0%).`);
+            throw new Error(`Limit dywersyfikacji: Pozycja wynosiłaby ${limitPct}% portfela (maksimum to 35.0%).`);
           }
 
           const cashUpdate = await env.DB.prepare(`
@@ -273,7 +314,7 @@ export default {
           `).bind(tradeValuePLN, user.id, tradeValuePLN).run();
 
           if (cashUpdate.meta.changes === 0) {
-            throw new Error("Niewystarczające saldo gotówki na rachunku.");
+            throw new Error("Niewystarczające saldo gotówki.");
           }
 
           await env.DB.batch([
@@ -309,7 +350,7 @@ export default {
         }
 
         await logAudit(user.id, `TRADE_${type}`, { ticker, shares: parsedShares, value: tradeValuePLN, thesis }, "SUCCESS");
-        return new Response(JSON.stringify({ status: "success", message: `Zlecenie ${type} na ${ticker} zrealizowane!` }), { headers: corsHeaders });
+        return new Response(JSON.stringify({ status: "success", message: `Zlecenie ${type} na ${ticker} wykonane!` }), { headers: corsHeaders });
 
       } catch (err) {
         await logAudit(user.id, "TRADE_ERROR", { error: err.message }, "FAILED");

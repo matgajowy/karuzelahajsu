@@ -22,10 +22,14 @@
           <i data-lucide="trending-up" class="w-4 h-4"></i> Paper Trading Challenge
         </div>
         <h1 class="text-3xl font-bold tracking-tight text-white">Karuzela Hajsu 🎠💸</h1>
-        <p class="text-slate-400 text-sm mt-1">Śledź stopy zwrotu, składaj zlecenia i przestrzegaj limitu 35% na pozycję.</p>
+        <p class="text-slate-400 text-sm mt-1">Śledź stopy zwrotu, tezy inwestycyjne i rywalizację z rynkiem.</p>
       </div>
 
       <div class="flex items-center gap-3">
+        <button onclick="fetchAllData()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer">
+          <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4"></i> Odśwież
+        </button>
+
         <div id="authContainer">
           <a href="/api/auth/github" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
             <i data-lucide="github" class="w-4 h-4"></i> Zaloguj z GitHub
@@ -52,7 +56,7 @@
         </div>
       </div>
 
-      <!-- Tabela posiadanych pozycji -->
+      <!-- Pozycje portfela -->
       <div class="mt-4">
         <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Twoje Otwarte Pozycje</h3>
         <div class="overflow-x-auto">
@@ -75,11 +79,11 @@
       </div>
     </div>
 
-    <!-- Modal Zlecenia (Trade) -->
+    <!-- Modal Zlecenia -->
     <div id="tradeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
         <h3 class="text-lg font-bold text-white mb-1">Złóż Zlecenie Giełdowe</h3>
-        <p class="text-slate-400 text-xs mb-4">Maksymalna ekspozycja: 35% całego portfela.</p>
+        <p class="text-slate-400 text-xs mb-4">Maksymalna ekspozycja: 35% wartości portfela.</p>
 
         <form id="tradeForm" onsubmit="submitTrade(event)" class="space-y-4">
           <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-lg border border-slate-800">
@@ -105,7 +109,7 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-slate-300 mb-1">Uzasadnienie transakcji (Thesis - min. 15 znaków)</label>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (Thesis - min. 15 znaków)</label>
             <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wchodzisz/wychodzisz z tej pozycji?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100"></textarea>
           </div>
 
@@ -171,17 +175,66 @@
       </div>
     </div>
 
+    <!-- Feed Ostatnich Transakcji -->
+    <div class="mt-8 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+      <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
+        <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
+          <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Zlecenia i Tezy Inwestycyjne
+        </h2>
+        <span class="text-xs text-slate-500">Podgląd strategii w zespole</span>
+      </div>
+      <div id="feedContainer" class="p-6 space-y-4">
+        <div class="text-center text-slate-500 text-xs py-4">Brak ostatnich transakcji</div>
+      </div>
+    </div>
+
+    <!-- Panel Audytu (tylko dla Admina) -->
+    <div id="adminAuditSection" class="hidden mt-8 bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+      <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+        <h2 class="text-base font-semibold text-amber-300 flex items-center gap-2">
+          <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i> Dziennik Audytu Bezpieczeństwa (Admin)
+        </h2>
+        <button onclick="fetchAuditLogs()" class="text-xs text-slate-400 hover:text-white transition">Odśwież logi</button>
+      </div>
+      <div class="overflow-x-auto max-h-96">
+        <table class="w-full text-left text-xs text-slate-300">
+          <thead class="text-slate-500 uppercase bg-slate-950/40 border-b border-slate-800 sticky top-0">
+            <tr>
+              <th class="py-2.5 px-4">Czas</th>
+              <th class="py-2.5 px-4">Użytkownik</th>
+              <th class="py-2.5 px-4">Akcja</th>
+              <th class="py-2.5 px-4">Status</th>
+              <th class="py-2.5 px-4">IP</th>
+              <th class="py-2.5 px-4">Payload</th>
+            </tr>
+          </thead>
+          <tbody id="auditTableBody" class="divide-y divide-slate-800/60 font-mono">
+            <tr><td colspan="6" class="py-4 text-center text-slate-500">Brak wpisów audytowych</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
   <script>
+    let currentUser = null;
     let instrumentsCache = [];
     let currentTradeType = 'BUY';
 
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
       checkAuth();
-      fetchLeaderboard();
+      fetchAllData();
     });
+
+    async function fetchAllData() {
+      fetchLeaderboard();
+      fetchFeed();
+      if (currentUser && currentUser.is_admin === 1) {
+        fetchAuditLogs();
+      }
+    }
 
     async function checkAuth() {
       try {
@@ -190,29 +243,106 @@
         const container = document.getElementById("authContainer");
 
         if (data.authenticated) {
+          currentUser = data.user;
           container.innerHTML = `
             <div class="flex items-center gap-2 bg-indigo-950/40 border border-indigo-500/30 px-3 py-1.5 rounded-lg text-xs">
               <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span class="text-indigo-200 font-semibold">${data.user.display_name}</span>
+              <span class="text-indigo-200 font-semibold">${currentUser.display_name}</span>
+              ${currentUser.is_admin ? '<span class="text-[10px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-bold">ADMIN</span>' : ''}
               <button onclick="handleLogout()" class="text-slate-400 hover:text-rose-400 ml-2 transition cursor-pointer" title="Wyloguj">
                 <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
               </button>
             </div>
           `;
           document.getElementById("userPanel").classList.remove("hidden");
-          document.getElementById("userNameDisplay").innerText = data.user.display_name;
+          document.getElementById("userNameDisplay").innerText = currentUser.display_name;
           fetchUserPortfolio();
+
+          if (currentUser.is_admin === 1) {
+            document.getElementById("adminAuditSection").classList.remove("hidden");
+            fetchAuditLogs();
+          }
         } else {
+          currentUser = null;
           container.innerHTML = `
             <a href="/api/auth/github" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
               <i data-lucide="github" class="w-4 h-4"></i> Zaloguj z GitHub
             </a>
           `;
           document.getElementById("userPanel").classList.add("hidden");
+          document.getElementById("adminAuditSection").classList.add("hidden");
         }
         lucide.createIcons();
       } catch (e) {
         console.error("Auth check failed:", e);
+      }
+    }
+
+    async function fetchFeed() {
+      try {
+        const res = await fetch('/api/feed');
+        const json = await res.json();
+        const container = document.getElementById("feedContainer");
+
+        if (json.status === "success" && json.data.length > 0) {
+          container.innerHTML = "";
+          json.data.forEach(item => {
+            const isBuy = item.type === "BUY";
+            const badgeColor = isBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30";
+            const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+
+            container.innerHTML += `
+              <div class="p-4 rounded-xl bg-slate-950 border border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-white text-sm">${item.user_name}</span>
+                    <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full border ${badgeColor}">${item.type}</span>
+                    <span class="font-semibold text-slate-200 text-sm">${item.shares} szt. ${item.ticker}</span>
+                    <span class="text-xs text-slate-500">(${formatPLN(item.total_value_pln)})</span>
+                  </div>
+                  <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
+                    "${item.thesis}"
+                  </p>
+                </div>
+                <div class="text-[11px] text-slate-500 font-mono whitespace-nowrap self-end md:self-center">
+                  ${dateStr}
+                </div>
+              </div>
+            `;
+          });
+        } else {
+          container.innerHTML = '<div class="text-center text-slate-500 text-xs py-4">Brak ostatnich transakcji. Bądź pierwszym, który złoży zlecenie!</div>';
+        }
+      } catch (e) {
+        console.error("Feed error:", e);
+      }
+    }
+
+    async function fetchAuditLogs() {
+      try {
+        const res = await fetch('/api/admin/audit');
+        const json = await res.json();
+        const tbody = document.getElementById("auditTableBody");
+
+        if (json.status === "success" && json.data.length > 0) {
+          tbody.innerHTML = "";
+          json.data.forEach(log => {
+            const isOk = log.status === "SUCCESS";
+            const stColor = isOk ? "text-emerald-400" : "text-rose-400 font-bold";
+            tbody.innerHTML += `
+              <tr class="border-b border-slate-800/40 hover:bg-slate-950/40">
+                <td class="py-2 px-4 text-slate-500 text-[11px]">${log.created_at}</td>
+                <td class="py-2 px-4 text-slate-300">${log.user_name}</td>
+                <td class="py-2 px-4 text-indigo-300 font-semibold">${log.action}</td>
+                <td class="py-2 px-4 ${stColor}">${log.status}</td>
+                <td class="py-2 px-4 text-slate-400 text-[11px]">${log.ip_address}</td>
+                <td class="py-2 px-4 text-slate-400 text-[11px] truncate max-w-xs" title='${log.payload}'>${log.payload}</td>
+              </tr>
+            `;
+          });
+        }
+      } catch (e) {
+        console.error("Audit log error:", e);
       }
     }
 
@@ -319,8 +449,8 @@
 
         if (data.status === "success") {
           closeTradeModal();
+          fetchAllData();
           fetchUserPortfolio();
-          fetchLeaderboard();
         } else {
           errDiv.innerText = data.message || "Błąd wykonania zlecenia";
           errDiv.classList.remove("hidden");
