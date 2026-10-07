@@ -17,9 +17,9 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
   <!-- ========================================== -->
-  <!-- GÓRNY PASEK NAWIGACJI I NAGŁÓWEK          -->
+  <!-- GÓRNY PASEK NAWIGACJI                      -->
   <!-- ========================================== -->
-  <header class="border-b border-slate-850 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
+  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
       
       <!-- Logo i Branding -->
@@ -28,9 +28,9 @@
           <span class="text-2xl group-hover:scale-110 transition duration-200">🎠</span>
           <div>
             <h1 class="text-base font-extrabold tracking-tight text-white leading-tight flex items-center gap-1.5">
-              Karuzela Hajsu <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.2 rounded">v2.0</span>
+              Karuzela Hajsu <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.2 rounded">v2.1</span>
             </h1>
-            <p class="text-[11px] text-slate-400">Wewnętrzna Liga Spekulacyjna</p>
+            <p class="text-[11px] text-slate-400">Biurowa Liga Spekulacyjna</p>
           </div>
         </a>
       </div>
@@ -74,20 +74,21 @@
   <nav class="border-b border-slate-800/80 bg-slate-950/80">
     <div class="max-w-6xl mx-auto px-4 flex items-center justify-between">
       <div class="flex gap-2">
-        <button id="tabBtnArena" onclick="switchTab('arena')" class="py-3 px-4 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition">
-          <i data-lucide="trophy" class="w-4 h-4"></i> Arena Główna
+        <button id="tabBtnArena" onclick="switchTab('arena')" class="py-3 px-4 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition">
+          <i data-lucide="swords" class="w-4 h-4"></i> 🥊 Ring Spekulantów
         </button>
-        <button id="tabBtnPortfolio" onclick="switchTab('portfolio')" class="hidden py-3 px-4 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition">
+        <!-- Ukryte domyślnie przez inline style aż do potwierdzenia sesji -->
+        <button id="tabBtnPortfolio" onclick="switchTab('portfolio')" style="display: none;" class="py-3 px-4 text-xs font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition">
           <i data-lucide="wallet" class="w-4 h-4"></i> Mój Portfel
         </button>
-        <button id="tabBtnAdmin" onclick="switchTab('admin')" class="hidden py-3 px-4 text-xs font-semibold border-b-2 border-transparent text-amber-400 hover:text-amber-300 flex items-center gap-2 transition">
+        <button id="tabBtnAdmin" onclick="switchTab('admin')" style="display: none;" class="py-3 px-4 text-xs font-bold border-b-2 border-transparent text-amber-400 hover:text-amber-300 flex items-center gap-2 transition">
           <i data-lucide="shield-check" class="w-4 h-4"></i> Panel Audytu
         </button>
       </div>
 
       <!-- Szybki przycisk nowego zlecenia w belce -->
-      <div id="quickTradeBtnContainer" class="hidden py-2">
-        <button onclick="openTradeModal()" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
+      <div id="quickTradeBtnContainer" style="display: none;" class="py-2">
+        <button onclick="openTradeModal('BUY')" class="flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-semibold transition">
           <i data-lucide="plus-circle" class="w-3.5 h-3.5"></i>
           <span>Złóż zlecenie</span>
         </button>
@@ -99,18 +100,18 @@
   <main class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
 
     <!-- ========================================== -->
-    <!-- WIDOK 1: ARENA GŁÓWNA                     -->
+    <!-- WIDOK 1: RING SPEKULANTÓW                 -->
     <!-- ========================================== -->
     <div id="viewArena" class="space-y-8">
       
-      <!-- Karty KPI (3 Kolumny) -->
+      <!-- Karty KPI -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-5">
         
         <!-- KARTA 1: AKTUALNY LIDER -->
         <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-              <span>Aktualny Lider</span>
+              <span>Aktualny Lider Ringu</span>
               <span class="text-amber-400 text-sm">👑</span>
             </div>
             <div class="flex items-center gap-3 mt-3">
@@ -129,12 +130,12 @@
           </div>
         </div>
 
-        <!-- KARTA 2: BENCHMARKI RYNKOWE (S&P 500 + WIG 20) -->
+        <!-- KARTA 2: BENCHMARKI RYNKOWE -->
         <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
               <span>Benchmarki Rynkowe</span>
-              <span class="text-indigo-400 text-xs font-mono">Rynek</span>
+              <span class="text-indigo-400 text-xs font-mono">Indeksy</span>
             </div>
             
             <div class="grid grid-cols-2 gap-3 mt-3">
@@ -150,7 +151,7 @@
           </div>
 
           <div class="text-[11px] text-slate-400 mt-3 pt-2 border-t border-slate-800/80">
-            Oficjalny punkt odniesienia dla portfeli
+            Punkt odniesienia dla portfeli
           </div>
         </div>
 
@@ -158,7 +159,7 @@
         <div class="bg-slate-900/90 border border-slate-800 p-5 rounded-2xl relative overflow-hidden flex flex-col justify-between">
           <div>
             <div class="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wider">
-              <span>Średnia Zespołu</span>
+              <span>Średnia Drużyny</span>
               <i data-lucide="users" class="w-4 h-4 text-slate-500"></i>
             </div>
             <div class="mt-2">
@@ -206,14 +207,14 @@
         </div>
       </div>
 
-      <!-- FEED: OSTATNIE TRANSAKCJE & TEZY INWESTYCYJNE -->
+      <!-- FEED: OSTATNIE TRANSAKCJE -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/70">
           <div>
             <h2 class="text-base font-bold text-white flex items-center gap-2">
-              <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Zlecenia & Tezy Inwestycyjne
+              <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Ruchy & Tezy Inwestycyjne
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">Podgląd zagrań i uzasadnień kolegów z biura</p>
+            <p class="text-xs text-slate-400 mt-0.5">Podgląd strategii i uzasadnień zespołu</p>
           </div>
           <span class="text-xs text-slate-400">Na żywo</span>
         </div>
@@ -226,11 +227,10 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- WIDOK 2: MÓJ PORTFEL (TYLKO DLA ZALOGOWANEGO)-->
+    <!-- WIDOK 2: MÓJ PORTFEL                      -->
     <!-- ========================================== -->
-    <div id="viewPortfolio" class="hidden space-y-6">
+    <div id="viewPortfolio" style="display: none;" class="space-y-6">
       
-      <!-- Nagłówek Portfela Gracza -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-6 border-b border-slate-800">
           <div class="flex items-center gap-4">
@@ -238,7 +238,7 @@
             <div>
               <span class="text-xs text-indigo-400 font-bold uppercase tracking-wider">Rachunek Inwestycyjny</span>
               <h2 id="userNameDisplay" class="text-2xl font-black text-white mt-0.5">--</h2>
-              <p class="text-xs text-slate-400">Limit dywersyfikacji: max 35% na walor</p>
+              <p class="text-xs text-slate-400">Limit dywersyfikacji: max 35% na pojedynczą spółkę</p>
             </div>
           </div>
           
@@ -247,7 +247,7 @@
               <div class="text-xs text-slate-400">Dostępna Gotówka:</div>
               <div id="userCashDisplay" class="text-xl font-black text-emerald-400 font-mono">0.00 zł</div>
             </div>
-            <button onclick="openTradeModal()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 transition">
+            <button onclick="openTradeModal('BUY')" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 transition">
               <i data-lucide="plus-circle" class="w-4 h-4"></i> Nowe Zlecenie
             </button>
           </div>
@@ -266,7 +266,7 @@
                   <th class="py-2.5 text-right">Kurs bieżący</th>
                   <th class="py-2.5 text-right">Wycena (PLN)</th>
                   <th class="py-2.5 text-right">Wynik</th>
-                  <th class="py-2.5 text-center">Akcja</th>
+                  <th class="py-2.5 text-center">Szybka Akcja</th>
                 </tr>
               </thead>
               <tbody id="portfolioTableBody" class="divide-y divide-slate-800/40 font-mono">
@@ -280,16 +280,16 @@
     </div>
 
     <!-- ========================================== -->
-    <!-- WIDOK 3: PANEL AUDYTU (ADMIN ONLY)        -->
+    <!-- WIDOK 3: PANEL AUDYTU (ADMIN)             -->
     <!-- ========================================== -->
-    <div id="viewAdmin" class="hidden space-y-6">
+    <div id="viewAdmin" style="display: none;" class="space-y-6">
       <div class="bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
         <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
           <div>
             <h2 class="text-base font-bold text-amber-300 flex items-center gap-2">
               <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i> Dziennik Audytu Bezpieczeństwa
             </h2>
-            <p class="text-xs text-slate-400">Rejestr logowań, zleceń i operacji systemowych</p>
+            <p class="text-xs text-slate-400">Rejestr zdarzeń i adresów IP</p>
           </div>
           <div class="flex gap-2">
             <button onclick="triggerManualSync()" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-1.5 rounded-lg transition">
@@ -323,7 +323,7 @@
   </main>
 
   <!-- ========================================== -->
-  <!-- MODAL: KODEKS SPEKULANTA (ZASADY GRY)      -->
+  <!-- MODAL: KODEKS SPEKULANTA                   -->
   <!-- ========================================== -->
   <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative">
@@ -339,40 +339,40 @@
       <div class="mt-4 space-y-3.5 text-xs text-slate-300 leading-relaxed">
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
           <span class="font-bold text-white block mb-0.5">💵 1. Kapitał Startowy: 100 000 PLN</span>
-          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. Gramy na realnych, bieżących kursach giełdowych.
+          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. Handlujemy na realnych cenach giełdowych.
         </div>
 
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
           <span class="font-bold text-amber-300 block mb-0.5">⚖️ 2. Zasada Dywersyfikacji (Max 35%)</span>
-          Żaden pojedynczy walor nie może przekraczać 35% całkowitej wyceny Twojego portfela w momencie zakupu. Nie ma pójścia "all-in" w jedną spółkę.
+          Żaden walor nie może przekraczać 35% łącznej wyceny Twojego portfela w chwili zakupu.
         </div>
 
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span class="font-bold text-indigo-300 block mb-0.5">🗣️ 3. Obowiązkowa Teza Inwestycyjna (min. 15 znaków)</span>
-          Każde zlecenie wymaga publicznego uzasadnienia. Twoja teza trafia bezpośrednio na wspólny feed – niech koledzy wiedzą, dlaczego kupujesz ten dołek.
+          <span class="font-bold text-indigo-300 block mb-0.5">🗣️ 3. Teza Inwestycyjna (min. 15 znaków)</span>
+          Każda transakcja wymaga publicznego uzasadnienia. Trafia ono do wspólnego feedu zespołu.
         </div>
 
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW & Wall Street</span>
-          Wpisuj tickery z rynku USA (np. <code class="text-indigo-300">NVDA, PLTR, AAPL</code>) lub GPW z końcówką <code class="text-indigo-300">.WA</code> (np. <code class="text-indigo-300">CDR.WA, PKO.WA</code>).
+          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW & USA</span>
+          Akceptujemy symbole z USA (np. <code class="text-indigo-300">NVDA, AAPL</code>) oraz z GPW z końcówką <code class="text-indigo-300">.WA</code> (np. <code class="text-indigo-300">CDR.WA</code>).
         </div>
 
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span class="font-bold text-rose-300 block mb-0.5">🚫 5. Brak Dźwigni i Shortów</span>
-          Gramy czysto pozycjami długimi (kupujesz to, na co pozwala Ci gotówka). Brak marży i lewarowania.
+          <span class="font-bold text-rose-300 block mb-0.5">🚫 5. Brak Dźwigni i Pozycji Krótkich</span>
+          Brak lewara, brak gry na spadek. Kupujesz wyłącznie to, na co masz pokrycie w gotówce.
         </div>
       </div>
 
       <div class="mt-6">
         <button onclick="closeRulesModal()" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">
-          Zrozumiałem, wchodzę do gry!
+          Zrozumiałem, wchodzę na parkiet!
         </button>
       </div>
     </div>
   </div>
 
   <!-- ========================================== -->
-  <!-- MODAL: ZŁÓŻ ZLECENIE (TRADE)              -->
+  <!-- MODAL: FORMULARZ ZLECENIA (SMART BUY/SELL) -->
   <!-- ========================================== -->
   <div id="tradeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
@@ -386,14 +386,14 @@
       </div>
 
       <form id="tradeForm" onsubmit="submitTrade(event)" class="mt-4 space-y-4">
-        <!-- Przełącznik KUP / SPRZEDAJ -->
+        <!-- Przełącznik KUPNO / SPRZEDAŻ -->
         <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
           <button type="button" id="btnBuy" onclick="setTradeType('BUY')" class="py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition">KUPNO</button>
           <button type="button" id="btnSell" onclick="setTradeType('SELL')" class="py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
         </div>
 
-        <!-- Wyszukiwarka Waloru -->
-        <div>
+        <!-- SEKCJA KUPNA: Wyszukiwarka Waloru -->
+        <div id="buyInstrumentSection">
           <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
           <div class="flex gap-2">
             <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
@@ -401,6 +401,14 @@
               Sprawdź
             </button>
           </div>
+        </div>
+
+        <!-- SEKCJA SPRZEDAŻY: Wybór z Twoich posiadanych pozycji -->
+        <div id="sellInstrumentSection" class="hidden">
+          <label class="block text-xs font-medium text-slate-300 mb-1">Wybierz ze swojego portfela</label>
+          <select id="userHoldingsSelect" onchange="onHoldingSelected()" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
+            <option value="">Wybierz walor do sprzedaży...</option>
+          </select>
         </div>
 
         <!-- Karta zweryfikowanego instrumentu -->
@@ -417,10 +425,20 @@
           </div>
         </div>
 
-        <!-- Liczba akcji -->
+        <!-- Liczba akcji + Szybkie przyciski procentowe w trybie sprzedaży -->
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Liczba akcji (szt.)</label>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Liczba akcji (szt.)</label>
+            <span id="availableSharesBadge" class="hidden text-[11px] text-slate-400 font-mono">Dostępne: <b id="availableSharesCount" class="text-indigo-300">0</b></span>
+          </div>
           <input type="number" step="0.001" min="0.001" id="tradeShares" oninput="updateEstimatedCost()" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
+          
+          <!-- Szybkie przyciski kalkulacji przy sprzedaży -->
+          <div id="quickSharesButtons" class="hidden grid grid-cols-3 gap-2 mt-2">
+            <button type="button" onclick="setSharesPercentage(0.25)" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">25%</button>
+            <button type="button" onclick="setSharesPercentage(0.50)" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">50%</button>
+            <button type="button" onclick="setSharesPercentage(1.00)" class="py-1 text-[11px] bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 rounded border border-rose-800/40 font-semibold">MAX (Wszystko)</button>
+          </div>
         </div>
 
         <!-- Szacowana wartość -->
@@ -432,7 +450,7 @@
         <!-- Teza inwestycyjna -->
         <div>
           <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (min. 15 znaków)</label>
-          <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wchodzisz w tę pozycję? (Trafi do feedu zespołu)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
+          <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wykonujesz ten ruch?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
         </div>
 
         <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
@@ -446,13 +464,13 @@
   </div>
 
   <!-- ========================================== -->
-  <!-- FOOTER                                     -->
+  <!-- STOPKA                                     -->
   <!-- ========================================== -->
   <footer class="mt-auto border-t border-slate-850 bg-slate-950/80 py-8 text-center text-xs text-slate-400">
     <div class="max-w-6xl mx-auto px-4 space-y-2">
       <p class="font-medium text-slate-400">Karuzela Hajsu • Biurowa Liga Spekulacyjna</p>
-      <p class="text-slate-400 max-w-xl mx-auto text-[11px] leading-relaxed">
-        Żadna z informacji na tej platformie nie stanowi porady inwestycyjnej. Wszystkie transakcje są fikcyjne,
+      <p class="text-slate-500 max-w-xl mx-auto text-[11px] leading-relaxed">
+        Żadna z informacji na tej platformie nie stanowi rekomendacji finansowej. Wszystkie transakcje są fikcyjne,
         ale ból po przegraniu z benchmarkiem S&P 500 — w 100% autentyczny.
       </p>
       <div class="flex justify-center items-center gap-3 pt-2 text-[11px] text-slate-400">
@@ -464,21 +482,21 @@
   </footer>
 
   <!-- ========================================== -->
-  <!-- SKRYPT APLIKACJI                           -->
+  <!-- LOGIKA JS                                  -->
   <!-- ========================================== -->
   <script>
     let currentUser = null;
+    let userHoldings = [];
     let verifiedInstrument = null;
     let currentTradeType = 'BUY';
     let currentTab = 'arena';
-    let leaderboardCache = [];
+    let selectedHoldingMaxShares = 0;
 
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
       checkAuth();
       fetchAllData();
 
-      // Enter w polu wyszukiwarki tickera
       document.getElementById("tradeTickerInput")?.addEventListener("keypress", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
@@ -487,15 +505,24 @@
       });
     });
 
-    // Przełączanie zakładek
+    // Ścisła kontrola zakładek
     function switchTab(tabId) {
+      if ((tabId === 'portfolio' || tabId === 'admin') && !currentUser) {
+        alert("Zaloguj się kontem GitHub, aby uzyskać dostęp!");
+        return;
+      }
+      if (tabId === 'admin' && currentUser?.is_admin !== 1) {
+        alert("Brak uprawnień administratora.");
+        return;
+      }
+
       currentTab = tabId;
 
-      document.getElementById("viewArena").classList.toggle("hidden", tabId !== 'arena');
-      document.getElementById("viewPortfolio").classList.toggle("hidden", tabId !== 'portfolio');
-      document.getElementById("viewAdmin").classList.toggle("hidden", tabId !== 'admin');
+      document.getElementById("viewArena").style.display = tabId === 'arena' ? 'block' : 'none';
+      document.getElementById("viewPortfolio").style.display = tabId === 'portfolio' ? 'block' : 'none';
+      document.getElementById("viewAdmin").style.display = tabId === 'admin' ? 'block' : 'none';
 
-      // Style przycisków
+      // Style nawigacji
       const tabs = {
         arena: document.getElementById("tabBtnArena"),
         portfolio: document.getElementById("tabBtnPortfolio"),
@@ -505,9 +532,9 @@
       Object.keys(tabs).forEach(key => {
         if (!tabs[key]) return;
         if (key === tabId) {
-          tabs[key].className = "py-3 px-4 text-xs font-semibold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition";
+          tabs[key].className = "py-3 px-4 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition";
         } else {
-          tabs[key].className = "py-3 px-4 text-xs font-semibold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition";
+          tabs[key].className = "py-3 px-4 text-xs font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition";
         }
       });
 
@@ -536,15 +563,14 @@
             </div>
           `;
 
-          // Aktywuj zakładkę portfela i przycisk zlecenia
-          document.getElementById("tabBtnPortfolio").classList.remove("hidden");
-          document.getElementById("quickTradeBtnContainer").classList.remove("hidden");
+          // Ujawnienie elementów po weryfikacji tożsamości
+          document.getElementById("tabBtnPortfolio").style.display = 'flex';
+          document.getElementById("quickTradeBtnContainer").style.display = 'block';
           document.getElementById("userNameDisplay").innerText = currentUser.display_name;
           document.getElementById("myPortfolioAvatar").src = userAvatar;
 
-          // Jeśli Admin, pokaż zakładkę Admina
           if (currentUser.is_admin === 1) {
-            document.getElementById("tabBtnAdmin").classList.remove("hidden");
+            document.getElementById("tabBtnAdmin").style.display = 'flex';
           }
 
           fetchUserPortfolio();
@@ -556,10 +582,10 @@
               <span>Zaloguj z GitHub</span>
             </a>
           `;
-          document.getElementById("tabBtnPortfolio").classList.add("hidden");
-          document.getElementById("quickTradeBtnContainer").classList.add("hidden");
-          document.getElementById("tabBtnAdmin").classList.add("hidden");
-          if (currentTab !== 'arena') switchTab('arena');
+          document.getElementById("tabBtnPortfolio").style.display = 'none';
+          document.getElementById("quickTradeBtnContainer").style.display = 'none';
+          document.getElementById("tabBtnAdmin").style.display = 'none';
+          switchTab('arena');
         }
         lucide.createIcons();
       } catch (e) {
@@ -587,11 +613,10 @@
         const res = await fetch('/api/leaderboard');
         const json = await res.json();
         if (json.status === "success") {
-          leaderboardCache = json.data;
           renderDashboard(json.data, json.last_sync);
         }
       } catch (e) {
-        console.error("Leaderboard fetch error:", e);
+        console.error("Leaderboard error:", e);
       }
     }
 
@@ -605,7 +630,6 @@
     }
 
     function renderDashboard(items, lastSyncTs) {
-      // 1. Pasek statusu synchronizacji
       const statusText = document.getElementById("syncStatusText");
       if (lastSyncTs) {
         const syncDate = new Date(lastSyncTs);
@@ -615,9 +639,8 @@
         statusText.innerText = `Brak synchronizacji`;
       }
       document.getElementById("syncStatusBadge").classList.remove("hidden");
-      document.getElementById("dataTimestamp").innerText = `Stan z bazy SQLite (D1)`;
+      document.getElementById("dataTimestamp").innerText = `Baza SQLite (D1)`;
 
-      // Rozdzielenie graczy od obu benchmarków
       const isBenchmarkRow = (name) => {
         const n = (name || '').toLowerCase();
         return n.includes("benchmark") || n.includes("index") || n.includes("s&p") || n.includes("wig");
@@ -627,19 +650,14 @@
       const sp500 = items.find(i => (i.Uczestnik || '').includes("S&P 500"));
       const wig20 = items.find(i => (i.Uczestnik || '').includes("WIG20") || (i.Uczestnik || '').includes("WIG 20"));
 
-      // Karta 1: Lider
       if (participants.length > 0) {
         const leader = participants[0];
         document.getElementById("leaderName").innerText = leader.Uczestnik;
         document.getElementById("leaderReturn").innerText = formatPct(leader.Stopa_Zwrotu);
         const leaderAvatar = leader.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(leader.Uczestnik)}`;
         document.getElementById("kpiLeaderAvatar").src = leaderAvatar;
-      } else {
-        document.getElementById("leaderName").innerText = "Brak graczy";
-        document.getElementById("leaderReturn").innerText = "--";
       }
 
-      // Karta 2: Benchmarki
       if (sp500) {
         const ret = formatPct(sp500.Stopa_Zwrotu);
         const col = sp500.Stopa_Zwrotu >= 0 ? 'text-emerald-400' : 'text-rose-400';
@@ -651,20 +669,16 @@
         document.getElementById("benchWig20Val").innerHTML = `<span class="${col}">${ret}</span>`;
       }
 
-      // Karta 3: Średnia Zespołu
       if (participants.length > 0) {
         const totalRet = participants.reduce((acc, c) => acc + (c.Stopa_Zwrotu || 0), 0);
         const avg = totalRet / participants.length;
         document.getElementById("avgReturn").innerText = formatPct(avg);
         document.getElementById("activeParticipantsCount").innerText = `${participants.length} zarejestrowanych graczy`;
-
-        // Licznik ile osób bije S&P 500
         const benchRet = sp500 ? sp500.Stopa_Zwrotu : 0;
         const winners = participants.filter(p => p.Stopa_Zwrotu > benchRet).length;
-        document.getElementById("beatTheMarketNote").innerText = `${winners} z ${participants.length} graczy pokonuje rynek 🚀`;
+        document.getElementById("beatTheMarketNote").innerText = `${winners} z ${participants.length} graczy bije rynek 🚀`;
       }
 
-      // Tabela rankingu
       const tbody = document.getElementById("leaderboardBody");
       tbody.innerHTML = "";
 
@@ -692,7 +706,7 @@
                 <div class="flex flex-col">
                   <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5">
                     ${item.Uczestnik}
-                    ${isBench ? '<span class="text-[9px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-mono">Rynek</span>' : ''}
+                    ${isBench ? '<span class="text-[9px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-1.5 py-0.2 rounded font-mono">Indeks</span>' : ''}
                   </span>
                   ${item.github_login && !isBench ? `<span class="text-[10px] text-slate-500">@${item.github_login}</span>` : ''}
                 </div>
@@ -746,7 +760,7 @@
             `;
           });
         } else {
-          container.innerHTML = '<div class="text-center text-slate-400 text-xs py-6">Brak ostatnich transakcji. Bądź pierwszym, który wykona ruch!</div>';
+          container.innerHTML = '<div class="text-center text-slate-400 text-xs py-6">Brak ostatnich transakcji.</div>';
         }
       } catch (e) {
         console.error("Feed error:", e);
@@ -758,14 +772,17 @@
         const res = await fetch('/api/portfolio');
         const json = await res.json();
         if (json.status === "success") {
+          userHoldings = json.data || [];
           document.getElementById("userCashDisplay").innerText = formatPLN(json.cash);
           const tbody = document.getElementById("portfolioTableBody");
-          if (!json.data || json.data.length === 0) {
+          
+          if (userHoldings.length === 0) {
             tbody.innerHTML = '<tr><td colspan="7" class="py-6 text-center text-slate-400 font-sans">Brak otwartych pozycji. Kliknij "+ Nowe Zlecenie", aby zainwestować.</td></tr>';
             return;
           }
+
           tbody.innerHTML = "";
-          json.data.forEach(p => {
+          userHoldings.forEach(p => {
             const retCol = p.return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400';
             tbody.innerHTML += `
               <tr class="border-b border-slate-800/40 hover:bg-slate-900/40 transition">
@@ -776,7 +793,7 @@
                 <td class="py-3 text-right text-slate-200 font-bold">${formatPLN(p.current_value_pln)}</td>
                 <td class="py-3 text-right font-semibold ${retCol}">${p.return_pct >= 0 ? '+' : ''}${p.return_pct.toFixed(2)}%</td>
                 <td class="py-3 text-center font-sans">
-                  <button onclick="quickSell('${p.ticker}', ${p.shares})" class="text-[11px] bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 px-2.5 py-1 rounded-md transition">
+                  <button onclick="openSmartSell('${p.ticker}')" class="text-[11px] bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 px-2.5 py-1 rounded-md transition font-semibold">
                     Sprzedaj
                   </button>
                 </td>
@@ -789,7 +806,124 @@
       }
     }
 
-    // Walidacja instrumentu giełdowego (Ticker)
+    // Inteligentny Modal Zleceń (Smart Buy/Sell)
+    function openTradeModal(type = 'BUY') {
+      if (!currentUser) {
+        alert("Musisz być zalogowany!");
+        return;
+      }
+      document.getElementById("tradeError").classList.add("hidden");
+      document.getElementById("tradeShares").value = "";
+      document.getElementById("tradeThesis").value = "";
+      document.getElementById("estimatedCost").innerText = "0.00 zł";
+      document.getElementById("verifiedInstrumentCard").classList.add("hidden");
+      document.getElementById("tradeTickerInput").value = "";
+      verifiedInstrument = null;
+
+      populateHoldingsDropdown();
+      setTradeType(type);
+      document.getElementById("tradeModal").classList.remove("hidden");
+    }
+
+    function openSmartSell(ticker) {
+      openTradeModal('SELL');
+      const select = document.getElementById("userHoldingsSelect");
+      select.value = ticker;
+      onHoldingSelected();
+    }
+
+    function closeTradeModal() {
+      document.getElementById("tradeModal").classList.add("hidden");
+    }
+
+    function setTradeType(type) {
+      currentTradeType = type;
+      const bBuy = document.getElementById("btnBuy");
+      const bSell = document.getElementById("btnSell");
+      const buySection = document.getElementById("buyInstrumentSection");
+      const sellSection = document.getElementById("sellInstrumentSection");
+      const quickBtns = document.getElementById("quickSharesButtons");
+      const sharesBadge = document.getElementById("availableSharesBadge");
+      const submitBtn = document.getElementById("submitTradeBtn");
+
+      if (type === 'BUY') {
+        bBuy.className = "py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition";
+        bSell.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
+        buySection.classList.remove("hidden");
+        sellSection.classList.add("hidden");
+        quickBtns.classList.add("hidden");
+        sharesBadge.classList.add("hidden");
+        submitBtn.disabled = !verifiedInstrument;
+      } else {
+        bSell.className = "py-2 text-xs font-bold rounded-lg bg-rose-600 text-white transition";
+        bBuy.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
+        buySection.classList.add("hidden");
+        sellSection.classList.remove("hidden");
+        quickBtns.classList.remove("hidden");
+        sharesBadge.classList.remove("hidden");
+        onHoldingSelected();
+      }
+      updateEstimatedCost();
+    }
+
+    function populateHoldingsDropdown() {
+      const select = document.getElementById("userHoldingsSelect");
+      select.innerHTML = '<option value="">Wybierz walor ze swojego portfela...</option>';
+      userHoldings.forEach(h => {
+        select.innerHTML += `<option value="${h.ticker}">${h.ticker} - ${h.name} (${h.shares} szt.)</option>`;
+      });
+    }
+
+    function onHoldingSelected() {
+      const select = document.getElementById("userHoldingsSelect");
+      const ticker = select.value;
+      const submitBtn = document.getElementById("submitTradeBtn");
+
+      if (!ticker) {
+        selectedHoldingMaxShares = 0;
+        document.getElementById("availableSharesCount").innerText = "0";
+        document.getElementById("verifiedInstrumentCard").classList.add("hidden");
+        submitBtn.disabled = true;
+        verifiedInstrument = null;
+        updateEstimatedCost();
+        return;
+      }
+
+      const holding = userHoldings.find(h => h.ticker === ticker);
+      if (holding) {
+        selectedHoldingMaxShares = holding.shares;
+        document.getElementById("availableSharesCount").innerText = holding.shares;
+
+        verifiedInstrument = {
+          ticker: holding.ticker,
+          name: holding.name,
+          price: holding.current_price,
+          currency: holding.currency,
+          fx_to_pln: holding.fx_to_pln,
+          price_pln: holding.current_price * holding.fx_to_pln
+        };
+
+        document.getElementById("instFullName").innerText = verifiedInstrument.name;
+        document.getElementById("instTickerDisplay").innerText = verifiedInstrument.ticker;
+        document.getElementById("instPriceDisplay").innerText = `${verifiedInstrument.price.toFixed(2)} ${verifiedInstrument.currency}`;
+        document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "PLN" 
+          ? "1.00 PLN" 
+          : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN`;
+        
+        document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
+        submitBtn.disabled = false;
+        updateEstimatedCost();
+      }
+    }
+
+    function setSharesPercentage(pct) {
+      if (selectedHoldingMaxShares > 0) {
+        const calculated = (selectedHoldingMaxShares * pct);
+        document.getElementById("tradeShares").value = calculated % 1 === 0 ? calculated : calculated.toFixed(3);
+        updateEstimatedCost();
+      }
+    }
+
     async function verifyTicker() {
       const input = document.getElementById("tradeTickerInput");
       const ticker = input.value.trim().toUpperCase();
@@ -814,7 +948,7 @@
           document.getElementById("instPriceDisplay").innerText = `${verifiedInstrument.price.toFixed(2)} ${verifiedInstrument.currency}`;
           document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "PLN" 
             ? "1.00 PLN" 
-            : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN (USD/PLN: ${verifiedInstrument.fx_to_pln.toFixed(2)})`;
+            : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN`;
           
           document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
           submitBtn.disabled = false;
@@ -835,56 +969,6 @@
       }
     }
 
-    function quickSell(ticker, shares) {
-      openTradeModal();
-      setTradeType('SELL');
-      document.getElementById("tradeTickerInput").value = ticker;
-      document.getElementById("tradeShares").value = shares;
-      verifyTicker();
-    }
-
-    function openTradeModal() {
-      if (!currentUser) {
-        alert("Musisz być zalogowany, aby składać zlecenia!");
-        return;
-      }
-      document.getElementById("tradeError").classList.add("hidden");
-      document.getElementById("tradeTickerInput").value = "";
-      document.getElementById("tradeShares").value = "";
-      document.getElementById("tradeThesis").value = "";
-      document.getElementById("estimatedCost").innerText = "0.00 zł";
-      document.getElementById("verifiedInstrumentCard").classList.add("hidden");
-      document.getElementById("submitTradeBtn").disabled = true;
-      verifiedInstrument = null;
-      document.getElementById("tradeModal").classList.remove("hidden");
-    }
-
-    function closeTradeModal() {
-      document.getElementById("tradeModal").classList.add("hidden");
-    }
-
-    function openRulesModal() {
-      document.getElementById("rulesModal").classList.remove("hidden");
-    }
-
-    function closeRulesModal() {
-      document.getElementById("rulesModal").classList.add("hidden");
-    }
-
-    function setTradeType(type) {
-      currentTradeType = type;
-      const bBuy = document.getElementById("btnBuy");
-      const bSell = document.getElementById("btnSell");
-      if (type === 'BUY') {
-        bBuy.className = "py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition";
-        bSell.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
-      } else {
-        bSell.className = "py-2 text-xs font-bold rounded-lg bg-rose-600 text-white transition";
-        bBuy.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
-      }
-      updateEstimatedCost();
-    }
-
     function updateEstimatedCost() {
       const shares = Number(document.getElementById("tradeShares").value) || 0;
       if (verifiedInstrument && shares > 0) {
@@ -901,7 +985,14 @@
       errDiv.classList.add("hidden");
 
       if (!verifiedInstrument) {
-        errDiv.innerText = "Najpierw sprawdź walor przyciskiem 'Sprawdź'.";
+        errDiv.innerText = "Wybierz lub zweryfikuj walor przed złożeniem zlecenia.";
+        errDiv.classList.remove("hidden");
+        return;
+      }
+
+      const shares = Number(document.getElementById("tradeShares").value);
+      if (currentTradeType === 'SELL' && shares > selectedHoldingMaxShares) {
+        errDiv.innerText = `Nie możesz sprzedać więcej niż posiadasz (${selectedHoldingMaxShares} szt.).`;
         errDiv.classList.remove("hidden");
         return;
       }
@@ -909,7 +1000,7 @@
       const payload = {
         ticker: verifiedInstrument.ticker,
         type: currentTradeType,
-        shares: Number(document.getElementById("tradeShares").value),
+        shares: shares,
         thesis: document.getElementById("tradeThesis").value
       };
 
@@ -925,13 +1016,13 @@
           closeTradeModal();
           await fetchAllData();
           await fetchUserPortfolio();
-          alert("Zlecenie zrealizowane pomyślnie! Sprawdź tabelę oraz feed transakcji.");
+          alert("Zlecenie zrealizowane pomyślnie!");
         } else {
           errDiv.innerText = data.message || "Błąd wykonania zlecenia";
           errDiv.classList.remove("hidden");
         }
       } catch (err) {
-        errDiv.innerText = "Błąd sieci podczas wysyłania zlecenia.";
+        errDiv.innerText = "Błąd połączenia z serwerem.";
         errDiv.classList.remove("hidden");
       }
     }
@@ -941,7 +1032,9 @@
       location.reload();
     }
 
-    // Panel Audytu (Tylko Admin)
+    function openRulesModal() { document.getElementById("rulesModal").classList.remove("hidden"); }
+    function closeRulesModal() { document.getElementById("rulesModal").classList.add("hidden"); }
+
     async function fetchAuditLogs() {
       try {
         const res = await fetch('/api/admin/audit');
@@ -965,7 +1058,7 @@
           });
         }
       } catch (e) {
-        console.error("Audit log error:", e);
+        console.error("Audit error:", e);
       }
     }
 
@@ -975,13 +1068,13 @@
         const res = await fetch('/api/admin/sync-prices');
         const json = await res.json();
         if (json.status === "success") {
-          alert("Synchronizacja kursów zakończona pomyślnie!");
+          alert("Synchronizacja zakończona!");
           fetchAllData();
         } else {
           alert("Błąd: " + json.message);
         }
       } catch (e) {
-        alert("Błąd połączenia z serwerem.");
+        alert("Błąd sieci.");
       }
     }
   </script>
