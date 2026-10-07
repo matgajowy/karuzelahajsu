@@ -3,10 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Firmowa Liga Inwestycyjna</title>
-  <!-- Tailwind CSS CDN -->
+  <title>Karuzela Hajsu — Firmowa Liga Inwestycyjna</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <!-- Lucide Icons -->
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
@@ -17,75 +15,161 @@
 
   <div class="max-w-6xl mx-auto px-4 py-8">
     
-    <!-- Top Header -->
+    <!-- Header -->
     <header class="flex flex-col md:flex-row md:items-center justify-between pb-8 border-b border-slate-800 gap-4">
       <div>
         <div class="flex items-center gap-2 text-indigo-400 font-semibold tracking-wide text-xs uppercase mb-1">
           <i data-lucide="trending-up" class="w-4 h-4"></i> Paper Trading Challenge
         </div>
-        <h1 class="text-3xl font-bold tracking-tight text-white">Firmowa Liga Inwestycyjna</h1>
-        <p class="text-slate-400 text-sm mt-1">Śledź stopy zwrotu, strategie i rywalizację z rynkiem w czasie rzeczywistym.</p>
+        <h1 class="text-3xl font-bold tracking-tight text-white">Karuzela Hajsu 🎠💸</h1>
+        <p class="text-slate-400 text-sm mt-1">Śledź stopy zwrotu, składaj zlecenia i przestrzegaj limitu 35% na pozycję.</p>
       </div>
+
       <div class="flex items-center gap-3">
-        <button id="refreshBtn" onclick="fetchData()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-4 py-2 rounded-lg text-sm font-medium transition">
+        <button onclick="fetchLeaderboard()" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg text-sm font-medium transition cursor-pointer">
           <i data-lucide="refresh-cw" id="refreshIcon" class="w-4 h-4"></i> Odśwież
         </button>
+
+        <div id="authContainer">
+          <a href="/api/auth/github" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
+            <i data-lucide="github" class="w-4 h-4"></i> Zaloguj z GitHub
+          </a>
+        </div>
       </div>
     </header>
 
-    <!-- Stat Summary Cards -->
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
+    <!-- Panel Inwestora (dla zalogowanych) -->
+    <div id="userPanel" class="hidden mt-6 bg-slate-900 border border-indigo-500/30 rounded-2xl p-6">
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 pb-4 border-b border-slate-800">
+        <div>
+          <span class="text-xs text-indigo-400 font-semibold uppercase tracking-wider">Twój Rachunek</span>
+          <h2 id="userNameDisplay" class="text-xl font-bold text-white mt-0.5">--</h2>
+        </div>
+        <div class="flex items-center gap-6">
+          <div>
+            <div class="text-xs text-slate-400">Dostępna Gotówka:</div>
+            <div id="userCashDisplay" class="text-lg font-bold text-emerald-400">--</div>
+          </div>
+          <button onclick="openTradeModal()" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded-xl text-sm font-semibold shadow-lg shadow-indigo-600/20 transition cursor-pointer">
+            <i data-lucide="plus-circle" class="w-4 h-4"></i> Nowe Zlecenie
+          </button>
+        </div>
+      </div>
+
+      <!-- Tabela posiadanych pozycji -->
+      <div class="mt-4">
+        <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Twoje Otwarte Pozycje</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="text-slate-500 uppercase border-b border-slate-800">
+              <tr>
+                <th class="py-2">Walor</th>
+                <th class="py-2 text-right">Liczba akcji</th>
+                <th class="py-2 text-right">Śr. zakup</th>
+                <th class="py-2 text-right">Kurs bieżący</th>
+                <th class="py-2 text-right">Wycena (PLN)</th>
+                <th class="py-2 text-right">Wynik</th>
+              </tr>
+            </thead>
+            <tbody id="portfolioTableBody">
+              <tr><td colspan="6" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modal Zlecenia (Trade) -->
+    <div id="tradeModal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+      <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+        <h3 class="text-lg font-bold text-white mb-1">Złóż Zlecenie Giełdowe</h3>
+        <p class="text-slate-400 text-xs mb-4">Maksymalna ekspozycja: 35% całego portfela.</p>
+
+        <form id="tradeForm" onsubmit="submitTrade(event)" class="space-y-4">
+          <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-lg border border-slate-800">
+            <button type="button" id="btnBuy" onclick="setTradeType('BUY')" class="py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white transition">KUPNO</button>
+            <button type="button" id="btnSell" onclick="setTradeType('SELL')" class="py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Instrument</label>
+            <select id="tradeTicker" onchange="updateEstimatedCost()" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+              <option value="">Wybierz walor...</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Liczba akcji (szt.)</label>
+            <input type="number" step="0.01" min="0.01" id="tradeShares" oninput="updateEstimatedCost()" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100">
+          </div>
+
+          <div class="bg-slate-950/70 p-3 rounded-lg border border-slate-800 text-xs flex justify-between items-center">
+            <span class="text-slate-400">Szacowana wartość:</span>
+            <span id="estimatedCost" class="font-bold text-white">0.00 zł</span>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Uzasadnienie transakcji (Thesis - min. 15 znaków)</label>
+            <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wchodzisz/wychodzisz z tej pozycji?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100"></textarea>
+          </div>
+
+          <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/30 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+          <div class="flex gap-2 pt-2">
+            <button type="button" onclick="closeTradeModal()" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2 rounded-lg text-sm font-medium transition cursor-pointer">Anuluj</button>
+            <button type="submit" id="submitTradeBtn" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2 rounded-lg text-sm font-medium transition cursor-pointer">Złóż zlecenie</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Karty podsumowania -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-8">
       <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
         <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Aktualny Lider</div>
         <div id="leaderName" class="text-2xl font-bold text-white mt-1">--</div>
         <div id="leaderReturn" class="text-sm font-semibold text-emerald-400 mt-0.5">--</div>
-        <div class="absolute right-4 top-4 text-amber-400/20">
-          <i data-lucide="crown" class="w-12 h-12"></i>
-        </div>
+        <div class="absolute right-4 top-4 text-amber-400/20"><i data-lucide="crown" class="w-12 h-12"></i></div>
       </div>
 
       <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
         <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Benchmark (S&P 500)</div>
         <div id="benchmarkReturn" class="text-2xl font-bold text-white mt-1">--</div>
         <div class="text-slate-400 text-xs mt-0.5">Punkt odniesienia dla portfeli</div>
-        <div class="absolute right-4 top-4 text-indigo-400/20">
-          <i data-lucide="bar-chart-2" class="w-12 h-12"></i>
-        </div>
+        <div class="absolute right-4 top-4 text-indigo-400/20"><i data-lucide="bar-chart-2" class="w-12 h-12"></i></div>
       </div>
 
       <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
-        <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Średni Zwrot Uczestników</div>
+        <div class="text-slate-400 text-xs font-medium uppercase tracking-wider">Średni Zwrot Graczy</div>
         <div id="avgReturn" class="text-2xl font-bold text-white mt-1">--</div>
-        <div id="activeParticipantsCount" class="text-slate-400 text-xs mt-0.5">0 graczy w zestawieniu</div>
-        <div class="absolute right-4 top-4 text-slate-600/20">
-          <i data-lucide="users" class="w-12 h-12"></i>
-        </div>
+        <div id="activeParticipantsCount" class="text-slate-400 text-xs mt-0.5">Ładowanie...</div>
+        <div class="absolute right-4 top-4 text-slate-600/20"><i data-lucide="users" class="w-12 h-12"></i></div>
       </div>
     </div>
 
-    <!-- Leaderboard Table -->
+    <!-- Tabela rankingu -->
     <div class="mt-8 bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
       <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/60">
         <h2 class="text-base font-semibold text-slate-100 flex items-center gap-2">
           <i data-lucide="award" class="w-4 h-4 text-indigo-400"></i> Oficjalny Ranking
         </h2>
-        <span id="dataTimestamp" class="text-xs text-slate-500">Stan: brak danych</span>
+        <span id="dataTimestamp" class="text-xs text-slate-500">Pobieranie danych...</span>
       </div>
 
       <div class="overflow-x-auto">
         <table class="w-full text-left text-sm text-slate-300">
           <thead class="text-xs uppercase bg-slate-950/60 text-slate-400 border-b border-slate-800">
             <tr>
-              <th scope="col" class="py-3.5 px-6 w-16 text-center">#</th>
-              <th scope="col" class="py-3.5 px-6">Uczestnik</th>
-              <th scope="col" class="py-3.5 px-6 text-right">Wartość portfela</th>
-              <th scope="col" class="py-3.5 px-6 text-right">Gotówka</th>
-              <th scope="col" class="py-3.5 px-6 text-right">Wynik (PLN)</th>
-              <th scope="col" class="py-3.5 px-6 text-right">Stopa zwrotu</th>
+              <th class="py-3.5 px-6 w-16 text-center">#</th>
+              <th class="py-3.5 px-6">Uczestnik</th>
+              <th class="py-3.5 px-6 text-right">Wycena portfela</th>
+              <th class="py-3.5 px-6 text-right">Gotówka</th>
+              <th class="py-3.5 px-6 text-right">Wynik (PLN)</th>
+              <th class="py-3.5 px-6 text-right">Stopa zwrotu</th>
             </tr>
           </thead>
           <tbody id="leaderboardBody" class="divide-y divide-slate-800/60 font-medium">
-            <!-- Wiersze generowane dynamicznie -->
+            <tr><td colspan="6" class="py-8 text-center text-slate-500">Ładowanie danych...</td></tr>
           </tbody>
         </table>
       </div>
@@ -94,118 +178,240 @@
   </div>
 
   <script>
-    // Domyślne dane testowe (Mock), jeśli użytkownik nie podał jeszcze API URL
-    const MOCK_DATA = [
-      { Uczestnik: "Tomasz K.", Wartosc_Akcji_PLN: 89400, Gotowka_PLN: 24200, Wycena_Calkowita_PLN: 113600, Zysk_Strata_PLN: 13600, Stopa_Zwrotu: 0.136, Liczba_Pozycji: 4 },
-      { Uczestnik: "Magda W.", Wartosc_Akcji_PLN: 94100, Gotowka_PLN: 12500, Wycena_Calkowita_PLN: 106600, Zysk_Strata_PLN: 6600, Stopa_Zwrotu: 0.066, Liczba_Pozycji: 5 },
-      { Uczestnik: "Benchmark S&P 500", Wartosc_Akcji_PLN: 104200, Gotowka_PLN: 0, Wycena_Calkowita_PLN: 104200, Zysk_Strata_PLN: 4200, Stopa_Zwrotu: 0.042, Liczba_Pozycji: 1 },
-      { Uczestnik: "Krzysztof B.", Wartosc_Akcji_PLN: 72000, Gotowka_PLN: 31000, Wycena_Calkowita_PLN: 103000, Zysk_Strata_PLN: 3000, Stopa_Zwrotu: 0.030, Liczba_Pozycji: 3 },
-      { Uczestnik: "Piotr R.", Wartosc_Akcji_PLN: 98000, Gotowka_PLN: 500, Wycena_Calkowita_PLN: 98500, Zysk_Strata_PLN: -1500, Stopa_Zwrotu: -0.015, Liczba_Pozycji: 6 }
-    ];
+    let instrumentsCache = [];
+    let currentTradeType = 'BUY';
 
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
-      fetchData();
+      checkAuth();
+      fetchLeaderboard();
     });
 
-    async function fetchData() {
-      const refreshIcon = document.getElementById("refreshIcon");
-      refreshIcon.classList.add("animate-spin");
+    async function checkAuth() {
+      try {
+        const res = await fetch('/api/me');
+        const data = await res.json();
+        const container = document.getElementById("authContainer");
+
+        if (data.authenticated) {
+          container.innerHTML = `
+            <div class="flex items-center gap-2 bg-indigo-950/40 border border-indigo-500/30 px-3 py-1.5 rounded-lg text-xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span>
+              <span class="text-indigo-200 font-semibold">${data.user.display_name}</span>
+              <button onclick="handleLogout()" class="text-slate-400 hover:text-rose-400 ml-2 transition cursor-pointer" title="Wyloguj">
+                <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+              </button>
+            </div>
+          `;
+          document.getElementById("userPanel").classList.remove("hidden");
+          document.getElementById("userNameDisplay").innerText = data.user.display_name;
+          fetchUserPortfolio();
+        } else {
+          container.innerHTML = `
+            <a href="/api/auth/github" class="flex items-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-3 py-2 rounded-lg text-xs font-semibold transition">
+              <i data-lucide="github" class="w-4 h-4"></i> Zaloguj z GitHub
+            </a>
+          `;
+          document.getElementById("userPanel").classList.add("hidden");
+        }
+        lucide.createIcons();
+      } catch (e) {
+        console.error("Auth check failed:", e);
+      }
+    }
+
+    async function fetchUserPortfolio() {
+      try {
+        const res = await fetch('/api/portfolio');
+        const json = await res.json();
+        if (json.status === "success") {
+          document.getElementById("userCashDisplay").innerText = formatPLN(json.cash);
+          const tbody = document.getElementById("portfolioTableBody");
+          if (json.data.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="6" class="py-4 text-center text-slate-500">Brak otwartych pozycji</td></tr>';
+            return;
+          }
+          tbody.innerHTML = "";
+          json.data.forEach(p => {
+            const retCol = p.return_pct >= 0 ? 'text-emerald-400' : 'text-rose-400';
+            tbody.innerHTML += `
+              <tr class="border-b border-slate-800/40">
+                <td class="py-2.5 font-semibold text-white">${p.ticker} <span class="text-slate-500 font-normal">(${p.name})</span></td>
+                <td class="py-2.5 text-right font-mono">${p.shares}</td>
+                <td class="py-2.5 text-right text-slate-400">${p.avg_buy_price.toFixed(2)} ${p.currency}</td>
+                <td class="py-2.5 text-right text-slate-200">${p.current_price.toFixed(2)} ${p.currency}</td>
+                <td class="py-2.5 text-right text-slate-200">${formatPLN(p.current_value_pln)}</td>
+                <td class="py-2.5 text-right font-semibold ${retCol}">${p.return_pct >= 0 ? '+' : ''}${p.return_pct.toFixed(2)}%</td>
+              </tr>
+            `;
+          });
+        }
+      } catch (e) {
+        console.error("Portfolio fetch error:", e);
+      }
+    }
+
+    async function openTradeModal() {
+      document.getElementById("tradeError").classList.add("hidden");
+      document.getElementById("tradeShares").value = "";
+      document.getElementById("tradeThesis").value = "";
+      document.getElementById("estimatedCost").innerText = "0.00 zł";
+
+      if (instrumentsCache.length === 0) {
+        const res = await fetch('/api/instruments');
+        const json = await res.json();
+        instrumentsCache = json.data || [];
+        const select = document.getElementById("tradeTicker");
+        select.innerHTML = '<option value="">Wybierz walor...</option>';
+        instrumentsCache.forEach(i => {
+          select.innerHTML += `<option value="${i.ticker}">${i.ticker} - ${i.name} (${i.price} ${i.currency})</option>`;
+        });
+      }
+
+      document.getElementById("tradeModal").classList.remove("hidden");
+    }
+
+    function closeTradeModal() {
+      document.getElementById("tradeModal").classList.add("hidden");
+    }
+
+    function setTradeType(type) {
+      currentTradeType = type;
+      const bBuy = document.getElementById("btnBuy");
+      const bSell = document.getElementById("btnSell");
+      if (type === 'BUY') {
+        bBuy.className = "py-1.5 text-xs font-bold rounded-md bg-emerald-600 text-white transition";
+        bSell.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
+      } else {
+        bSell.className = "py-1.5 text-xs font-bold rounded-md bg-rose-600 text-white transition";
+        bBuy.className = "py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-white transition";
+      }
+      updateEstimatedCost();
+    }
+
+    function updateEstimatedCost() {
+      const ticker = document.getElementById("tradeTicker").value;
+      const shares = Number(document.getElementById("tradeShares").value) || 0;
+      const inst = instrumentsCache.find(i => i.ticker === ticker);
+      if (inst && shares > 0) {
+        const val = shares * inst.price_pln;
+        document.getElementById("estimatedCost").innerText = formatPLN(val);
+      } else {
+        document.getElementById("estimatedCost").innerText = "0.00 zł";
+      }
+    }
+
+    async function submitTrade(e) {
+      e.preventDefault();
+      const errDiv = document.getElementById("tradeError");
+      errDiv.classList.add("hidden");
+
+      const payload = {
+        ticker: document.getElementById("tradeTicker").value,
+        type: currentTradeType,
+        shares: Number(document.getElementById("tradeShares").value),
+        thesis: document.getElementById("tradeThesis").value
+      };
 
       try {
-        const response = await fetch('/api/leaderboard');
-        const json = await response.json();
+        const res = await fetch('/api/trade', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
 
-        if (json.status === "success" && Array.isArray(json.data)) {
-          renderDashboard(json.data, `Zaktualizowano: ${new Date().toLocaleTimeString()}`);
+        if (data.status === "success") {
+          closeTradeModal();
+          fetchUserPortfolio();
+          fetchLeaderboard();
         } else {
-          alert("Błąd odpowiedzi API: " + (json.message || "Nieznany błąd"));
+          errDiv.innerText = data.message || "Błąd wykonania zlecenia";
+          errDiv.classList.remove("hidden");
         }
       } catch (err) {
-        console.error("Błąd pobierania danych:", err);
-        renderDashboard(MOCK_DATA, "Błąd połączenia z API — wyświetlam podgląd offline");
+        errDiv.innerText = "Błąd sieci";
+        errDiv.classList.remove("hidden");
+      }
+    }
+
+    async function handleLogout() {
+      await fetch('/api/logout', { method: 'POST' });
+      location.reload();
+    }
+
+    async function fetchLeaderboard() {
+      const icon = document.getElementById("refreshIcon");
+      if (icon) icon.classList.add("animate-spin");
+
+      try {
+        const res = await fetch('/api/leaderboard');
+        const json = await res.json();
+        if (json.status === "success") {
+          renderDashboard(json.data, `Zaktualizowano: ${new Date().toLocaleTimeString()}`);
+        }
+      } catch (e) {
+        console.error(e);
       } finally {
-        refreshIcon.classList.remove("animate-spin");
+        if (icon) icon.classList.remove("animate-spin");
       }
     }
 
     function formatPLN(val) {
-      const num = Number(val) || 0;
-      return num.toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
+      return (Number(val) || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
     }
 
     function formatPct(val) {
       const num = (Number(val) || 0) * 100;
-      const sign = num > 0 ? "+" : "";
-      return `${sign}${num.toFixed(2)}%`;
+      return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
     }
 
-    function renderDashboard(items, timestampNote) {
-      document.getElementById("dataTimestamp").innerText = timestampNote;
+    function renderDashboard(items, ts) {
+      document.getElementById("dataTimestamp").innerText = ts;
+      items.sort((a, b) => b.Stopa_Zwrotu - a.Stopa_Zwrotu);
 
-      // Sortowanie po stopie zwrotu malejąco
-      items.sort((a, b) => Number(b.Stopa_Zwrotu) - Number(a.Stopa_Zwrotu));
-
-      // Filtrowanie benchmarku do osobnej karty
-      const benchmarkItem = items.find(i => i.Uczestnik.toLowerCase().includes("benchmark"));
+      const benchmark = items.find(i => i.Uczestnik.toLowerCase().includes("s&p 500") || i.Uczestnik.toLowerCase().includes("benchmark"));
       const participants = items.filter(i => !i.Uczestnik.toLowerCase().includes("benchmark"));
 
-      // Aktualizacja kart podsumowania
       if (participants.length > 0) {
         document.getElementById("leaderName").innerText = participants[0].Uczestnik;
         document.getElementById("leaderReturn").innerText = formatPct(participants[0].Stopa_Zwrotu);
-
-        const totalReturn = participants.reduce((acc, curr) => acc + (Number(curr.Stopa_Zwrotu) || 0), 0);
-        const avg = totalReturn / participants.length;
+        const avg = participants.reduce((acc, c) => acc + (c.Stopa_Zwrotu || 0), 0) / participants.length;
         document.getElementById("avgReturn").innerText = formatPct(avg);
         document.getElementById("activeParticipantsCount").innerText = `${participants.length} uczestników ligi`;
       }
 
-      if (benchmarkItem) {
-        document.getElementById("benchmarkReturn").innerText = formatPct(benchmarkItem.Stopa_Zwrotu);
-      } else {
-        document.getElementById("benchmarkReturn").innerText = "Brak danych";
-      }
+      if (benchmark) document.getElementById("benchmarkReturn").innerText = formatPct(benchmark.Stopa_Zwrotu);
 
-      // Renderowanie tabeli
       const tbody = document.getElementById("leaderboardBody");
       tbody.innerHTML = "";
 
-      items.forEach((item, index) => {
-        const isBenchmark = item.Uczestnik.toLowerCase().includes("benchmark");
-        const returnPct = Number(item.Stopa_Zwrotu) || 0;
-        const profitPLN = Number(item.Zysk_Strata_PLN) || 0;
+      items.forEach((item, idx) => {
+        const isBench = item.Uczestnik.toLowerCase().includes("benchmark");
+        const retCol = item.Stopa_Zwrotu > 0 ? "text-emerald-400" : (item.Stopa_Zwrotu < 0 ? "text-rose-400" : "text-slate-400");
+        const rowBg = isBench ? "bg-indigo-950/20 border-l-4 border-indigo-500 font-semibold" : "hover:bg-slate-850";
 
-        const isProfit = returnPct > 0;
-        const isLoss = returnPct < 0;
+        let badge = `<span class="text-slate-500 font-mono text-xs">${idx + 1}</span>`;
+        if (idx === 0 && !isBench) badge = `<span class="text-amber-400 text-base">🥇</span>`;
+        if (idx === 1 && !isBench) badge = `<span class="text-slate-300 text-base">🥈</span>`;
+        if (idx === 2 && !isBench) badge = `<span class="text-amber-600 text-base">🥉</span>`;
 
-        const returnColor = isProfit ? "text-emerald-400" : (isLoss ? "text-rose-400" : "text-slate-400");
-        const rowBg = isBenchmark ? "bg-indigo-950/30 border-l-4 border-indigo-500 font-semibold" : "hover:bg-slate-850";
-
-        // Ikona podium
-        let rankBadge = `<span class="text-slate-400 font-mono text-xs">${index + 1}</span>`;
-        if (index === 0 && !isBenchmark) rankBadge = `<span class="text-amber-400">🥇</span>`;
-        if (index === 1 && !isBenchmark) rankBadge = `<span class="text-slate-300">🥈</span>`;
-        if (index === 2 && !isBenchmark) rankBadge = `<span class="text-amber-600">🥉</span>`;
-
-        const row = `
+        tbody.innerHTML += `
           <tr class="${rowBg} border-b border-slate-800/60 transition">
-            <td class="py-4 px-6 text-center">${rankBadge}</td>
+            <td class="py-4 px-6 text-center">${badge}</td>
             <td class="py-4 px-6">
               <div class="flex items-center gap-2">
                 <span class="text-white">${item.Uczestnik}</span>
-                ${isBenchmark ? '<span class="text-[10px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">Benchmark</span>' : ''}
+                ${isBench ? '<span class="text-[10px] uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full border border-indigo-500/30">Benchmark</span>' : ''}
               </div>
             </td>
             <td class="py-4 px-6 text-right text-slate-200">${formatPLN(item.Wycena_Calkowita_PLN)}</td>
             <td class="py-4 px-6 text-right text-slate-400">${formatPLN(item.Gotowka_PLN)}</td>
-            <td class="py-4 px-6 text-right ${returnColor}">${formatPLN(profitPLN)}</td>
-            <td class="py-4 px-6 text-right font-bold ${returnColor}">${formatPct(returnPct)}</td>
+            <td class="py-4 px-6 text-right ${retCol}">${formatPLN(item.Zysk_Strata_PLN)}</td>
+            <td class="py-4 px-6 text-right font-bold ${retCol}">${formatPct(item.Stopa_Zwrotu)}</td>
           </tr>
         `;
-        tbody.innerHTML += row;
       });
-
       lucide.createIcons();
     }
   </script>
