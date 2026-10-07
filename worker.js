@@ -84,6 +84,14 @@ export default {
         return new Response("Błąd bezpieczeństwa (CSRF State Mismatch)", { status: 403 });
       }
 
+      if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
+        const missing = [
+          !env.GITHUB_CLIENT_ID && "GITHUB_CLIENT_ID",
+          !env.GITHUB_CLIENT_SECRET && "GITHUB_CLIENT_SECRET"
+        ].filter(Boolean).join(", ");
+        return new Response(`Błąd konfiguracji OAuth w Workerze: brak ${missing}.`, { status: 500 });
+      }
+
       // Wymiana kodu autoryzacyjnego na access token
       const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
         method: "POST",
@@ -101,7 +109,16 @@ export default {
 
       const tokenData = await tokenRes.json();
       if (!tokenData.access_token) {
-        return new Response("Błąd autoryzacji z GitHubem: " + (tokenData.error_description || "Brak tokena"), { status: 400 });
+        console.error("GitHub OAuth token exchange failed", {
+          error: tokenData.error || "unknown",
+          status: tokenRes.status,
+          hasClientId: Boolean(env.GITHUB_CLIENT_ID),
+          hasClientSecret: Boolean(env.GITHUB_CLIENT_SECRET)
+        });
+        return new Response(
+          `Błąd autoryzacji z GitHubem (${tokenData.error || "unknown"}): ${tokenData.error_description || "Brak tokena"}`,
+          { status: 400 }
+        );
       }
 
       // Pobranie loginu z API GitHuba
