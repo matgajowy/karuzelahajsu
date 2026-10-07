@@ -1,25 +1,22 @@
 /**
- * Karuzela Hajsu — Backend Worker
- * Obsługa GitHub OAuth, silnika transakcyjnego, reguł 35%, awatarów i crona giełdowego.
+ * Karuzela Hajsu — Backend Worker v3.0
+ * Okresowość (Sprint Śr-Śr, Kwartał, Rok), Relative Snapshot Returns, Blokada Po Starcie & Whitelist.
  */
 
 export default {
-  // 1. Harmonogram Cron Trigger (automatyczna aktualizacja kursów)
   async scheduled(event, env, ctx) {
     ctx.waitUntil(syncAllMarketPrices(env));
   },
 
-  // 2. Obsługa żądań HTTP
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
     const clientIp = request.headers.get("CF-Connecting-IP") || "unknown";
 
-    // Obsługa CORS (dla zapytań lokalnych / opcjonalnych nagłówków)
     if (request.method === "OPTIONS") {
       return new Response(null, {
         headers: {
           "Access-Control-Allow-Origin": "*",
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+          "Access-Control-Allow-Methods": "GET, POST, PUT, OPTIONS",
           "Access-Control-Allow-Headers": "Content-Type",
         },
       });
@@ -31,7 +28,6 @@ export default {
         const clientId = env.GITHUB_CLIENT_ID;
         const redirectUri = `${url.origin}/api/auth/callback`;
         const state = crypto.randomUUID();
-
         const githubAuthUrl = `https://github.com/login/oauth/authorize?client_id=${clientId}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}&scope=read:user`;
         return Response.redirect(githubAuthUrl, 302);
       }
@@ -41,13 +37,9 @@ export default {
         const code = url.searchParams.get("code");
         if (!code) return new Response("Brak kodu autoryzacji z GitHuba", { status: 400 });
 
-        // Wymiana kodu na token
         const tokenRes = await fetch("https://github.com/login/oauth/access_token", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-          },
+          headers: { "Content-Type": "application/json", "Accept": "application/json" },
           body: JSON.stringify({
             client_id: env.GITHUB_CLIENT_ID,
             client_secret: env.GITHUB_CLIENT_SECRET,
@@ -56,36 +48,31 @@ export default {
         });
 
         const tokenData = await tokenRes.json();
-        if (!tokenData.access_token) {
-          return new Response("Błąd autoryzacji w GitHub API", { status: 401 });
-        }
+        if (!tokenData.access_token) return new Response("Błąd autoryzacji w GitHub API", { status: 401 });
 
-        // Pobranie profilu użytkownika (login + avatar)
         const userProfileRes = await fetch("https://api.github.com/user", {
-          headers: {
-            "Authorization": `Bearer ${tokenData.access_token}`,
-            "User-Agent": "Karuzela-Hajsu-App",
-          },
+          headers: { "Authorization": `Bearer ${tokenData.access_token}`, "User-Agent": "Karuzela-Hajsu-App" },
         });
         const ghUser = await userProfileRes.json();
 
-        // Weryfikacja białej listy w bazie D1
+        // Weryfikacja białej listy w D1
         const userRecord = await env.DB.prepare(
-          "SELECT id, github_login, display_name, is_admin FROM users WHERE github_login = ?"
+          "SELECT id, github_login, display_name, avatar_url, is_admin, status FROM users WHERE github_login = ?"
         ).bind(ghUser.login).first();
 
         if (!userRecord) {
-          await logAudit(env, null, "LOGIN_FAILED_WHITELIST", { gh_login: ghUser.login }, clientIp, "REJECTED");
-          return new Response(`Brak dostępu: Twój login (${ghUser.login}) nie znajduje się na białej liście ligi.`, { status: 403 });
+          await logAudit(env, null, "LOGIN_REJECTED", { gh_login: ghUser.login }, clientIp, "REJECTED");
+          return new Response(`Brak dostępu: Użytkownik "${ghUser.login}" nie znajduje się na białej liście ligi.`, { status: 403 });
         }
 
-        // Zapisanie/odświeżenie awatara z GitHuba
-        if (ghUser.avatar_url) {
-          await env.DB.prepare("UPDATE users SET avatar_url = ? WHERE id = ?")
-            .bind(ghUser.avatar_url, userRecord.id).run();
+        if (userRecord.status === "ALUMNI") {
+          return new Response("To konto ma status ALUMNI (zakończona gra w lidze).", { status: 403 });
         }
 
-        // Utworzenie tokenu sesji (ważny 14 dni)
+        if (!userRecord.avatar_url && ghUser.avatar_url) {
+          await env.DB.prepare("UPDATE users SET avatar_url = ? WHERE id = ?").bind(ghUser.avatar_url, userRecord.id).run();
+        }
+
         const sessionToken = crypto.randomUUID();
         const expiresAt = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString();
 
@@ -104,12 +91,11 @@ export default {
         });
       }
 
-      // --- ROUTE: Pobranie zalogowanego profilu (/api/me) ---
+      // --- ROUTE: Pobranie profilu (/api/me) ---
       if (url.pathname === "/api/me") {
         const user = await getSessionUser(request, env);
-        if (!user) {
-          return jsonResponse({ authenticated: false });
-        }
+        if (!user) return jsonResponse({ authenticated: false });
+
         return jsonResponse({
           authenticated: true,
           user: {
@@ -118,6 +104,7 @@ export default {
             display_name: user.display_name,
             avatar_url: user.avatar_url,
             is_admin: user.is_admin,
+            status: user.status
           },
         });
       }
@@ -137,60 +124,88 @@ export default {
         });
       }
 
-      // --- ROUTE: Ranking i Metadane (/api/leaderboard) ---
+      // --- ROUTE: Lista Cykli Czasowych (/api/periods) ---
+      if (url.pathname === "/api/periods") {
+        const { results } = await env.DB.prepare(`
+          SELECT id, type, name, start_date, end_date, status, is_locked, prize_description
+          FROM periods
+          ORDER BY CASE type WHEN 'SPRINT' THEN 1 WHEN 'MID_TERM' THEN 2 WHEN 'LONG_TERM' THEN 3 ELSE 4 END, id DESC
+        `).all();
+        return jsonResponse({ status: "success", data: results });
+      }
+
+      // --- ROUTE: Oficjalny Ranking z Podziałem na Horyzonty Czasowe (/api/leaderboard) ---
       if (url.pathname === "/api/leaderboard") {
+        let periodId = url.searchParams.get("period_id");
+        let activePeriod = null;
+
+        if (periodId) {
+          activePeriod = await env.DB.prepare("SELECT * FROM periods WHERE id = ?").bind(periodId).first();
+        } else {
+          // Domyślnie bierzemy aktywny SPRINT
+          activePeriod = await env.DB.prepare("SELECT * FROM periods WHERE type = 'SPRINT' AND status = 'ACTIVE' ORDER BY id DESC LIMIT 1").first();
+        }
+
+        // Pobranie bieżących wycen portfela
         const query = `
           SELECT 
             u.id,
             u.github_login,
             u.display_name AS Uczestnik,
             u.avatar_url,
+            u.status AS user_status,
             u.current_cash AS Gotowka_PLN,
             COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0) AS Wartosc_Akcji_PLN,
             (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0)) AS Wycena_Calkowita_PLN,
-            COUNT(h.ticker) AS Liczba_Pozycji
+            COUNT(h.ticker) AS Liczba_Pozycji,
+            ps.start_valuation_pln
           FROM users u
           LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
           LEFT JOIN market_prices p ON h.ticker = p.ticker
+          LEFT JOIN period_snapshots ps ON ps.user_id = u.id AND ps.period_id = ?
+          WHERE u.status != 'ALUMNI'
           GROUP BY u.id
         `;
 
-        const { results } = await env.DB.prepare(query).all();
-
-        // Odczytanie czasu ostatniej aktualizacji crona
-        const syncMeta = await env.DB.prepare("SELECT value, updated_at FROM app_metadata WHERE key = 'last_price_sync'").first();
+        const targetPeriodId = activePeriod ? activePeriod.id : 0;
+        const { results } = await env.DB.prepare(query).bind(targetPeriodId).all();
+        const syncMeta = await env.DB.prepare("SELECT value FROM app_metadata WHERE key = 'last_price_sync'").first();
 
         const leaderboard = results.map(row => {
-          const profit = row.Wycena_Calkowita_PLN - 100000.0;
-          const returnPct = profit / 100000.0;
+          // Baza do obliczenia zwrotu:
+          // Jeśli gracz ma zarejestrowany snapshot w tym cyklu -> bierzemy start_valuation_pln
+          // Jeśli nie (nowy gracz) -> baza to kapitał początkowy 100 000 zł, a gracz dostaje status ROOKIE
+          const baseValuation = row.start_valuation_pln || 100000.0;
+          const profit = row.Wycena_Calkowita_PLN - baseValuation;
+          const returnPct = baseValuation > 0 ? (profit / baseValuation) : 0;
+          const isRookie = !row.start_valuation_pln && !row.github_login.startsWith("benchmark");
+
           return {
             ...row,
+            Baza_Wyceny_PLN: baseValuation,
             Zysk_Strata_PLN: profit,
             Stopa_Zwrotu: returnPct,
+            is_rookie_in_period: isRookie
           };
         }).sort((a, b) => b.Stopa_Zwrotu - a.Stopa_Zwrotu);
 
         return jsonResponse({
           status: "success",
+          period: activePeriod,
           data: leaderboard,
           last_sync: syncMeta ? syncMeta.value : null,
         });
       }
 
-      // --- ROUTE: Portfel zalogowanego gracza (/api/portfolio) ---
+      // --- ROUTE: Portfel Gracza (/api/portfolio) ---
       if (url.pathname === "/api/portfolio") {
         const user = await getSessionUser(request, env);
         if (!user) return jsonResponse({ status: "error", message: "Wymagane logowanie" }, 401);
 
         const query = `
           SELECT 
-            h.ticker,
-            m.name,
-            h.shares,
-            h.avg_buy_price,
-            m.price AS current_price,
-            m.currency,
-            m.fx_to_pln,
+            h.ticker, m.name, h.shares, h.avg_buy_price,
+            m.price AS current_price, m.currency, m.fx_to_pln,
             (h.shares * m.price * m.fx_to_pln) AS current_value_pln,
             (((m.price - h.avg_buy_price) / h.avg_buy_price) * 100) AS return_pct
           FROM holdings h
@@ -207,24 +222,20 @@ export default {
         });
       }
 
-      // --- ROUTE: Wyszukiwarka walorów (/api/instruments/search) ---
+      // --- ROUTE: Wyszukiwarka instrumentów (/api/instruments/search) ---
       if (url.pathname === "/api/instruments/search") {
         const q = (url.searchParams.get("q") || "").trim().toUpperCase();
         if (!q) return jsonResponse({ status: "error", message: "Brak symbolu waloru" }, 400);
 
         const quote = await fetchYahooQuote(q);
-        if (!quote) {
-          return jsonResponse({ status: "error", message: `Walor "${q}" nie został znaleziony lub nie jest dozwolony.` }, 404);
-        }
+        if (!quote) return jsonResponse({ status: "error", message: `Walor "${q}" nie został znaleziony.` }, 404);
 
-        // Pobranie aktualnego kursu USD/PLN
         let fxRate = 1.0;
         if (quote.currency === "USD") {
           const usdQuote = await fetchYahooQuote("PLN=X");
           fxRate = usdQuote ? usdQuote.price : 4.0;
         }
 
-        // Zapis/odświeżenie w tabeli market_prices
         await env.DB.prepare(`
           INSERT INTO market_prices (ticker, name, price, currency, fx_to_pln, updated_at)
           VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
@@ -233,11 +244,7 @@ export default {
 
         return jsonResponse({
           status: "success",
-          data: {
-            ...quote,
-            fx_to_pln: fxRate,
-            price_pln: quote.price * fxRate,
-          },
+          data: { ...quote, fx_to_pln: fxRate, price_pln: quote.price * fxRate },
         });
       }
 
@@ -246,61 +253,45 @@ export default {
         const user = await getSessionUser(request, env);
         if (!user) return jsonResponse({ status: "error", message: "Wymagane logowanie" }, 401);
 
-        const body = await request.json();
-        const { ticker, type, shares, thesis } = body;
-
-        // Walidacja podstawowa
+        const { ticker, type, shares, thesis } = await request.json();
         if (!ticker || !["BUY", "SELL"].includes(type) || !shares || shares <= 0) {
-          return jsonResponse({ status: "error", message: "Nieprawidłowe dane zlecenia." }, 400);
+          return jsonResponse({ status: "error", message: "Nieprawidłowe parametry zlecenia." }, 400);
         }
 
         if (!thesis || thesis.trim().length < 15) {
-          return jsonResponse({ status: "error", message: "Uzasadnienie (Teza inwestycyjna) musi mieć co najmniej 15 znaków!" }, 400);
+          return jsonResponse({ status: "error", message: "Teza inwestycyjna musi mieć min. 15 znaków!" }, 400);
         }
 
-        // Pobranie bieżącego kursu z bazy
         const inst = await env.DB.prepare("SELECT * FROM market_prices WHERE ticker = ?").bind(ticker).first();
-        if (!inst) {
-          return jsonResponse({ status: "error", message: "Walor nie został zweryfikowany w bazie." }, 400);
-        }
+        if (!inst) return jsonResponse({ status: "error", message: "Walor nie istnieje w bazie." }, 400);
 
         const pricePln = inst.price * inst.fx_to_pln;
         const totalTradePln = shares * pricePln;
 
-        // Wycena całkowita portfela użytkownika
         const portSummary = await env.DB.prepare(`
-          SELECT 
-            u.current_cash,
-            COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0) AS stocks_value
+          SELECT u.current_cash, COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0) AS stocks_value
           FROM users u
           LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
           LEFT JOIN market_prices p ON h.ticker = p.ticker
-          WHERE u.id = ?
-          GROUP BY u.id
+          WHERE u.id = ? GROUP BY u.id
         `).bind(user.id).first();
 
         const totalPortfolioValue = (portSummary.current_cash || 0) + (portSummary.stocks_value || 0);
 
         if (type === "BUY") {
-          // 1. Sprawdzenie salda gotówki
           if (user.current_cash < totalTradePln) {
-            return jsonResponse({ status: "error", message: `Niewystarczające saldo gotówki. Posiadasz: ${user.current_cash.toFixed(2)} zł, potrzebujesz: ${totalTradePln.toFixed(2)} zł.` }, 400);
+            return jsonResponse({ status: "error", message: `Brak środków. Dostępne: ${user.current_cash.toFixed(2)} zł, wymagane: ${totalTradePln.toFixed(2)} zł.` }, 400);
           }
 
-          // 2. Walidacja limitu 35% na walor
           const existingHolding = await env.DB.prepare("SELECT shares FROM holdings WHERE user_id = ? AND ticker = ?").bind(user.id, ticker).first();
           const existingShares = existingHolding ? existingHolding.shares : 0;
           const postTradeTickerValue = (existingShares + shares) * pricePln;
           const exposurePct = (postTradeTickerValue / totalPortfolioValue) * 100;
 
           if (exposurePct > 35.01) {
-            return jsonResponse({ 
-              status: "error", 
-              message: `Naruszenie limitu koncentracji (Max 35%). Po transakcji walor stanowiłby ${exposurePct.toFixed(1)}% Twojego portfela!` 
-            }, 400);
+            return jsonResponse({ status: "error", message: `Limit 35% przekroczony! Pozycja stanowiłaby ${exposurePct.toFixed(1)}% portfela.` }, 400);
           }
 
-          // Wykonanie zakupu w atomowej paczce batch()
           await env.DB.batch([
             env.DB.prepare("UPDATE users SET current_cash = current_cash - ? WHERE id = ? AND current_cash >= ?").bind(totalTradePln, user.id, totalTradePln),
             env.DB.prepare(`
@@ -317,18 +308,15 @@ export default {
           ]);
 
           await logAudit(env, user.id, "TRADE_BUY", { ticker, shares, totalTradePln }, clientIp, "SUCCESS");
-          return jsonResponse({ status: "success", message: "Zlecenie kupna zrealizowane pomyślnie!" });
+          return jsonResponse({ status: "success", message: "Zlecenie kupna zrealizowane!" });
 
         } else if (type === "SELL") {
-          // Walidacja posiadanych akcji
           const existingHolding = await env.DB.prepare("SELECT shares FROM holdings WHERE user_id = ? AND ticker = ?").bind(user.id, ticker).first();
           if (!existingHolding || existingHolding.shares < shares) {
-            const available = existingHolding ? existingHolding.shares : 0;
-            return jsonResponse({ status: "error", message: `Nie posiadasz tylu akcji do sprzedaży. Dostępne: ${available} szt.` }, 400);
+            return jsonResponse({ status: "error", message: "Nie posiadasz tylu akcji do sprzedaży." }, 400);
           }
 
           const remainingShares = existingHolding.shares - shares;
-
           const batchQueries = [
             env.DB.prepare("UPDATE users SET current_cash = current_cash + ? WHERE id = ?").bind(totalTradePln, user.id),
             env.DB.prepare(`
@@ -345,24 +333,15 @@ export default {
 
           await env.DB.batch(batchQueries);
           await logAudit(env, user.id, "TRADE_SELL", { ticker, shares, totalTradePln }, clientIp, "SUCCESS");
-          return jsonResponse({ status: "success", message: "Zlecenie sprzedaży zrealizowane pomyślnie!" });
+          return jsonResponse({ status: "success", message: "Zlecenie sprzedaży zrealizowane!" });
         }
       }
 
-      // --- ROUTE: Feed ostatnich zleceń (/api/feed) ---
+      // --- ROUTE: Feed zleceń (/api/feed) ---
       if (url.pathname === "/api/feed") {
         const query = `
-          SELECT 
-            t.id,
-            t.ticker,
-            t.type,
-            t.shares,
-            t.price,
-            t.total_value_pln,
-            t.thesis,
-            t.created_at,
-            u.display_name AS user_name,
-            u.avatar_url
+          SELECT t.id, t.ticker, t.type, t.shares, t.price, t.total_value_pln, t.thesis, t.created_at,
+                 u.display_name AS user_name, u.avatar_url
           FROM transactions t
           JOIN users u ON t.user_id = u.id
           ORDER BY t.created_at DESC
@@ -372,40 +351,99 @@ export default {
         return jsonResponse({ status: "success", data: results });
       }
 
-      // --- ROUTE: Audyt (Tylko Admin) (/api/admin/audit) ---
-      if (url.pathname === "/api/admin/audit") {
+      // --- ROUTE: Admin — Zarządzanie Cyklami Czasowymi (/api/admin/periods) ---
+      if (url.pathname === "/api/admin/periods") {
         const user = await getSessionUser(request, env);
-        if (!user || user.is_admin !== 1) {
-          return jsonResponse({ status: "error", message: "Brak uprawnień administratora." }, 403);
+        if (!user || user.is_admin !== 1) return jsonResponse({ status: "error", message: "Brak uprawnień admina." }, 403);
+
+        if (request.method === "POST") {
+          const { type, name, start_date, end_date, prize_description } = await request.json();
+          if (!type || !name || !start_date || !end_date) {
+            return jsonResponse({ status: "error", message: "Wypełnij wszystkie pola okresu." }, 400);
+          }
+
+          const periodRes = await env.DB.prepare(`
+            INSERT INTO periods (type, name, start_date, end_date, status, is_locked, prize_description)
+            VALUES (?, ?, ?, ?, 'PENDING', 0, ?)
+          `).bind(type, name, start_date, end_date, prize_description || "").run();
+
+          await logAudit(env, user.id, "ADMIN_CREATE_PERIOD", { type, name, start_date, end_date }, clientIp, "SUCCESS");
+          return jsonResponse({ status: "success", message: "Nowy okres został utworzony jako PENDING." });
+        }
+      }
+
+      // --- ROUTE: Admin — Edycja Okresu (Z TWARDĄ BLOKADĄ PO STARCIE) ---
+      if (url.pathname.startsWith("/api/admin/periods/") && request.method === "PUT") {
+        const user = await getSessionUser(request, env);
+        if (!user || user.is_admin !== 1) return jsonResponse({ status: "error", message: "Brak uprawnień admina." }, 403);
+
+        const periodId = url.pathname.split("/").pop();
+        const period = await env.DB.prepare("SELECT * FROM periods WHERE id = ?").bind(periodId).first();
+        if (!period) return jsonResponse({ status: "error", message: "Okres nie istnieje." }, 404);
+
+        // TWARDA ZASADA IMMUTABILITY: Blokada jakiejkolwiek modyfikacji po starcie
+        const now = new Date();
+        const startDate = new Date(period.start_date);
+
+        if (period.status === "ACTIVE" || period.is_locked === 1 || now >= startDate) {
+          return jsonResponse({ 
+            status: "error", 
+            message: "REGULAMIN LIGI: Okres już wystartował! Zgodnie z zasadami fair-play daty trwania aktywnego cyklu są zamrożone i nie można ich zmieniać po starcie." 
+          }, 400);
         }
 
-        const query = `
-          SELECT 
-            a.id,
-            a.action,
-            a.payload,
-            a.ip_address,
-            a.status,
-            a.created_at,
-            COALESCE(u.display_name, 'Niezalogowany / System') AS user_name
+        const { name, start_date, end_date, prize_description } = await request.json();
+        await env.DB.prepare(`
+          UPDATE periods 
+          SET name = COALESCE(?, name),
+              start_date = COALESCE(?, start_date),
+              end_date = COALESCE(?, end_date),
+              prize_description = COALESCE(?, prize_description)
+          WHERE id = ?
+        `).bind(name, start_date, end_date, prize_description, periodId).run();
+
+        await logAudit(env, user.id, "ADMIN_UPDATE_PERIOD", { periodId, start_date, end_date }, clientIp, "SUCCESS");
+        return jsonResponse({ status: "success", message: "Parametry okresu zaktualizowane." });
+      }
+
+      // --- ROUTE: Admin — Rotacja Graczy (Status ACTIVE / ALUMNI) ---
+      if (url.pathname === "/api/admin/users/status" && request.method === "POST") {
+        const user = await getSessionUser(request, env);
+        if (!user || user.is_admin !== 1) return jsonResponse({ status: "error", message: "Brak uprawnień admina." }, 403);
+
+        const { target_user_id, status } = await request.json();
+        if (!["ACTIVE", "ROOKIE", "ALUMNI"].includes(status)) {
+          return jsonResponse({ status: "error", message: "Nieprawidłowy status użytkownika." }, 400);
+        }
+
+        await env.DB.prepare("UPDATE users SET status = ? WHERE id = ?").bind(status, target_user_id).run();
+        await logAudit(env, user.id, "ADMIN_SET_USER_STATUS", { target_user_id, status }, clientIp, "SUCCESS");
+        return jsonResponse({ status: "success", message: `Status użytkownika zmieniony na ${status}.` });
+      }
+
+      // --- ROUTE: Audyt (Admin) ---
+      if (url.pathname === "/api/admin/audit") {
+        const user = await getSessionUser(request, env);
+        if (!user || user.is_admin !== 1) return jsonResponse({ status: "error", message: "Brak uprawnień." }, 403);
+
+        const { results } = await env.DB.prepare(`
+          SELECT a.id, a.action, a.payload, a.ip_address, a.status, a.created_at,
+                 COALESCE(u.display_name, 'Niezalogowany / System') AS user_name
           FROM audit_log a
           LEFT JOIN users u ON a.user_id = u.id
           ORDER BY a.created_at DESC
           LIMIT 100
-        `;
-        const { results } = await env.DB.prepare(query).all();
+        `).all();
         return jsonResponse({ status: "success", data: results });
       }
 
-      // --- ROUTE: Ręczna synchronizacja cen (Tylko Admin) (/api/admin/sync-prices) ---
+      // --- ROUTE: Ręczna synchronizacja cen ---
       if (url.pathname === "/api/admin/sync-prices") {
         const user = await getSessionUser(request, env);
-        if (!user || user.is_admin !== 1) {
-          return jsonResponse({ status: "error", message: "Brak uprawnień administratora." }, 403);
-        }
+        if (!user || user.is_admin !== 1) return jsonResponse({ status: "error", message: "Brak uprawnień." }, 403);
 
-        const syncLogs = await syncAllMarketPrices(env);
-        return jsonResponse({ status: "success", message: "Synchronizacja zakończona", logs: syncLogs });
+        const logs = await syncAllMarketPrices(env);
+        return jsonResponse({ status: "success", message: "Synchronizacja zakończona", logs });
       }
 
       return new Response("Not Found", { status: 404 });
@@ -424,10 +462,7 @@ export default {
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
     status,
-    headers: {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
+    headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
   });
 }
 
@@ -436,14 +471,12 @@ async function getSessionUser(request, env) {
   const match = cookie.match(/session_token=([^;]+)/);
   if (!match) return null;
 
-  const session = await env.DB.prepare(`
-    SELECT s.*, u.id, u.github_login, u.display_name, u.avatar_url, u.current_cash, u.is_admin
+  return await env.DB.prepare(`
+    SELECT s.*, u.id, u.github_login, u.display_name, u.avatar_url, u.current_cash, u.is_admin, u.status
     FROM sessions s
     JOIN users u ON s.user_id = u.id
     WHERE s.token = ? AND s.expires_at > CURRENT_TIMESTAMP
   `).bind(match[1]).first();
-
-  return session;
 }
 
 async function logAudit(env, userId, action, payload, ip, status) {
@@ -457,14 +490,11 @@ async function logAudit(env, userId, action, payload, ip, status) {
   }
 }
 
-// Pobieranie kursów giełdowych z Yahoo Finance
 async function fetchYahooQuote(symbol) {
   try {
     const cleanSym = symbol.trim().toUpperCase();
     const url = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(cleanSym)}?interval=1d&range=1d`;
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" }
-    });
+    const res = await fetch(url, { headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" } });
 
     if (!res.ok) return null;
     const json = await res.json();
@@ -486,19 +516,12 @@ async function fetchYahooQuote(symbol) {
   }
 }
 
-// Pełna synchronizacja wszystkich walorów w obiegu + indeksów
 async function syncAllMarketPrices(env) {
   const logs = [];
-
-  // 1. Kurs USD/PLN
   let usdPln = 4.0;
   const usdQuote = await fetchYahooQuote("PLN=X");
-  if (usdQuote) {
-    usdPln = usdQuote.price;
-    logs.push(`Kurs USD/PLN: ${usdPln.toFixed(4)}`);
-  }
+  if (usdQuote) usdPln = usdQuote.price;
 
-  // 2. Pobranie unikalnych tickerów z bazy
   const { results: tickers } = await env.DB.prepare("SELECT ticker, currency FROM market_prices").all();
 
   for (const item of tickers) {
@@ -514,13 +537,35 @@ async function syncAllMarketPrices(env) {
     }
   }
 
-  // 3. Zapis znacznika czasu do app_metadata
+  // Automatyczne sprawdzanie i otwieranie/zamykanie cykli
+  await checkAndRotatePeriods(env);
+
   await env.DB.prepare(`
     INSERT INTO app_metadata (key, value, updated_at)
     VALUES ('last_price_sync', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
     ON CONFLICT(key) DO UPDATE SET value = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
   `).run();
 
-  logs.push("Zapisano timestamp synchronizacji w app_metadata.");
   return logs;
+}
+
+async function checkAndRotatePeriods(env) {
+  // Aktywacja oczekujących cykli, które dotarły do start_date
+  const pendingPeriods = await env.DB.prepare(
+    "SELECT id FROM periods WHERE status = 'PENDING' AND start_date <= datetime('now')"
+  ).all();
+
+  for (const p of pendingPeriods.results) {
+    await env.DB.prepare("UPDATE periods SET status = 'ACTIVE', is_locked = 1 WHERE id = ?").bind(p.id).run();
+    // Utworzenie snapshotów dla wszystkich aktywnych graczy na dzwonek startowy
+    await env.DB.prepare(`
+      INSERT OR IGNORE INTO period_snapshots (period_id, user_id, start_valuation_pln)
+      SELECT ?, u.id, (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0))
+      FROM users u
+      LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
+      LEFT JOIN market_prices p ON h.ticker = p.ticker
+      WHERE u.status = 'ACTIVE'
+      GROUP BY u.id
+    `).bind(p.id).run();
+  }
 }
