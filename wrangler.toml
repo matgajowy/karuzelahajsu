@@ -1,0 +1,7 @@
+name = "karuzela-hajsu"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "liga_db"
+database_id = "25af5b31-ca0f-4ba9-a159-bce41c9c9760"
