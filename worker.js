@@ -7,7 +7,7 @@ export default {
       try {
         const query = `
           SELECT 
-            u.name AS Uczestnik,
+            u.display_name AS Uczestnik,
             u.current_cash AS Gotowka_PLN,
             COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0) AS Wartosc_Akcji_PLN,
             (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0)) AS Wycena_Calkowita_PLN,
