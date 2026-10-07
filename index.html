@@ -33,21 +33,6 @@
       </div>
     </header>
 
-    <!-- Configuration Bar -->
-    <section class="mt-6 p-4 rounded-xl bg-slate-900 border border-slate-800 flex flex-col md:flex-row gap-3 items-center justify-between">
-      <div class="flex items-center gap-2 text-xs text-slate-400 w-full md:w-auto">
-        <i data-lucide="link" class="w-4 h-4 text-slate-500"></i>
-        <span>Google Apps Script Endpoint:</span>
-      </div>
-      <div class="flex gap-2 w-full md:w-2/3">
-        <input type="text" id="apiUrlInput" placeholder="Wklej adres Web App URL (końcówka /exec)..." 
-               class="bg-slate-950 border border-slate-700 text-xs text-slate-200 px-3 py-2 rounded-md w-full focus:outline-none focus:border-indigo-500">
-        <button onclick="saveApiUrl()" class="bg-indigo-600 hover:bg-indigo-500 text-xs font-semibold px-4 py-2 rounded-md transition whitespace-nowrap">
-          Połącz
-        </button>
-      </div>
-    </section>
-
     <!-- Stat Summary Cards -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mt-6">
       <div class="bg-slate-900 border border-slate-800 p-5 rounded-2xl relative overflow-hidden">
@@ -118,34 +103,14 @@
       { Uczestnik: "Piotr R.", Wartosc_Akcji_PLN: 98000, Gotowka_PLN: 500, Wycena_Calkowita_PLN: 98500, Zysk_Strata_PLN: -1500, Stopa_Zwrotu: -0.015, Liczba_Pozycji: 6 }
     ];
 
-    let currentApiUrl = localStorage.getItem("liga_api_url") || "https://script.google.com/macros/s/AKfycbxGDhcNhCCFEIApKIbD9mhiu96ZQeVkyZPDSuLAQ0yqGK5X0LicsQ9hSB4iMt55yt6F
-/exec";
-
     document.addEventListener("DOMContentLoaded", () => {
       lucide.createIcons();
-      if (currentApiUrl) {
-        document.getElementById("apiUrlInput").value = currentApiUrl;
-      }
       fetchData();
     });
-
-    function saveApiUrl() {
-      const url = document.getElementById("apiUrlInput").value.trim();
-      localStorage.setItem("liga_api_url", url);
-      currentApiUrl = url;
-      fetchData();
-    }
 
     async function fetchData() {
       const refreshIcon = document.getElementById("refreshIcon");
       refreshIcon.classList.add("animate-spin");
-
-      if (!currentApiUrl) {
-        // Renderuj dane testowe
-        renderDashboard(MOCK_DATA, "Tryb demonstracyjny (brak podpiętego API)");
-        refreshIcon.classList.remove("animate-spin");
-        return;
-      }
 
       try {
         const response = await fetch('/api/leaderboard');
@@ -154,7 +119,7 @@
         if (json.status === "success" && Array.isArray(json.data)) {
           renderDashboard(json.data, `Zaktualizowano: ${new Date().toLocaleTimeString()}`);
         } else {
-          alert("Błąd formatu danych z arkusza: " + (json.message || "Nieznany błąd"));
+          alert("Błąd odpowiedzi API: " + (json.message || "Nieznany błąd"));
         }
       } catch (err) {
         console.error("Błąd pobierania danych:", err);
