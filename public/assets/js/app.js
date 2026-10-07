@@ -76,7 +76,7 @@
           currentUser = null;
           authContainer.innerHTML = `
             <a href="/api/auth/github" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition">
-              <i data-lucide="github" class="w-4 h-4"></i>
+              <i data-lucide="log-in" class="w-4 h-4"></i>
               <span>Zaloguj z GitHub</span>
             </a>
           `;

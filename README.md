@@ -14,6 +14,8 @@ Cloudflare Worker application for a small paper-trading league.
 ## Local checks
 
 ```sh
+npm ci
+npm run build
 npm test
 npx wrangler deploy --env dev --dry-run
 ```

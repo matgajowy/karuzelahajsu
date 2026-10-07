@@ -3,6 +3,12 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:css": "tailwindcss -i ./src/styles.css -o ./public/assets/css/app.css --minify",
+    "build": "npm run build:css",
     "test": "node --test"
+  },
+  "devDependencies": {
+    "@tailwindcss/cli": "^4.3.0",
+    "tailwindcss": "^4.3.3"
   }
 }
