@@ -148,7 +148,7 @@
       }
 
       try {
-        const response = await fetch(currentApiUrl);
+        const response = await fetch('/api/leaderboard');
         const json = await response.json();
 
         if (json.status === "success" && Array.isArray(json.data)) {
