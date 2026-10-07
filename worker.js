@@ -66,6 +66,7 @@ export default {
     if (url.pathname === "/api/auth/callback") {
       const code = url.searchParams.get("code");
       const state = url.searchParams.get("state");
+      const redirectUri = `${url.origin}/api/auth/callback`;
 
       if (!state || !/^[a-f0-9-]{36}$/i.test(state)) {
         return new Response("Błąd bezpieczeństwa (brak lub nieprawidłowy parametr state)", { status: 403 });
@@ -93,7 +94,8 @@ export default {
         body: JSON.stringify({
           client_id: env.GITHUB_CLIENT_ID,
           client_secret: env.GITHUB_CLIENT_SECRET,
-          code
+          code,
+          redirect_uri: redirectUri
         })
       });
 
