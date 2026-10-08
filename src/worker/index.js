@@ -1,10 +1,20 @@
 import { jsonResponse } from "./lib/http.js";
 import { allowedMethods, findRoute } from "./routes/index.js";
 import { syncAllMarketPrices } from "./services/pricing.js";
+import { recordEndOfDay } from "./services/p2.js";
 
 export default {
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(syncAllMarketPrices(env));
+  async scheduled(event, env, ctx) {
+    ctx.waitUntil((async () => {
+      const syncResult = await syncAllMarketPrices(env);
+      if (event.cron === "5 22 * * 1-5") {
+        if (syncResult.status === "failed") {
+          console.error("EOD snapshot skipped because price sync failed.");
+          return;
+        }
+        await recordEndOfDay(env);
+      }
+    })());
   },
 
   async fetch(request, env, ctx) {

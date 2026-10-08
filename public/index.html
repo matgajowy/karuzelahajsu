@@ -204,6 +204,30 @@
 
       </div>
 
+      <section class="grid grid-cols-1 lg:grid-cols-3 gap-4" aria-label="Podsumowanie sesji">
+        <div class="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h2 class="text-sm font-bold text-white">Wyścig portfeli EOD</h2>
+              <p class="text-[11px] text-slate-400 mt-1">Dzienna wycena graczy w CK (1 CK = 1 PLN)</p>
+            </div>
+            <span class="text-[10px] text-indigo-300 bg-indigo-500/10 border border-indigo-500/20 rounded-full px-2 py-1">30 dni</span>
+          </div>
+          <div class="relative h-64 sm:h-72">
+            <canvas id="marketRaceChart" aria-label="Wykres dziennych wycen portfeli uczestników"></canvas>
+            <p id="marketRaceEmpty" class="absolute inset-0 flex items-center justify-center text-xs text-slate-500 text-center px-4">Wykres pojawi się po pierwszym zamknięciu sesji.</p>
+          </div>
+        </div>
+        <article class="bg-amber-950/20 border border-amber-500/20 rounded-2xl p-5 shadow-xl">
+          <div class="flex items-center gap-2">
+            <span aria-hidden="true">🗞️</span>
+            <h2 class="text-sm font-bold text-amber-200">Memiczny Biuletyn Sesji</h2>
+          </div>
+          <p id="marketRecapDate" class="text-[10px] text-slate-500 font-mono mt-3">Ostatnie zamknięcie</p>
+          <p id="marketRecapContent" class="text-xs text-slate-300 leading-relaxed mt-2">Biuletyn pojawi się po zamknięciu sesji.</p>
+        </article>
+      </section>
+
       <!-- TABELA RANKINGU -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div class="px-6 py-4 border-b border-slate-800 flex flex-col sm:flex-row justify-between sm:items-center gap-2 bg-slate-900/70">
@@ -660,13 +684,46 @@
     </div>
   </footer>
 
+  <div id="opponentPortfolioDrawer" class="fixed inset-0 z-[70] hidden" role="dialog" aria-modal="true" aria-labelledby="opponentDrawerTitle">
+    <button type="button" data-action="close-opponent-drawer" class="absolute inset-0 bg-black/70 cursor-default" aria-label="Zamknij podgląd portfela"></button>
+    <aside class="absolute inset-y-0 right-0 w-full max-w-xl overflow-y-auto bg-slate-950 border-l border-slate-700 shadow-2xl p-5 sm:p-7">
+      <div class="flex items-start justify-between gap-4 border-b border-slate-800 pb-4">
+        <div class="flex items-center gap-3 min-w-0">
+          <img id="opponentDrawerAvatar" src="" alt="" class="w-12 h-12 rounded-full border border-indigo-500/40 bg-slate-800 object-cover">
+          <div class="min-w-0">
+            <p class="text-[10px] uppercase tracking-wider text-indigo-300 font-bold">Portfel przeciwnika</p>
+            <h2 id="opponentDrawerTitle" class="text-lg font-black text-white truncate">Ładowanie...</h2>
+          </div>
+        </div>
+        <button type="button" data-action="close-opponent-drawer" class="text-slate-400 hover:text-white p-2" aria-label="Zamknij">✕</button>
+      </div>
+      <div id="opponentDrawerError" class="hidden text-sm text-rose-300 bg-rose-950/40 border border-rose-900/40 rounded-lg p-3 mt-4"></div>
+      <div class="grid grid-cols-2 gap-3 mt-5">
+        <div class="bg-slate-900 rounded-xl p-3 border border-slate-800">
+          <p class="text-[10px] text-slate-400">Wycena łączna</p>
+          <p id="opponentDrawerValuation" class="font-mono tabular-nums text-white font-bold mt-1">--</p>
+        </div>
+        <div class="bg-slate-900 rounded-xl p-3 border border-slate-800">
+          <p class="text-[10px] text-slate-400">Gotówka</p>
+          <p id="opponentDrawerCash" class="font-mono tabular-nums text-emerald-300 font-bold mt-1">--</p>
+        </div>
+      </div>
+      <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider mt-7 mb-3">Otwarte pozycje</h3>
+      <div id="opponentDrawerHoldings" class="space-y-2">
+        <p class="text-xs text-slate-500">Pobieranie portfela...</p>
+      </div>
+    </aside>
+  </div>
+
   <!-- ========================================== -->
   <!-- SKRYPT APLIKACJI                           -->
   <!-- ========================================== -->
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
   <script defer src="/assets/js/state.js"></script>
   <script defer src="/assets/js/api.js"></script>
   <script defer src="/assets/js/utils.js"></script>
   <script defer src="/assets/js/leaderboard.js"></script>
+  <script defer src="/assets/js/market.js"></script>
 <script defer src="/assets/js/portfolio.js"></script>
 <script defer src="/assets/js/profile.js"></script>
 <script defer src="/assets/js/admin.js"></script>

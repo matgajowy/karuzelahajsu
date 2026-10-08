@@ -5,6 +5,7 @@ import { runInNewContext } from "node:vm";
 import worker from "../src/worker/index.js";
 import { allowedMethods, findRoute } from "../src/worker/routes/index.js";
 import { syncAllMarketPrices } from "../src/worker/services/pricing.js";
+import { handleMarketRace, handleMarketRecap, handleOpponentPortfolio } from "../src/worker/services/p2.js";
 
 function createEnv({
   user = null,
@@ -66,6 +67,9 @@ test("route registry covers all frontend API endpoints", () => {
     ["GET", "/api/leaderboard"],
     ["GET", "/api/feed"],
     ["GET", "/api/portfolio"],
+    ["GET", "/api/opponent-portfolio"],
+    ["GET", "/api/market-race"],
+    ["GET", "/api/market-recap"],
     ["POST", "/api/profile"],
     ["POST", "/api/profile/generate-nickname"],
     ["GET", "/api/admin/users"],
@@ -110,6 +114,85 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.match(html, /MAX \(pełne akcje\)/);
   assert.match(html, /href="\/favicon\.svg"/);
   assert.match(html, /id="generateNickBtn"/);
+  assert.match(html, /id="opponentPortfolioDrawer"/);
+  assert.match(html, /id="marketRaceChart"/);
+  assert.match(html, /id="marketRecapContent"/);
+  assert.match(html, /chart\.umd\.min\.js/);
+  assert.match(html, /\/assets\/js\/market\.js/);
+});
+
+test("P2 portfolio, roast, and market insights are wired into the UI", async () => {
+  const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
+  const market = await readFile(new URL("../public/assets/js/market.js", import.meta.url), "utf8");
+  const app = await readFile(new URL("../public/assets/js/app.js", import.meta.url), "utf8");
+  const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+
+  assert.match(events, /"open-opponent-portfolio": element => openOpponentPortfolio/);
+  assert.match(events, /"close-opponent-drawer": \(\) => closeOpponentPortfolio/);
+  assert.match(market, /new Chart\(/);
+  assert.match(market, /pointStyle: image/);
+  assert.match(market, /\/api\/opponent-portfolio\?user_id=/);
+  assert.match(market, /\/api\/market-race/);
+  assert.match(market, /\/api\/market-recap/);
+  assert.match(app, /await fetchMarketInsights\(\)/);
+  assert.match(portfolio, /item\.ai_roast/);
+});
+
+test("P2 public endpoints return opponent portfolio, market race, and recap data", async () => {
+  const opponent = {
+    id: 12,
+    github_login: "player",
+    display_name: "Test Player",
+    avatar_url: null,
+    current_cash: 250,
+  };
+  const holding = {
+    ticker: "NVDA",
+    name: "NVIDIA Corporation",
+    shares: 2,
+    avg_buy_price: 100,
+    current_price: 110,
+    currency: "USD",
+    current_value_ck: 220,
+    return_pct: 10,
+  };
+  const snapshots = [{ user_id: 12, user_name: "Test Player", date: "2025-01-01", valuation_ck: 470 }];
+  const recap = { date: "2025-01-01", content: "Rynek przetrwał kolejną sesję." };
+  const env = {
+    DB: {
+      prepare(sql) {
+        return {
+          bind: (...values) => ({
+            first: async () => sql.includes("SELECT id, github_login") && values[0] === 12 ? opponent : null,
+            all: async () => sql.includes("FROM holdings h") ? { results: [holding] } : { results: [] },
+          }),
+          all: async () => ({ results: snapshots }),
+          first: async () => recap,
+        };
+      },
+    },
+  };
+
+  const opponentResponse = await handleOpponentPortfolio({
+    env,
+    url: new URL("https://example.test/api/opponent-portfolio?user_id=12"),
+  });
+  assert.equal(opponentResponse.status, 200);
+  assert.deepEqual((await opponentResponse.json()).data, {
+    id: 12,
+    display_name: "Test Player",
+    avatar_url: null,
+    cash_ck: 250,
+    stocks_value_ck: 220,
+    valuation_ck: 470,
+    holdings: [holding],
+  });
+
+  const raceResponse = await handleMarketRace({ env });
+  assert.deepEqual((await raceResponse.json()).data, snapshots);
+
+  const recapResponse = await handleMarketRecap({ env });
+  assert.deepEqual((await recapResponse.json()).data, recap);
 });
 
 test("CK formatter provides safe text and visual token formats", async () => {

@@ -22,6 +22,8 @@ const clickActions = {
   "logout": () => handleLogout(),
   "open-smart-sell": element => openSmartSell(element.dataset.ticker),
   "copy-feed-trade": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
+  "open-opponent-portfolio": element => openOpponentPortfolio(element.dataset.userId, element),
+  "close-opponent-drawer": () => closeOpponentPortfolio(),
 };
 
 document.addEventListener("click", event => {
@@ -71,6 +73,10 @@ document.addEventListener("change", event => {
 });
 
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape" && !document.getElementById("opponentPortfolioDrawer").classList.contains("hidden")) {
+    closeOpponentPortfolio();
+    return;
+  }
   if (event.key === "Enter" && event.target instanceof HTMLInputElement &&
       event.target.id === "tradeTickerInput") {
     event.preventDefault();

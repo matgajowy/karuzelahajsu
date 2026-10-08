@@ -1,5 +1,6 @@
 import { jsonResponse } from "../lib/http.js";
 import { getSessionUser, logAudit } from "../lib/auth.js";
+import { generateTransactionRoast } from "../services/p2.js";
 
 export async function handleTrade(context) {
   const { request, env, url, clientIp } = context;
@@ -72,6 +73,14 @@ export async function handleTrade(context) {
       }, 400);
     }
 
+    const aiRoast = await generateTransactionRoast(env, {
+      ticker,
+      companyName: inst.name,
+      type,
+      shares,
+      thesis: thesis.trim(),
+    });
+
     // Wykonanie zakupu w atomowej paczce batch()
     await env.DB.batch([
       env.DB.prepare("UPDATE users SET current_cash = current_cash - ? WHERE id = ? AND current_cash >= ?").bind(totalTradeCk, user.id, totalTradeCk),
@@ -83,9 +92,9 @@ export async function handleTrade(context) {
           shares = holdings.shares + excluded.shares
       `).bind(user.id, ticker, shares, inst.price),
       env.DB.prepare(`
-        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis)
-        VALUES (?, ?, 'BUY', ?, ?, ?, ?)
-      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim())
+        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis, ai_roast)
+        VALUES (?, ?, 'BUY', ?, ?, ?, ?, ?)
+      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim(), aiRoast)
     ]);
 
     await logAudit(env, user.id, "TRADE_BUY", { ticker, shares, totalTradeCk }, clientIp, "SUCCESS");
@@ -100,13 +109,20 @@ export async function handleTrade(context) {
     }
 
     const remainingShares = existingHolding.shares - shares;
+    const aiRoast = await generateTransactionRoast(env, {
+      ticker,
+      companyName: inst.name,
+      type,
+      shares,
+      thesis: thesis.trim(),
+    });
 
     const batchQueries = [
       env.DB.prepare("UPDATE users SET current_cash = current_cash + ? WHERE id = ?").bind(totalTradeCk, user.id),
       env.DB.prepare(`
-        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis)
-        VALUES (?, ?, 'SELL', ?, ?, ?, ?)
-      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim())
+        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis, ai_roast)
+        VALUES (?, ?, 'SELL', ?, ?, ?, ?, ?)
+      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim(), aiRoast)
     ];
 
     if (remainingShares <= 0.0001) {
