@@ -265,7 +265,7 @@ function createPricingEnv(tickers) {
   return env;
 }
 
-function yahooResponse(symbol, price, currency = "USD") {
+function yahooChartResponse(symbol, price, currency = "USD") {
   return {
     ok: true,
     json: async () => ({
@@ -278,19 +278,42 @@ function yahooResponse(symbol, price, currency = "USD") {
   };
 }
 
+function yahooSparkResponse(quotes) {
+  return {
+    ok: true,
+    json: async () => ({
+      spark: {
+        result: quotes.map(quote => ({
+          symbol: quote.symbol,
+          response: [{ meta: quote }],
+        })),
+      },
+    }),
+  };
+}
+
 test("price sync refreshes legacy WIG20 from WIG20.WA and reports missed quotes", async () => {
   const env = createPricingEnv([
     { ticker: "WIG20", currency: "PLN" },
     { ticker: "WIG20.WA", currency: "PLN" },
     { ticker: "AAPL", currency: "USD" },
   ]);
-  const requestedSymbols = [];
+  const requests = [];
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async url => {
-    const symbol = decodeURIComponent(new URL(url).pathname.split("/").pop());
-    requestedSymbols.push(symbol);
-    if (symbol === "PLN=X") return yahooResponse(symbol, 4, "PLN");
-    if (symbol === "WIG20.WA") return yahooResponse(symbol, 4200, "PLN");
+    const requestUrl = new URL(url);
+    requests.push(requestUrl);
+    if (requestUrl.pathname.endsWith("/v8/finance/chart/PLN%3DX")) {
+      return yahooChartResponse("PLN=X", 4, "PLN");
+    }
+    if (requestUrl.pathname.endsWith("/v8/finance/chart/PLN=X")) {
+      return yahooChartResponse("PLN=X", 4, "PLN");
+    }
+    if (requestUrl.pathname === "/v7/finance/spark") {
+      return yahooSparkResponse([
+        { symbol: "WIG20.WA", shortName: "WIG20", regularMarketPrice: 4200, currency: "PLN" },
+      ]);
+    }
     return { ok: false, status: 429 };
   };
 
@@ -313,7 +336,12 @@ test("price sync refreshes legacy WIG20 from WIG20.WA and reports missed quotes"
       [4200, 1, "WIG20"],
       [4200, 1, "WIG20.WA"],
     ]);
-    assert.equal(requestedSymbols.filter(symbol => symbol === "WIG20.WA").length, 1);
+    assert.equal(requests.length, 2);
+    const batchUrl = requests.find(requestUrl => requestUrl.pathname === "/v7/finance/spark");
+    assert.equal(batchUrl.searchParams.get("symbols"), "WIG20.WA,AAPL");
+    assert.equal(batchUrl.searchParams.get("range"), "1d");
+    assert.equal(batchUrl.searchParams.get("interval"), "1d");
+    assert.equal(requests.filter(requestUrl => requestUrl.pathname.startsWith("/v8/finance/chart/")).length, 1);
     assert.equal(statusWrite.values[1], "partial");
     assert.deepEqual(JSON.parse(summaryWrite.values[1]), result.summary);
   } finally {
@@ -325,9 +353,11 @@ test("price sync does not update USD quotes when the conversion rate is unavaila
   const env = createPricingEnv([{ ticker: "AAPL", currency: "USD" }]);
   const originalFetch = globalThis.fetch;
   globalThis.fetch = async url => {
-    const symbol = decodeURIComponent(new URL(url).pathname.split("/").pop());
-    if (symbol === "PLN=X") return { ok: false, status: 503 };
-    return yahooResponse(symbol, 200);
+    const requestUrl = new URL(url);
+    if (requestUrl.pathname.startsWith("/v8/finance/chart/")) return { ok: false, status: 503 };
+    return yahooSparkResponse([
+      { symbol: "AAPL", shortName: "Apple", regularMarketPrice: 200, currency: "USD" },
+    ]);
   };
 
   try {
