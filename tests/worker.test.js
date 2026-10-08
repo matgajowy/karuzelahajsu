@@ -442,6 +442,75 @@ test("admin benchmark reset uses one atomic batch and writes an audit record", a
   ]);
 });
 
+test("benchmark reset refreshes snapshots for active production periods", async () => {
+  const batches = [];
+  const env = {
+    DB: {
+      prepare(sql) {
+        const statement = {
+          sql,
+          values: [],
+          bind(...values) {
+            this.values = values;
+            return this;
+          },
+          async first() {
+            return sql.includes("FROM sessions") ? { id: 3, is_admin: 1 } : null;
+          },
+          async all() {
+            if (sql.includes("FROM users u") && sql.includes("market_prices")) {
+              return {
+                results: [
+                  { id: 20, github_login: "benchmark_sp500", price: 5000, fx_to_pln: 4 },
+                  { id: 21, github_login: "benchmark_wig20", price: 2500, fx_to_pln: 1 },
+                ],
+              };
+            }
+            if (sql.includes("sqlite_master") && sql.includes("period_snapshots")) {
+              return { results: [{ name: "period_snapshots" }] };
+            }
+            if (sql.includes("PRAGMA table_info(period_snapshots)")) {
+              return {
+                results: [
+                  { name: "period_id" },
+                  { name: "user_id" },
+                  { name: "start_valuation_pln" },
+                ],
+              };
+            }
+            if (sql.includes("sqlite_master") && this.values[0] === "periods") {
+              return { results: [{ name: "periods" }] };
+            }
+            if (sql.includes('PRAGMA table_info("periods")')) {
+              return { results: [{ name: "id" }, { name: "status" }] };
+            }
+            return { results: [] };
+          },
+        };
+        return statement;
+      },
+      async batch(statements) {
+        batches.push(statements);
+        return [];
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/admin/reset-benchmarks", {
+      method: "POST",
+      headers: { Cookie: "session_token=admin-session", "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmPhrase: "RESET-BENCHMARKS" }),
+    }),
+    env,
+    {},
+  );
+
+  assert.equal(response.status, 200);
+  const snapshotUpdate = batches[0].find(({ sql }) => sql.includes("UPDATE period_snapshots"));
+  assert.ok(snapshotUpdate);
+  assert.match(snapshotUpdate.sql, /period_id IN \(SELECT id FROM "periods" WHERE UPPER\(status\) = 'ACTIVE'\)/);
+});
+
 test("leaderboard API exposes all portfolio values in CK at the fixed parity", async () => {
   const env = createEnv({
     rows: [{ Wycena_Calkowita_CK: 101000, Gotowka_CK: 1000 }],
