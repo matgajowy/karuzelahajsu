@@ -3,9 +3,7 @@
       const syncBadge = document.getElementById("syncStatusBadge");
       let syncTitle = "";
       if (lastSyncTs) {
-        const normalizedTimestamp = lastSyncTs.includes("T") ? lastSyncTs : `${lastSyncTs.replace(" ", "T")}Z`;
-        const syncDate = new Date(normalizedTimestamp);
-        const timeStr = syncDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const timeStr = formatTime(lastSyncTs);
         if (syncStatus === "partial") {
           const updated = syncSummary?.updated_count ?? 0;
           const total = syncSummary?.total_count ?? updated + (syncSummary?.failed_count ?? 0);
@@ -36,14 +34,16 @@
       document.getElementById("syncStatusBadge").classList.remove("hidden");
       document.getElementById("dataTimestamp").innerText = `Waluta: CK (1 CK = 1 PLN)`;
 
-      const isBenchmarkRow = (name) => {
-        const n = (name || '').toLowerCase();
-        return n.includes("benchmark") || n.includes("index") || n.includes("s&p") || n.includes("wig");
+      const isBenchmarkRow = (item) => {
+        const n = (item.Uczestnik || '').toLowerCase();
+        return item.github_login === "benchmark_sp500" ||
+          item.github_login === "benchmark_wig20" ||
+          n.includes("benchmark") || n.includes("index") || n.includes("s&p") || n.includes("wig");
       };
 
-      const participants = items.filter(i => !isBenchmarkRow(i.Uczestnik));
-      const sp500 = items.find(i => (i.Uczestnik || '').includes("S&P 500"));
-      const wig20 = items.find(i => (i.Uczestnik || '').includes("WIG20") || (i.Uczestnik || '').includes("WIG 20"));
+      const participants = items.filter(i => !isBenchmarkRow(i));
+      const sp500 = items.find(i => i.github_login === "benchmark_sp500" || (i.Uczestnik || '').includes("S&P 500"));
+      const wig20 = items.find(i => i.github_login === "benchmark_wig20" || (i.Uczestnik || '').includes("WIG20") || (i.Uczestnik || '').includes("WIG 20"));
 
       if (participants.length > 0) {
         const leader = participants[0];
@@ -56,12 +56,12 @@
 
       if (sp500) {
         const ret = formatPct(sp500.Stopa_Zwrotu);
-        const col = sp500.Stopa_Zwrotu >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        const col = pctColorClass(sp500.Stopa_Zwrotu);
         document.getElementById("benchSp500Val").innerHTML = `<span class="${col}">${ret}</span>`;
       }
       if (wig20) {
         const ret = formatPct(wig20.Stopa_Zwrotu);
-        const col = wig20.Stopa_Zwrotu >= 0 ? 'text-emerald-400' : 'text-rose-400';
+        const col = pctColorClass(wig20.Stopa_Zwrotu);
         document.getElementById("benchWig20Val").innerHTML = `<span class="${col}">${ret}</span>`;
       }
 
@@ -78,9 +78,12 @@
       const tbody = document.getElementById("leaderboardBody");
       tbody.innerHTML = "";
 
-      items.forEach((item, idx) => {
-        const isBench = isBenchmarkRow(item.Uczestnik);
-        const retCol = item.Stopa_Zwrotu > 0 ? "text-emerald-400" : (item.Stopa_Zwrotu < 0 ? "text-rose-400" : "text-slate-400");
+      let livePlayerRank = 0;
+      items.forEach(item => {
+        const isBench = isBenchmarkRow(item);
+        const rawProfit = Number(item.Zysk_Strata_CK || 0);
+        const roundedProfit = Math.abs(rawProfit) < 0.005 ? 0 : Number(rawProfit.toFixed(2));
+        const retCol = roundedProfit === 0 ? "text-slate-400" : pctColorClass(item.Stopa_Zwrotu);
         const rowBg = isBench
           ? "bg-indigo-950/20 border-l-4 border-indigo-500 font-semibold"
           : "hover:bg-slate-900/60 transition";
@@ -92,16 +95,19 @@
         const flag = isSpFlag ? '🇺🇸' : (isWigFlag ? '🇵🇱' : '📊');
 
         // Kolumna #
-        let rankBadge = `<span class="text-slate-500 font-mono text-xs">${idx + 1}</span>`;
+        let rankBadge;
         if (isBench) {
-          rankBadge = `<span class="text-slate-500 font-mono text-xs" title="Pozycja benchmarku">${idx + 1}</span>`;
-        } else if (idx === 0) {
+          rankBadge = `<span class="text-slate-500 font-mono text-xs" title="Benchmark">-</span>`;
+        } else if (livePlayerRank === 0) {
           rankBadge = `<span class="text-amber-400 text-base">🥇</span>`;
-        } else if (idx === 1) {
+        } else if (livePlayerRank === 1) {
           rankBadge = `<span class="text-slate-300 text-base">🥈</span>`;
-        } else if (idx === 2) {
+        } else if (livePlayerRank === 2) {
           rankBadge = `<span class="text-amber-600 text-base">🥉</span>`;
+        } else {
+          rankBadge = `<span class="text-slate-500 font-mono text-xs">${livePlayerRank + 1}</span>`;
         }
+        if (!isBench) livePlayerRank += 1;
 
         // Kolumna Uczestnik (BEZ awatara przy benchmarkach)
         let participantCell = "";
@@ -139,7 +145,7 @@
             <td class="py-3.5 px-4">${participantCell}</td>
             <td class="py-3.5 px-4 text-right font-mono text-slate-200">${formatCK(item.Wycena_Calkowita_CK)}</td>
             <td class="py-3.5 px-4 text-right font-mono text-slate-400">${formatCK(item.Gotowka_CK)}</td>
-            <td class="py-3.5 px-4 text-right font-mono ${retCol}">${formatCK(item.Zysk_Strata_CK)}</td>
+            <td class="py-3.5 px-4 text-right font-mono ${retCol}">${formatCK(roundedProfit)}</td>
             <td class="py-3.5 px-4 text-right font-mono font-bold ${retCol}">${formatPct(item.Stopa_Zwrotu)}</td>
           </tr>
         `;

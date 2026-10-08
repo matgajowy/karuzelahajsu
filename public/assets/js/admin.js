@@ -99,3 +99,47 @@
         alert(`Nie udało się zsynchronizować kursów: ${e.message}`);
       }
     }
+
+    let benchmarkResetInProgress = false;
+
+    function openBenchmarkResetModal() {
+      const input = document.getElementById("benchmarkResetPhrase");
+      input.value = "";
+      document.getElementById("confirmBenchmarkResetBtn").disabled = true;
+      document.getElementById("benchmarkResetModal").classList.remove("hidden");
+      input.focus();
+    }
+
+    function closeBenchmarkResetModal() {
+      document.getElementById("benchmarkResetModal").classList.add("hidden");
+    }
+
+    function updateBenchmarkResetConfirmation(input) {
+      document.getElementById("confirmBenchmarkResetBtn").disabled =
+        benchmarkResetInProgress || input.value !== "RESET-BENCHMARKS";
+    }
+
+    async function resetBenchmarks() {
+      const button = document.getElementById("confirmBenchmarkResetBtn");
+      const input = document.getElementById("benchmarkResetPhrase");
+      benchmarkResetInProgress = true;
+      button.disabled = true;
+      input.disabled = true;
+      try {
+        const result = await apiRequest("/api/admin/reset-benchmarks", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ confirmPhrase: "RESET-BENCHMARKS" }),
+        });
+        closeBenchmarkResetModal();
+        alert(result.message || "Benchmarki zostały zresetowane.");
+        await fetchAllData();
+        await fetchAuditLogs();
+      } catch (error) {
+        alert(`Nie udało się zresetować benchmarków: ${error.message}`);
+      } finally {
+        benchmarkResetInProgress = false;
+        input.disabled = false;
+        updateBenchmarkResetConfirmation(input);
+      }
+    }

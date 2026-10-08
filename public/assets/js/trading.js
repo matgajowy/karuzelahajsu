@@ -7,6 +7,7 @@
       document.getElementById("tradeShares").value = "";
       document.getElementById("tradeThesis").value = "";
       document.getElementById("estimatedCost").innerHTML = formatCK(0);
+      document.getElementById("tradeAvailableCash").innerHTML = formatCK(currentUser.current_cash ?? 0);
       document.getElementById("verifiedInstrumentCard").classList.add("hidden");
       document.getElementById("tradeTickerInput").value = "";
       verifiedInstrument = null;

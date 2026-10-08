@@ -13,6 +13,7 @@ export async function handleCurrentSession({ request, env }) {
       github_login: user.github_login,
       display_name: user.display_name,
       avatar_url: user.avatar_url,
+      current_cash: user.current_cash,
       is_admin: user.is_admin,
     },
   });

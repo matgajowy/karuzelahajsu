@@ -41,7 +41,9 @@ VALUES
   ('MSFT', 'Microsoft Corporation', 430, 'USD', 4),
   ('GOOGL', 'Alphabet Inc.', 160, 'USD', 4),
   ('SPY', 'SPDR S&P 500 ETF Trust', 535, 'USD', 4),
-  ('WIG20.WA', 'Indeks WIG20', 2700, 'PLN', 1)
+  ('^GSPC', 'S&P 500', 5350, 'USD', 4),
+  ('WIG20.WA', 'Indeks WIG20', 2700, 'PLN', 1),
+  ('WIG20', 'Indeks WIG20', 2700, 'PLN', 1)
 ON CONFLICT(ticker) DO UPDATE SET
   name = excluded.name,
   price = excluded.price,

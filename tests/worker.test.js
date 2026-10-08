@@ -72,6 +72,7 @@ test("route registry covers all frontend API endpoints", () => {
     ["POST", "/api/logout"],
     ["GET", "/api/admin/audit"],
     ["GET", "/api/admin/sync-prices"],
+    ["POST", "/api/admin/reset-benchmarks"],
   ];
 
   for (const [method, path] of frontendRoutes) {
@@ -87,6 +88,16 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.match(html, /1 CK = 1\.00 PLN/);
   assert.match(html, /Gotówka \(CK\)/);
   assert.doesNotMatch(html, /Wynik \(PLN\)|Wycena \(PLN\)|100 000 PLN|zł/);
+  assert.match(html, /id="tradeAvailableCash"/);
+  assert.match(html, /id="tradeModal" class="fixed inset-0 bg-black\/60 z-50/);
+  assert.doesNotMatch(html, /id="tradeModal"[^>]*backdrop-blur/);
+  const resetDialogIndex = html.indexOf('id="benchmarkResetModal"');
+  const tradeModalIndex = html.indexOf('id="tradeModal"');
+  const tradeFormEndIndex = html.indexOf("</form>", tradeModalIndex);
+  const footerIndex = html.indexOf("<!-- STOPKA");
+  assert.ok(resetDialogIndex > tradeFormEndIndex);
+  assert.ok(resetDialogIndex < footerIndex);
+  assert.match(html, /RESET-BENCHMARKS/);
 });
 
 test("CK formatter provides safe text and visual token formats", async () => {
@@ -108,10 +119,47 @@ test("CK formatter provides safe text and visual token formats", async () => {
   assert.doesNotMatch(formatted.visual, /<\/feDropShadow>/);
 });
 
-test("benchmark flags appear only in round participant markers, not rank cells", async () => {
+test("percent and CK formatters neutralize rounded values near zero", async () => {
+  const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    JSON.stringify({
+      zeroPositive: formatPct(0.00004),
+      zeroNegative: formatPct(-0.00004),
+      positive: formatPct(0.00006),
+      zeroColor: pctColorClass(0.00004),
+      negativeColor: pctColorClass(-0.00006),
+      negativeCent: formatCK(-0.004, false),
+    })`);
+  const formatted = JSON.parse(result);
+
+  assert.equal(formatted.zeroPositive, "0.00%");
+  assert.equal(formatted.zeroNegative, "0.00%");
+  assert.equal(formatted.positive, "+0.01%");
+  assert.equal(formatted.zeroColor, "text-slate-400");
+  assert.equal(formatted.negativeColor, "text-rose-400");
+  assert.equal(formatted.negativeCent, "0,00 CK");
+});
+
+test("benchmark rows do not consume live player ranks or medals", async () => {
   const source = await readFile(new URL("../public/assets/js/leaderboard.js", import.meta.url), "utf8");
-  assert.match(source, /if \(isBench\) \{\s*rankBadge = `<span class="text-slate-500 font-mono text-xs" title="Pozycja benchmarku">\$\{idx \+ 1\}<\/span>`;/);
+  assert.match(source, /rankBadge = `<span class="text-slate-500 font-mono text-xs" title="Benchmark">-<\/span>`;/);
+  assert.match(source, /let livePlayerRank = 0/);
+  assert.match(source, /if \(!isBench\) livePlayerRank \+= 1/);
   assert.match(source, /role="img" aria-label="\$\{isSpFlag \? 'USA' : 'Polska'\}" class="w-7 h-7 rounded-full/);
+});
+
+test("time formatter returns local time and handles missing timestamps", async () => {
+  const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    JSON.stringify({
+      missing: formatTime(null),
+      utc: formatTime("2026-10-08T08:30:00Z"),
+      database: formatTime("2026-10-08 08:30:00"),
+    })`);
+  const formatted = JSON.parse(result);
+
+  assert.equal(formatted.missing, "--:--");
+  assert.equal(formatted.utc, formatted.database);
 });
 
 test("unmatched methods return 405 and available methods", async () => {
@@ -294,6 +342,104 @@ test("admin whitelist endpoint requires an administrator session", async () => {
 
   assert.equal(response.status, 403);
   assert.equal(env.writes.length, 0);
+});
+
+test("benchmark reset endpoint rejects non-admin sessions", async () => {
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/admin/reset-benchmarks", {
+      method: "POST",
+      headers: { Cookie: "session_token=player-session", "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmPhrase: "RESET-BENCHMARKS" }),
+    }),
+    createEnv({ user: { id: 9, is_admin: 0 } }),
+    {},
+  );
+
+  assert.equal(response.status, 403);
+});
+
+test("benchmark reset requires the explicit confirmation phrase", async () => {
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/admin/reset-benchmarks", {
+      method: "POST",
+      headers: { Cookie: "session_token=admin-session", "Content-Type": "application/json" },
+      body: JSON.stringify({ confirmPhrase: "reset-benchmarks" }),
+    }),
+    createEnv({ user: { id: 3, is_admin: 1 } }),
+    {},
+  );
+
+  assert.equal(response.status, 400);
+});
+
+test("admin benchmark reset uses one atomic batch and writes an audit record", async () => {
+  const batches = [];
+  const benchmarks = [
+    { id: 20, github_login: "benchmark_sp500", price: 5000, fx_to_pln: 4 },
+    { id: 21, github_login: "benchmark_wig20", price: 2500, fx_to_pln: 1 },
+  ];
+  const env = {
+    DB: {
+      prepare(sql) {
+        const statement = {
+          sql,
+          values: [],
+          bind(...values) {
+            this.values = values;
+            return this;
+          },
+          async first() {
+            return sql.includes("FROM sessions") ? { id: 3, is_admin: 1 } : null;
+          },
+          async all() {
+            if (sql.includes("FROM users u") && sql.includes("market_prices")) {
+              return { results: benchmarks };
+            }
+            return { results: [] };
+          },
+        };
+        return statement;
+      },
+      async batch(statements) {
+        batches.push(statements);
+        return [];
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/admin/reset-benchmarks", {
+      method: "POST",
+      headers: {
+        Cookie: "session_token=admin-session",
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "203.0.113.7",
+      },
+      body: JSON.stringify({ confirmPhrase: "RESET-BENCHMARKS" }),
+    }),
+    env,
+    {},
+  );
+
+  assert.equal(response.status, 200);
+  assert.equal(batches.length, 1);
+  const batch = batches[0];
+  assert.equal(batch.length, 5);
+  assert.match(batch[0].sql, /UPDATE users SET current_cash = 0\.0/);
+  assert.match(batch[1].sql, /DELETE FROM holdings/);
+  assert.deepEqual(batch[2].values, ["^GSPC", "^GSPC", "benchmark_sp500"]);
+  assert.deepEqual(batch[3].values, ["WIG20", "WIG20", "benchmark_wig20"]);
+  assert.match(batch[2].sql, /100000\.0 \/ \(p\.price \* p\.fx_to_pln\)/);
+  assert.match(batch[4].sql, /ADMIN_RESET_BENCHMARKS/);
+  assert.deepEqual(batch[4].values, [
+    3,
+    JSON.stringify({
+      benchmarks: [
+        { login: "benchmark_sp500", ticker: "^GSPC", starting_value_ck: 100000 },
+        { login: "benchmark_wig20", ticker: "WIG20", starting_value_ck: 100000 },
+      ],
+    }),
+    "203.0.113.7",
+  ]);
 });
 
 test("leaderboard API exposes all portfolio values in CK at the fixed parity", async () => {
