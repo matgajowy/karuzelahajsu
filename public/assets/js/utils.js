@@ -57,7 +57,9 @@ function renderGoldCoinSvg(large = false) {
 
 function formatCK(value, asHtml = true, largeBadge = false) {
   const parsed = Number(value);
-  const amount = (Number.isFinite(parsed) ? parsed : 0).toLocaleString("pl-PL", {
+  const normalized = Number.isFinite(parsed) ? parsed : 0;
+  const rounded = Math.abs(normalized) < 0.005 ? 0 : normalized;
+  const amount = rounded.toLocaleString("pl-PL", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
@@ -75,12 +77,24 @@ function formatCK(value, asHtml = true, largeBadge = false) {
 function formatPct(value) {
   const parsed = Number(value);
   const percentage = (Number.isFinite(parsed) ? parsed : 0) * 100;
+  if (Math.abs(percentage) < 0.005) return "0.00%";
   return `${percentage > 0 ? "+" : ""}${percentage.toFixed(2)}%`;
+}
+
+function pctColorClass(value) {
+  const parsed = Number(value);
+  const percentage = (Number.isFinite(parsed) ? parsed : 0) * 100;
+  if (Math.abs(percentage) < 0.005) return "text-slate-400";
+  return percentage > 0 ? "text-emerald-400" : "text-rose-400";
 }
 
 function formatTime(dateString) {
   if (!dateString) return "--:--";
-  const date = new Date(dateString);
+  const timestamp = String(dateString);
+  const normalizedTimestamp = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(timestamp)
+    ? timestamp
+    : `${timestamp.replace(" ", "T")}Z`;
+  const date = new Date(normalizedTimestamp);
   if (Number.isNaN(date.getTime())) return "--:--";
   return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }

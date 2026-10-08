@@ -46,6 +46,7 @@
         const json = await apiRequest('/api/portfolio');
         if (json.status === "success") {
           userHoldings = json.data || [];
+          if (currentUser) currentUser.current_cash = json.cash_ck;
           document.getElementById("userCashDisplay").innerHTML = formatCK(json.cash_ck, true, true);
           const tbody = document.getElementById("portfolioTableBody");
 

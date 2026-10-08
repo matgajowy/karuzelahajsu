@@ -15,6 +15,9 @@ const clickActions = {
   "verify-ticker": () => verifyTicker(),
   "set-shares-percentage": element => setSharesPercentage(Number(element.dataset.percent)),
   "manual-sync": () => triggerManualSync(),
+  "open-benchmark-reset": () => openBenchmarkResetModal(),
+  "close-benchmark-reset": () => closeBenchmarkResetModal(),
+  "confirm-benchmark-reset": () => resetBenchmarks(),
   "fetch-audit": () => fetchAuditLogs(),
   "logout": () => handleLogout(),
   "open-smart-sell": element => openSmartSell(element.dataset.ticker),
@@ -43,6 +46,10 @@ document.addEventListener("submit", event => {
 });
 
 document.addEventListener("input", event => {
+  if (event.target instanceof HTMLInputElement &&
+      event.target.id === "benchmarkResetPhrase") {
+    updateBenchmarkResetConfirmation(event.target);
+  }
   if (event.target instanceof HTMLInputElement &&
       event.target.dataset.action === "update-estimated-cost") {
     updateEstimatedCost();

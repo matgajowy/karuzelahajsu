@@ -1,5 +1,5 @@
 import { handleGitHubCallback, handleGitHubLogin } from "./auth.js";
-import { handleAdminUsers, handleAuditLogs, handlePriceSync } from "./admin.js";
+import { handleAdminUsers, handleAuditLogs, handlePriceSync, handleResetBenchmarks } from "./admin.js";
 import { handleFeed } from "./feed.js";
 import { handleInstrumentSearch } from "./instruments.js";
 import { handleLeaderboard } from "./leaderboard.js";
@@ -24,6 +24,7 @@ const routes = new Map([
   ["POST /api/admin/users", handleAdminUsers],
   ["GET /api/admin/audit", handleAuditLogs],
   ["GET /api/admin/sync-prices", handlePriceSync],
+  ["POST /api/admin/reset-benchmarks", handleResetBenchmarks],
 ]);
 
 export function findRoute(method, pathname) {

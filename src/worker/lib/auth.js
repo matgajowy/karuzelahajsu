@@ -1,4 +1,18 @@
 export async function getSessionUser(request, env) {
+  if (env.DEV_AUTH_BYPASS === "true") {
+    if (!env.DEV_AUTH_LOGIN) {
+      throw new Error("DEV_AUTH_LOGIN must be configured when DEV_AUTH_BYPASS is enabled.");
+    }
+
+    const demoUser = await env.DB.prepare(`
+      SELECT id, github_login, display_name, avatar_url, current_cash, is_admin
+      FROM users
+      WHERE github_login = ?
+    `).bind(env.DEV_AUTH_LOGIN).first();
+
+    return demoUser ? { ...demoUser, auth_mode: "dev-bypass" } : null;
+  }
+
   const cookie = request.headers.get("Cookie") || "";
   const match = cookie.match(/session_token=([^;]+)/);
   if (!match) return null;
