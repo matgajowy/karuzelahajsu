@@ -11,9 +11,33 @@
       document.getElementById("profileModal").classList.add("hidden");
     }
 
-    function generateFunnyNick() {
-      const randomNick = FUNNY_NAMES[Math.floor(Math.random() * FUNNY_NAMES.length)];
-      document.getElementById("editDisplayNameInput").value = randomNick;
+    async function generateFunnyNick() {
+      const button = document.getElementById("generateNickBtn");
+      const input = document.getElementById("editDisplayNameInput");
+      const errDiv = document.getElementById("profileError");
+      const originalContent = button.innerHTML;
+      button.disabled = true;
+      button.innerHTML = '<i data-lucide="loader-circle" class="w-3 h-3 inline animate-spin"></i> Losuję…';
+      errDiv.classList.add("hidden");
+      lucide.createIcons();
+      try {
+        const result = await apiRequest("/api/profile/generate-nickname", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({}),
+        });
+        if (result.status !== "success" || !result.data?.nickname) {
+          throw new Error(result.message || "Nie udało się wygenerować ksywki.");
+        }
+        input.value = result.data.nickname;
+      } catch (error) {
+        errDiv.innerText = error.message || "Nie udało się wygenerować ksywki.";
+        errDiv.classList.remove("hidden");
+      } finally {
+        button.disabled = false;
+        button.innerHTML = originalContent;
+        lucide.createIcons();
+      }
     }
 
     function randomizeAvatar(collection) {

@@ -21,6 +21,7 @@ const clickActions = {
   "fetch-audit": () => fetchAuditLogs(),
   "logout": () => handleLogout(),
   "open-smart-sell": element => openSmartSell(element.dataset.ticker),
+  "copy-feed-trade": element => copyFeedTrade(element.dataset.ticker, element.dataset.userName),
 };
 
 document.addEventListener("click", event => {
@@ -52,7 +53,13 @@ document.addEventListener("input", event => {
   }
   if (event.target instanceof HTMLInputElement &&
       event.target.dataset.action === "update-estimated-cost") {
-    updateEstimatedCost();
+    if (event.target.id === "tradeShares") {
+      syncTradeInput("shares");
+    } else if (event.target.id === "tradeAmount") {
+      syncTradeInput("amount");
+    } else {
+      updateEstimatedCost();
+    }
   }
 });
 
