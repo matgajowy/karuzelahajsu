@@ -14,8 +14,11 @@ export async function handleTrade(context) {
   if (!ticker || !["BUY", "SELL"].includes(type) || !Number.isFinite(shares) || shares <= 0) {
     return jsonResponse({ status: "error", message: "Nieprawidłowe dane zlecenia." }, 400);
   }
-  if (type === "BUY" && !Number.isInteger(shares)) {
-    return jsonResponse({ status: "error", message: "Kupować można wyłącznie pełne akcje." }, 400);
+  if (!Number.isSafeInteger(shares)) {
+    return jsonResponse({
+      status: "error",
+      message: `${type === "BUY" ? "Kupować" : "Sprzedawać"} można wyłącznie pełne akcje.`,
+    }, 400);
   }
 
   if (!thesis || thesis.trim().length < 15) {

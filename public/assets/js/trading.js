@@ -36,6 +36,7 @@
     }
 
     function setTradeType(type) {
+      const previousTradeType = currentTradeType;
       currentTradeType = type;
       const bBuy = document.getElementById("btnBuy");
       const bSell = document.getElementById("btnSell");
@@ -45,6 +46,14 @@
       const amountSection = document.getElementById("tradeAmountSection");
       const sharesBadge = document.getElementById("availableSharesBadge");
       const submitBtn = document.getElementById("submitTradeBtn");
+
+      if (previousTradeType && previousTradeType !== type) {
+        document.getElementById("tradeShares").value = "";
+        document.getElementById("tradeAmount").value = "";
+        document.getElementById("tradeAmountRemainder").classList.add("hidden");
+        document.getElementById("tradeError").classList.add("hidden");
+        tradeInputSource = "shares";
+      }
 
       if (type === 'BUY') {
         document.getElementById("tradeShares").step = "1";
@@ -56,11 +65,11 @@
         quickBtns.classList.add("hidden");
         amountSection.classList.remove("hidden");
         sharesBadge.classList.add("hidden");
-        submitBtn.disabled = !verifiedInstrument;
+        updateTradeAvailability();
         if (verifiedInstrument) syncTradeInput(tradeInputSource);
       } else {
-        document.getElementById("tradeShares").step = "0.001";
-        document.getElementById("tradeShares").min = "0.001";
+        document.getElementById("tradeShares").step = "1";
+        document.getElementById("tradeShares").min = "1";
         bSell.className = "py-2 text-xs font-bold rounded-lg bg-rose-600 text-white transition";
         bBuy.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
         buySection.classList.add("hidden");
@@ -76,10 +85,14 @@
     }
 
     function syncTradeInput(source) {
-      if (isUpdatingTradeInputs || currentTradeType !== "BUY") return;
-      tradeInputSource = source;
-
+      if (isUpdatingTradeInputs) return;
       const sharesInput = document.getElementById("tradeShares");
+      if (currentTradeType !== "BUY") {
+        updateTradeAvailability();
+        updateEstimatedCost();
+        return;
+      }
+      tradeInputSource = source;
       const amountInput = document.getElementById("tradeAmount");
       const remainder = document.getElementById("tradeAmountRemainder");
       isUpdatingTradeInputs = true;
@@ -124,10 +137,15 @@
       } finally {
         isUpdatingTradeInputs = false;
       }
-      const shares = Number(sharesInput.value);
-      document.getElementById("submitTradeBtn").disabled =
-        !verifiedInstrument || !Number.isInteger(shares) || shares < 1;
+      updateTradeAvailability();
       updateEstimatedCost();
+    }
+
+    function updateTradeAvailability() {
+      const shares = Number(document.getElementById("tradeShares").value);
+      const validShares = Number.isSafeInteger(shares) && shares > 0 &&
+        (currentTradeType === "BUY" || shares <= selectedHoldingMaxShares);
+      document.getElementById("submitTradeBtn").disabled = !verifiedInstrument || !validShares;
     }
 
     function populateHoldingsDropdown() {
@@ -147,8 +165,8 @@
         selectedHoldingMaxShares = 0;
         document.getElementById("availableSharesCount").innerText = "0";
         document.getElementById("verifiedInstrumentCard").classList.add("hidden");
-        submitBtn.disabled = true;
         verifiedInstrument = null;
+        updateTradeAvailability();
         updateEstimatedCost();
         return;
       }
@@ -175,19 +193,26 @@
           : "Parytet 1:1 z CK";
 
         document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
-        submitBtn.disabled = false;
+        updateTradeAvailability();
         if (currentTradeType === "BUY") syncTradeInput(tradeInputSource);
         updateEstimatedCost();
       }
     }
 
-    function setSharesPercentage(pct) {
-      if (selectedHoldingMaxShares > 0) {
-        const calculated = (selectedHoldingMaxShares * pct);
-        document.getElementById("tradeShares").value = calculated % 1 === 0 ? calculated : calculated.toFixed(3);
-        if (currentTradeType === "BUY") syncTradeInput("shares");
-        updateEstimatedCost();
+    function setMaxSellShares() {
+      const wholeShares = Math.floor(Number(selectedHoldingMaxShares) || 0);
+      const sharesInput = document.getElementById("tradeShares");
+      const error = document.getElementById("tradeError");
+      error.classList.add("hidden");
+      if (wholeShares < 1) {
+        sharesInput.value = "";
+        error.innerText = "Nie masz pełnej akcji do sprzedaży.";
+        error.classList.remove("hidden");
+      } else {
+        sharesInput.value = String(wholeShares);
       }
+      updateTradeAvailability();
+      updateEstimatedCost();
     }
 
     async function verifyTicker() {
@@ -271,8 +296,8 @@
       }
 
       const shares = Number(document.getElementById("tradeShares").value);
-      if (currentTradeType === "BUY" && (!Number.isInteger(shares) || shares < 1)) {
-        errDiv.innerText = "Kupować można wyłącznie pełne akcje.";
+      if (!Number.isSafeInteger(shares) || shares < 1) {
+        errDiv.innerText = `${currentTradeType === "BUY" ? "Kupować" : "Sprzedawać"} można wyłącznie pełne akcje.`;
         errDiv.classList.remove("hidden");
         return;
       }

@@ -104,6 +104,9 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.match(html, /id="portfolioTotalValue"/);
   assert.match(html, /id="tradeAmount"/);
   assert.match(html, /id="tradeAmountRemainder"/);
+  assert.doesNotMatch(html, /data-action="set-shares-percentage"/);
+  assert.match(html, /data-action="set-max-sell-shares"/);
+  assert.match(html, /MAX \(pełne akcje\)/);
   assert.match(html, /href="\/favicon\.svg"/);
   assert.match(html, /id="generateNickBtn"/);
 });
@@ -931,14 +934,14 @@ function createTradeEnv(currentCash) {
   return env;
 }
 
-async function submitTestBuy(env, shares) {
+async function submitTestTrade(env, shares, type = "BUY") {
   return worker.fetch(
     new Request("https://dev.example/api/trade", {
       method: "POST",
       headers: { Cookie: "session_token=test-session", "Content-Type": "application/json" },
       body: JSON.stringify({
         ticker: "TEST",
-        type: "BUY",
+        type,
         shares,
         thesis: "Kupuję pozycję testową do walidacji.",
       }),
@@ -946,6 +949,10 @@ async function submitTestBuy(env, shares) {
     env,
     {},
   );
+}
+
+async function submitTestBuy(env, shares) {
+  return submitTestTrade(env, shares, "BUY");
 }
 
 test("trade balance errors use CK and calculate USD value using the PLN parity rate", async () => {
@@ -972,12 +979,48 @@ test("trade audit log records converted transaction values as CK", async () => {
   ));
 });
 
-test("trade API rejects fractional-share buys before writing transactions", async () => {
-  const env = createTradeEnv(1000);
-  const response = await submitTestBuy(env, 4.447);
-  const body = await response.json();
+test("trade API rejects fractional-share buys and sells before writing transactions", async () => {
+  for (const type of ["BUY", "SELL"]) {
+    const env = createTradeEnv(1000);
+    const response = await submitTestTrade(env, 4.447, type);
+    const body = await response.json();
 
-  assert.equal(response.status, 400);
-  assert.equal(body.message, "Kupować można wyłącznie pełne akcje.");
-  assert.equal(env.writes.length, 0);
+    assert.equal(response.status, 400);
+    assert.equal(body.message, `${type === "BUY" ? "Kupować" : "Sprzedawać"} można wyłącznie pełne akcje.`);
+    assert.equal(env.writes.length, 0);
+  }
+});
+
+test("MAX sale preset selects only available whole shares", async () => {
+  const elements = {
+    tradeShares: { value: "" },
+    tradeError: {
+      innerText: "",
+      classList: {
+        hidden: true,
+        add() { this.hidden = true; },
+        remove() { this.hidden = false; },
+      },
+    },
+    estimatedCost: { innerHTML: "" },
+    submitTradeBtn: { disabled: true },
+  };
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    currentTradeType = "SELL";
+    verifiedInstrument = { price_ck: 45 };
+    selectedHoldingMaxShares = 4.447;
+    setMaxSellShares();
+    JSON.stringify({
+      shares: document.getElementById("tradeShares").value,
+      disabled: document.getElementById("submitTradeBtn").disabled,
+    });`, {
+    document: { getElementById: id => elements[id] },
+    currentTradeType: "SELL",
+    verifiedInstrument: { price_ck: 45 },
+    selectedHoldingMaxShares: 4.447,
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+  });
+
+  assert.deepEqual(JSON.parse(result), { shares: "4", disabled: false });
 });
