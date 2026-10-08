@@ -1,8 +1,3 @@
-    function formatPct(val) {
-      const num = (Number(val) || 0) * 100;
-      return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
-    }
-
     function renderDashboard(items, lastSyncTs) {
       const statusText = document.getElementById("syncStatusText");
       if (lastSyncTs) {
@@ -28,6 +23,7 @@
         const leader = participants[0];
         document.getElementById("leaderName").innerText = leader.Uczestnik;
         document.getElementById("leaderReturn").innerText = formatPct(leader.Stopa_Zwrotu);
+        document.getElementById("leaderValue").innerHTML = formatCK(leader.Wycena_Calkowita_CK);
         const leaderAvatar = leader.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(leader.Uczestnik)}`;
         document.getElementById("kpiLeaderAvatar").src = leaderAvatar;
       }

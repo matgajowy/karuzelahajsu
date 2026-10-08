@@ -66,14 +66,19 @@ test("page uses external scripts and delegated actions rather than inline handle
 
 test("CK formatter provides safe text and visual token formats", async () => {
   const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
-  const result = runInNewContext(`${source}\nJSON.stringify({ visual: formatCK(12345.67), text: formatCK(12345.67, false), invalid: formatCK(Infinity, false) })`);
+  const result = runInNewContext(`${source}\nJSON.stringify({ visual: formatCK(12345.67), large: formatCK(12345.67, true, true), next: formatCK(10), text: formatCK(12345.67, false), invalid: formatCK(Infinity, false) })`);
   const formatted = JSON.parse(result);
 
   assert.equal(formatted.text, "12 345,67 CK");
   assert.equal(formatted.invalid, "0,00 CK");
   assert.match(formatted.visual, /class="ck-badge"/);
-  assert.match(formatted.visual, /🎪<\/span><span class="ck-ticker">CK/);
+  assert.match(formatted.visual, /class="ck-gold-coin"/);
+  assert.match(formatted.visual, /<text[^>]*>CK<\/text>/);
   assert.match(formatted.visual, /12 345,67/);
+  assert.match(formatted.large, /class="ck-badge ck-badge-lg"/);
+  assert.match(formatted.visual, /id="ckGoldFace1"/);
+  assert.match(formatted.next, /id="ckGoldFace3"/);
+  assert.match(formatted.next, /fill="url\(#ckGoldFace3\)"/);
 });
 
 test("unmatched methods return 405 and available methods", async () => {
