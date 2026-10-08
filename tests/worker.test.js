@@ -354,7 +354,7 @@ test("nickname generator uses Workers AI and returns a validated nickname", asyn
   assert.equal(body.status, "success");
   assert.equal(body.data.nickname, "Rekin z Parkietu");
   assert.equal(body.data.fallback, false);
-  assert.equal(model.modelName, "@cf/meta/llama-3.1-8b-instruct");
+  assert.equal(model.modelName, "@cf/meta/llama-3.1-8b-instruct-fp8");
   assert.match(model.input.messages[0].content, /dokładnie JEDNĄ/);
 });
 
