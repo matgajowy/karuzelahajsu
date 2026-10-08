@@ -37,51 +37,55 @@ async function fetchYahooQuotes(symbols) {
   const cleanSymbols = [...new Set(symbols.map(symbol => symbol.trim().toUpperCase()))];
   if (cleanSymbols.length === 0) return new Map();
 
-  const url = new URL("https://query1.finance.yahoo.com/v7/finance/spark");
-  url.searchParams.set("symbols", cleanSymbols.join(","));
-  url.searchParams.set("range", "1d");
-  url.searchParams.set("interval", "1d");
+  const quotes = new Map();
+  const batchSize = 20;
+  for (let index = 0; index < cleanSymbols.length; index += batchSize) {
+    const batch = cleanSymbols.slice(index, index + batchSize);
+    const url = new URL("https://query1.finance.yahoo.com/v7/finance/spark");
+    url.searchParams.set("symbols", batch.join(","));
+    url.searchParams.set("range", "1d");
+    url.searchParams.set("interval", "1d");
 
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
-    });
-    if (!res.ok) {
-      console.error(`Yahoo Finance batch quote returned HTTP ${res.status}`);
-      return new Map();
-    }
-
-    const json = await res.json();
-    const results = json?.spark?.result;
-    if (!Array.isArray(results)) {
-      console.error("Yahoo Finance batch quote returned an invalid response");
-      return new Map();
-    }
-
-    const quotes = new Map();
-    for (const item of results) {
-      const ticker = typeof item?.symbol === "string" ? item.symbol.toUpperCase() : "";
-      const metadata = item?.response?.[0]?.meta;
-      const price = Number(metadata?.regularMarketPrice);
-      if (!ticker || !Number.isFinite(price) || price <= 0) {
-        console.error(`Yahoo Finance batch quote returned no valid price for ${ticker || "unknown ticker"}`);
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+      });
+      if (!res.ok) {
+        console.error(`Yahoo Finance batch quote returned HTTP ${res.status} for batch ${index / batchSize + 1}`);
         continue;
       }
 
-      let currency = metadata.currency || "USD";
-      if (ticker.endsWith(".WA")) currency = "PLN";
-      quotes.set(ticker, {
-        ticker,
-        name: metadata.shortName || metadata.longName || ticker,
-        price,
-        currency: currency.toUpperCase(),
-      });
+      const json = await res.json();
+      const results = json?.spark?.result;
+      if (!Array.isArray(results)) {
+        console.error(`Yahoo Finance batch quote returned an invalid response for batch ${index / batchSize + 1}`);
+        continue;
+      }
+
+      for (const item of results) {
+        const ticker = typeof item?.symbol === "string" ? item.symbol.toUpperCase() : "";
+        const metadata = item?.response?.[0]?.meta;
+        const price = Number(metadata?.regularMarketPrice);
+        if (!ticker || !Number.isFinite(price) || price <= 0) {
+          console.error(`Yahoo Finance batch quote returned no valid price for ${ticker || "unknown ticker"}`);
+          continue;
+        }
+
+        let currency = metadata.currency || "USD";
+        if (ticker.endsWith(".WA")) currency = "PLN";
+        quotes.set(ticker, {
+          ticker,
+          name: metadata.shortName || metadata.longName || ticker,
+          price,
+          currency: currency.toUpperCase(),
+        });
+      }
+    } catch (error) {
+      console.error(`Yahoo Finance batch quote request failed for batch ${index / batchSize + 1}:`, error);
     }
-    return quotes;
-  } catch (error) {
-    console.error("Yahoo Finance batch quote request failed:", error);
-    return new Map();
   }
+
+  return quotes;
 }
 
 export async function syncAllMarketPrices(env) {

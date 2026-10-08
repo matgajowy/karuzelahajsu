@@ -349,6 +349,41 @@ test("price sync refreshes legacy WIG20 from WIG20.WA and reports missed quotes"
   }
 });
 
+test("price sync splits more than 20 tickers into Yahoo Spark batches", async () => {
+  const tickers = Array.from({ length: 45 }, (_, index) => ({
+    ticker: `TICKER${index}`,
+    currency: "PLN",
+  }));
+  const env = createPricingEnv(tickers);
+  const batchSizes = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const requestUrl = new URL(url);
+    if (requestUrl.pathname.startsWith("/v8/finance/chart/")) {
+      return yahooChartResponse("PLN=X", 4, "PLN");
+    }
+    assert.equal(requestUrl.pathname, "/v7/finance/spark");
+    const requestedSymbols = requestUrl.searchParams.get("symbols").split(",");
+    batchSizes.push(requestedSymbols.length);
+    return yahooSparkResponse(requestedSymbols.map(symbol => ({
+      symbol,
+      shortName: symbol,
+      regularMarketPrice: 100,
+      currency: "PLN",
+    })));
+  };
+
+  try {
+    const result = await syncAllMarketPrices(env);
+    assert.equal(result.status, "success");
+    assert.equal(result.summary.updated_count, 45);
+    assert.deepEqual(batchSizes, [20, 20, 5]);
+    assert.ok(batchSizes.every(size => size <= 20));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("price sync does not update USD quotes when the conversion rate is unavailable", async () => {
   const env = createPricingEnv([{ ticker: "AAPL", currency: "USD" }]);
   const originalFetch = globalThis.fetch;
