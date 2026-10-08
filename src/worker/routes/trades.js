@@ -7,11 +7,15 @@ export async function handleTrade(context) {
   if (!user) return jsonResponse({ status: "error", message: "Wymagane logowanie" }, 401);
 
   const body = await request.json();
-  const { ticker, type, shares, thesis } = body;
+  const { ticker, type, thesis } = body;
+  const shares = Number(body.shares);
 
   // Walidacja podstawowa
-  if (!ticker || !["BUY", "SELL"].includes(type) || !shares || shares <= 0) {
+  if (!ticker || !["BUY", "SELL"].includes(type) || !Number.isFinite(shares) || shares <= 0) {
     return jsonResponse({ status: "error", message: "Nieprawidłowe dane zlecenia." }, 400);
+  }
+  if (type === "BUY" && !Number.isInteger(shares)) {
+    return jsonResponse({ status: "error", message: "Kupować można wyłącznie pełne akcje." }, 400);
   }
 
   if (!thesis || thesis.trim().length < 15) {

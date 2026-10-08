@@ -20,7 +20,7 @@
                       <span class="font-bold text-white text-xs">${escapeHtml(item.user_name)}</span>
                       <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${escapeHtml(item.type)}</span>
                       <span class="font-semibold text-slate-200 text-xs font-mono">${escapeHtml(item.shares)} szt. ${escapeHtml(item.company_name || item.ticker)} (${escapeHtml(item.ticker)})</span>
-                      <span class="text-[11px] text-slate-500 font-mono">(${formatCK(item.total_value_ck)})</span>
+                      <span class="text-[11px] text-slate-500 font-mono">(${formatCK(item.total_value_ck ?? item.total_value_pln)})</span>
                     </div>
                     <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
                       "${escapeHtml(item.thesis)}"

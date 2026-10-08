@@ -394,13 +394,15 @@ test("feed query includes company names from market prices", async () => {
   assert.equal(body.data[0].company_name, "NVIDIA Corp");
   assert.match(feedSource, /LEFT JOIN market_prices p ON t\.ticker = p\.ticker/);
   assert.match(feedSource, /COALESCE\(p\.name, t\.ticker\) AS company_name/);
+  assert.match(feedSource, /t\.total_value_pln AS total_value_ck/);
   assert.match(portfolioSource, /data-action="copy-feed-trade"/);
+  assert.match(portfolioSource, /item\.total_value_ck \?\? item\.total_value_pln/);
 });
 
-test("trade amount input calculates fractional shares and remainder", async () => {
+test("trade amount input buys whole shares and shows the remaining budget", async () => {
   const elements = {
     tradeShares: { value: "" },
-    tradeAmount: { value: "100" },
+    tradeAmount: { value: "50" },
     tradeAmountRemainder: {
       innerText: "",
       classList: {
@@ -410,18 +412,25 @@ test("trade amount input calculates fractional shares and remainder", async () =
       },
     },
     estimatedCost: { innerHTML: "" },
+    submitTradeBtn: { disabled: false },
   };
   const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
   const result = runInNewContext(`${source}
     currentTradeType = "BUY";
-    verifiedInstrument = { price_ck: 30 };
+    verifiedInstrument = { price_ck: 45 };
     syncTradeInput("amount");
-    JSON.stringify({
+    const budgetResult = {
       shares: document.getElementById("tradeShares").value,
       amount: document.getElementById("tradeAmount").value,
       remainder: document.getElementById("tradeAmountRemainder").innerText,
       visible: !document.getElementById("tradeAmountRemainder").classList.hidden,
-    });`, {
+      submitDisabled: document.getElementById("submitTradeBtn").disabled,
+    };
+    document.getElementById("tradeShares").value = "1.5";
+    syncTradeInput("shares");
+    budgetResult.fractionalSharesDisabled = document.getElementById("submitTradeBtn").disabled;
+    budgetResult.fractionalSharesMessage = document.getElementById("tradeAmountRemainder").innerText;
+    JSON.stringify(budgetResult);`, {
     document: { getElementById: id => elements[id] },
     currentTradeType: "BUY",
     verifiedInstrument: { price_ck: 30 },
@@ -436,10 +445,57 @@ test("trade amount input calculates fractional shares and remainder", async () =
   });
   const resultData = JSON.parse(result);
 
-  assert.equal(resultData.shares, "3.333");
-  assert.equal(resultData.amount, "100");
-  assert.equal(resultData.remainder, "Kupujesz: 3.333 szt. • Koszt: 99.99 CK • Niewykorzystana reszta: 0.01 CK");
+  assert.equal(resultData.shares, "1");
+  assert.equal(resultData.amount, "50");
+  assert.equal(resultData.remainder, "Kupujesz: 1 szt. • Koszt: 45.00 CK • Niewykorzystana reszta: 5.00 CK");
   assert.equal(resultData.visible, true);
+  assert.equal(resultData.submitDisabled, false);
+  assert.equal(resultData.fractionalSharesDisabled, true);
+  assert.equal(resultData.fractionalSharesMessage, "Zakup dostępny wyłącznie w pełnych akcjach.");
+});
+
+test("trade amount below the share price cannot be submitted", async () => {
+  const elements = {
+    tradeShares: { value: "" },
+    tradeAmount: { value: "44" },
+    tradeAmountRemainder: {
+      innerText: "",
+      classList: {
+        hidden: true,
+        add() { this.hidden = true; },
+        remove() { this.hidden = false; },
+      },
+    },
+    estimatedCost: { innerHTML: "" },
+    submitTradeBtn: { disabled: false },
+  };
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    currentTradeType = "BUY";
+    verifiedInstrument = { price_ck: 45 };
+    syncTradeInput("amount");
+    JSON.stringify({
+      shares: document.getElementById("tradeShares").value,
+      remainder: document.getElementById("tradeAmountRemainder").innerText,
+      submitDisabled: document.getElementById("submitTradeBtn").disabled,
+    });`, {
+    document: { getElementById: id => elements[id] },
+    currentTradeType: "BUY",
+    verifiedInstrument: { price_ck: 45 },
+    currentUser: null,
+    userHoldings: [],
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+    escapeHtml: value => value,
+    formatQuotePrice: value => String(value),
+    apiRequest: async () => ({}),
+    location: { href: "" },
+    alert() {},
+  });
+  const resultData = JSON.parse(result);
+
+  assert.equal(resultData.shares, "");
+  assert.equal(resultData.remainder, "Kupujesz: 0 szt. • Koszt: 0.00 CK • Niewykorzystana reszta: 44.00 CK");
+  assert.equal(resultData.submitDisabled, true);
 });
 
 test("admin can add a validated GitHub login to the whitelist", async () => {
@@ -903,15 +959,25 @@ test("trade balance errors use CK and calculate USD value using the PLN parity r
 });
 
 test("trade audit log records converted transaction values as CK", async () => {
-  const env = createTradeEnv(1000);
-  const response = await submitTestBuy(env, 0.5);
+  const env = createTradeEnv(2000);
+  const response = await submitTestBuy(env, 1);
   const body = await response.json();
   const audit = env.writes.find(({ sql }) => sql.includes("INSERT INTO audit_log"));
 
   assert.equal(response.status, 200);
   assert.equal(body.status, "success");
-  assert.equal(JSON.parse(audit.values[2]).totalTradeCk, 200);
+  assert.equal(JSON.parse(audit.values[2]).totalTradeCk, 400);
   assert.ok(env.writes.some(({ sql, values }) =>
-    sql.includes("UPDATE users SET current_cash") && values[0] === 200
+    sql.includes("UPDATE users SET current_cash") && values[0] === 400
   ));
+});
+
+test("trade API rejects fractional-share buys before writing transactions", async () => {
+  const env = createTradeEnv(1000);
+  const response = await submitTestBuy(env, 4.447);
+  const body = await response.json();
+
+  assert.equal(response.status, 400);
+  assert.equal(body.message, "Kupować można wyłącznie pełne akcje.");
+  assert.equal(env.writes.length, 0);
 });

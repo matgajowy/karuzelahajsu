@@ -47,6 +47,8 @@
       const submitBtn = document.getElementById("submitTradeBtn");
 
       if (type === 'BUY') {
+        document.getElementById("tradeShares").step = "1";
+        document.getElementById("tradeShares").min = "1";
         bBuy.className = "py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition";
         bSell.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
         buySection.classList.remove("hidden");
@@ -57,6 +59,8 @@
         submitBtn.disabled = !verifiedInstrument;
         if (verifiedInstrument) syncTradeInput(tradeInputSource);
       } else {
+        document.getElementById("tradeShares").step = "0.001";
+        document.getElementById("tradeShares").min = "0.001";
         bSell.className = "py-2 text-xs font-bold rounded-lg bg-rose-600 text-white transition";
         bBuy.className = "py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition";
         buySection.classList.add("hidden");
@@ -86,6 +90,10 @@
             amountInput.value = "";
             remainder.classList.add("hidden");
             remainder.innerText = "";
+          } else if (!Number.isInteger(shares)) {
+            amountInput.value = "";
+            remainder.innerText = "Zakup dostępny wyłącznie w pełnych akcjach.";
+            remainder.classList.remove("hidden");
           } else {
             amountInput.value = (shares * verifiedInstrument.price_ck).toFixed(2);
             remainder.classList.add("hidden");
@@ -103,10 +111,10 @@
             remainder.innerText = "Zweryfikuj walor, aby przeliczyć kwotę.";
             remainder.classList.remove("hidden");
           } else {
-            const shares = Math.floor((amount / pricePerShare + Number.EPSILON) * 1000) / 1000;
+            const shares = Math.floor(amount / pricePerShare);
             const cost = shares * pricePerShare;
             const change = Math.max(0, amount - cost);
-            const shareText = shares.toFixed(3).replace(/\.?0+$/, "") || "0";
+            const shareText = String(shares);
             remainder.innerText =
               `Kupujesz: ${shareText} szt. • Koszt: ${formatCK(cost, false)} • Niewykorzystana reszta: ${formatCK(change, false)}`;
             sharesInput.value = shares > 0 ? shareText : "";
@@ -116,6 +124,9 @@
       } finally {
         isUpdatingTradeInputs = false;
       }
+      const shares = Number(sharesInput.value);
+      document.getElementById("submitTradeBtn").disabled =
+        !verifiedInstrument || !Number.isInteger(shares) || shares < 1;
       updateEstimatedCost();
     }
 
@@ -260,6 +271,11 @@
       }
 
       const shares = Number(document.getElementById("tradeShares").value);
+      if (currentTradeType === "BUY" && (!Number.isInteger(shares) || shares < 1)) {
+        errDiv.innerText = "Kupować można wyłącznie pełne akcje.";
+        errDiv.classList.remove("hidden");
+        return;
+      }
       if (currentTradeType === 'SELL' && shares > selectedHoldingMaxShares) {
         errDiv.innerText = `Nie możesz sprzedać więcej niż posiadasz (${selectedHoldingMaxShares} szt.).`;
         errDiv.classList.remove("hidden");
