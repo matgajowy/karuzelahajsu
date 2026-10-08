@@ -5,7 +5,9 @@
   "scripts": {
     "build:css": "tailwindcss -i ./src/styles.css -o ./public/assets/css/app.css --minify",
     "build": "npm run build:css",
-    "test": "node --test"
+    "test": "node --test",
+    "deploy:prod": "npx wrangler deploy --env=\"\"",
+    "deploy:dev": "npx wrangler deploy --env dev"
   },
   "devDependencies": {
     "@tailwindcss/cli": "^4.3.0",

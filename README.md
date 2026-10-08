@@ -31,7 +31,7 @@ does not run scheduled price updates. Initialize its schema and deploy it with:
 
 ```sh
 npx wrangler d1 migrations apply liga_db_dev --remote --env dev
-npx wrangler deploy --env dev
+npm run deploy:dev
 ```
 
 The development Worker has its own `workers.dev` URL. To test GitHub login,
@@ -41,6 +41,18 @@ under `[env.dev.vars]` and set `GITHUB_CLIENT_SECRET` for the Worker environment
 `dev` (for example, `npx wrangler secret put GITHUB_CLIENT_SECRET --env dev`).
 Replace the placeholder Client ID before deploying. Do not add secrets to
 `wrangler.toml`.
+
+## Production deployment
+
+Deploy the top-level production Worker (not the `dev` environment) with:
+
+```sh
+npm run deploy:prod
+```
+
+The explicit empty Wrangler environment selector prevents a warning when the
+configuration also defines named environments such as `dev`. Use this command
+as the Cloudflare build/deploy command for production.
 
 Add an initial administrator to the development database through D1 before
 testing authenticated features. Use the GitHub login that will authorize the
