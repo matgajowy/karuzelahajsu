@@ -4,8 +4,9 @@ import { readFile } from "node:fs/promises";
 import { runInNewContext } from "node:vm";
 import worker from "../src/worker/index.js";
 import { allowedMethods, findRoute } from "../src/worker/routes/index.js";
+import { syncAllMarketPrices } from "../src/worker/services/pricing.js";
 
-function createEnv({ user = null, assets = null, rows = [] } = {}) {
+function createEnv({ user = null, assets = null, rows = [], metadata = {} } = {}) {
   const writes = [];
   const env = {
     writes,
@@ -13,10 +14,18 @@ function createEnv({ user = null, assets = null, rows = [] } = {}) {
     DB: {
       prepare(sql) {
         return {
-          first: async () => null,
+          first: async () => {
+            if (sql.includes("FROM sessions")) return user;
+            const metadataKey = sql.match(/key = '([^']+)'/)?.[1];
+            return metadataKey ? metadata[metadataKey] || null : null;
+          },
           bind(...values) {
             return {
-              first: async () => sql.includes("FROM sessions") ? user : null,
+              first: async () => {
+                if (sql.includes("FROM sessions")) return user;
+                const metadataKey = sql.match(/key = '([^']+)'/)?.[1];
+                return metadataKey ? metadata[metadataKey] || null : null;
+              },
               run: async () => {
                 writes.push({ sql, values });
                 return { success: true };
@@ -213,6 +222,11 @@ test("admin whitelist endpoint requires an administrator session", async () => {
 test("leaderboard API exposes all portfolio values in CK at the fixed parity", async () => {
   const env = createEnv({
     rows: [{ Wycena_Calkowita_CK: 101000, Gotowka_CK: 1000 }],
+    metadata: {
+      last_price_sync: { value: "2026-10-08 08:30:00" },
+      last_price_sync_status: { value: "partial" },
+      last_price_sync_summary: { value: JSON.stringify({ updated_count: 2, failed_count: 1, failed_tickers: ["WIG20"] }) },
+    },
   });
   const response = await worker.fetch(
     new Request("https://dev.example/api/leaderboard"),
@@ -224,6 +238,106 @@ test("leaderboard API exposes all portfolio values in CK at the fixed parity", a
   assert.equal(response.status, 200);
   assert.equal(body.data[0].Zysk_Strata_CK, 1000);
   assert.equal(body.data[0].Stopa_Zwrotu, 0.01);
+  assert.equal(body.sync_status, "partial");
+  assert.deepEqual(body.sync_summary.failed_tickers, ["WIG20"]);
+});
+
+function createPricingEnv(tickers) {
+  const writes = [];
+  const env = {
+    writes,
+    DB: {
+      prepare(sql) {
+        return {
+          all: async () => ({ results: tickers }),
+          bind(...values) {
+            return {
+              run: async () => {
+                writes.push({ sql, values });
+                return { success: true };
+              },
+            };
+          },
+        };
+      },
+    },
+  };
+  return env;
+}
+
+function yahooResponse(symbol, price, currency = "USD") {
+  return {
+    ok: true,
+    json: async () => ({
+      chart: {
+        result: [{
+          meta: { symbol, shortName: symbol, regularMarketPrice: price, currency },
+        }],
+      },
+    }),
+  };
+}
+
+test("price sync refreshes legacy WIG20 from WIG20.WA and reports missed quotes", async () => {
+  const env = createPricingEnv([
+    { ticker: "WIG20", currency: "PLN" },
+    { ticker: "WIG20.WA", currency: "PLN" },
+    { ticker: "AAPL", currency: "USD" },
+  ]);
+  const requestedSymbols = [];
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const symbol = decodeURIComponent(new URL(url).pathname.split("/").pop());
+    requestedSymbols.push(symbol);
+    if (symbol === "PLN=X") return yahooResponse(symbol, 4, "PLN");
+    if (symbol === "WIG20.WA") return yahooResponse(symbol, 4200, "PLN");
+    return { ok: false, status: 429 };
+  };
+
+  try {
+    const result = await syncAllMarketPrices(env);
+    const priceUpdates = env.writes.filter(({ sql }) => sql.includes("UPDATE market_prices"));
+    const statusWrite = env.writes.find(({ sql, values }) =>
+      sql.includes("INSERT INTO app_metadata") && values[0] === "last_price_sync_status"
+    );
+    const summaryWrite = env.writes.find(({ sql, values }) =>
+      sql.includes("INSERT INTO app_metadata") && values[0] === "last_price_sync_summary"
+    );
+
+    assert.equal(result.status, "partial");
+    assert.equal(result.summary.updated_count, 2);
+    assert.deepEqual(result.summary.failed_tickers, ["AAPL"]);
+    assert.equal(priceUpdates.length, 2);
+    assert.deepEqual(priceUpdates.map(({ values }) => values), [
+      [4200, 1, "WIG20"],
+      [4200, 1, "WIG20.WA"],
+    ]);
+    assert.equal(requestedSymbols.filter(symbol => symbol === "WIG20.WA").length, 1);
+    assert.equal(statusWrite.values[1], "partial");
+    assert.deepEqual(JSON.parse(summaryWrite.values[1]), result.summary);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("price sync does not update USD quotes when the conversion rate is unavailable", async () => {
+  const env = createPricingEnv([{ ticker: "AAPL", currency: "USD" }]);
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => {
+    const symbol = decodeURIComponent(new URL(url).pathname.split("/").pop());
+    if (symbol === "PLN=X") return { ok: false, status: 503 };
+    return yahooResponse(symbol, 200);
+  };
+
+  try {
+    const result = await syncAllMarketPrices(env);
+    assert.equal(result.status, "failed");
+    assert.equal(result.summary.updated_count, 0);
+    assert.deepEqual(result.summary.failed_tickers, ["PLN=X (kurs USD/CK)", "AAPL"]);
+    assert.equal(env.writes.some(({ sql }) => sql.includes("UPDATE market_prices")), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 function createTradeEnv(currentCash) {

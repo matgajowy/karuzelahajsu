@@ -90,6 +90,17 @@ export async function handlePriceSync(context) {
     return jsonResponse({ status: "error", message: "Brak uprawnień administratora." }, 403);
   }
 
-  const syncLogs = await syncAllMarketPrices(env);
-  return jsonResponse({ status: "success", message: "Synchronizacja zakończona", logs: syncLogs });
+  const result = await syncAllMarketPrices(env);
+  const message = result.status === "success"
+    ? "Wszystkie kursy zostały zaktualizowane."
+    : result.status === "partial"
+      ? `Częściowa synchronizacja: zaktualizowano ${result.summary.updated_count}, błędy dla ${result.summary.failed_count} tickerów.`
+      : "Synchronizacja nie powiodła się; kursy nie zostały zaktualizowane.";
+  return jsonResponse({
+    status: "success",
+    sync_status: result.status,
+    summary: result.summary,
+    message,
+    logs: result.logs,
+  });
 }

@@ -1,12 +1,30 @@
-    function renderDashboard(items, lastSyncTs) {
+    function renderDashboard(items, lastSyncTs, syncStatus, syncSummary) {
       const statusText = document.getElementById("syncStatusText");
+      const syncBadge = document.getElementById("syncStatusBadge");
+      let syncTitle = "";
       if (lastSyncTs) {
-        const syncDate = new Date(lastSyncTs);
+        const normalizedTimestamp = lastSyncTs.includes("T") ? lastSyncTs : `${lastSyncTs.replace(" ", "T")}Z`;
+        const syncDate = new Date(normalizedTimestamp);
         const timeStr = syncDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        statusText.innerText = `Kursy: ${timeStr} • Cron: 15m`;
+        if (syncStatus === "partial") {
+          const updated = syncSummary?.updated_count ?? 0;
+          const failed = syncSummary?.failed_count ?? 0;
+          statusText.innerText = `Niepełne kursy: ${updated}/${updated + failed}`;
+          syncTitle = syncSummary?.failed_tickers?.length
+            ? `Nie zaktualizowano: ${syncSummary.failed_tickers.join(", ")}`
+            : "Nie wszystkie kursy zostały zaktualizowane.";
+        } else if (syncStatus === "failed") {
+          statusText.innerText = `Błąd synchronizacji: ${timeStr}`;
+          syncTitle = syncSummary?.failed_tickers?.length
+            ? `Nie zaktualizowano: ${syncSummary.failed_tickers.join(", ")}`
+            : "Synchronizacja nie zaktualizowała żadnych kursów.";
+        } else {
+          statusText.innerText = `Kursy: ${timeStr} • Cron: 15m`;
+        }
       } else {
         statusText.innerText = `Brak synchronizacji`;
       }
+      syncBadge.title = syncTitle;
       document.getElementById("syncStatusBadge").classList.remove("hidden");
       document.getElementById("dataTimestamp").innerText = `Waluta: CK (1 CK = 1 PLN)`;
 

@@ -20,8 +20,11 @@ export async function handleLeaderboard(context) {
 
   const { results } = await env.DB.prepare(query).all();
 
-  // Odczytanie czasu ostatniej aktualizacji crona
+  // Odczytanie czasu oraz wyniku ostatniej synchronizacji kursów.
   const syncMeta = await env.DB.prepare("SELECT value, updated_at FROM app_metadata WHERE key = 'last_price_sync'").first();
+  const syncStatusMeta = await env.DB.prepare("SELECT value FROM app_metadata WHERE key = 'last_price_sync_status'").first();
+  const syncSummaryMeta = await env.DB.prepare("SELECT value FROM app_metadata WHERE key = 'last_price_sync_summary'").first();
+  const syncSummary = syncSummaryMeta?.value ? JSON.parse(syncSummaryMeta.value) : null;
 
   const leaderboard = results.map(row => {
     const profit = row.Wycena_Calkowita_CK - 100000.0;
@@ -37,5 +40,7 @@ export async function handleLeaderboard(context) {
     status: "success",
     data: leaderboard,
     last_sync: syncMeta ? syncMeta.value : null,
+    sync_status: syncStatusMeta?.value || null,
+    sync_summary: syncSummary,
   });
 }
