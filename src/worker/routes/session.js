@@ -7,6 +7,7 @@ export async function handleCurrentSession({ request, env }) {
 
   return jsonResponse({
     authenticated: true,
+    auth_mode: user.auth_mode || "github",
     user: {
       id: user.id,
       github_login: user.github_login,

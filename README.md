@@ -42,9 +42,17 @@ under `[env.dev.vars]` and set `GITHUB_CLIENT_SECRET` for the Worker environment
 Replace the placeholder Client ID before deploying. Do not add secrets to
 `wrangler.toml`.
 
-Add an initial administrator to the development database through D1 before
-testing authenticated features. Use the GitHub login that will authorize the
-development OAuth App:
+The dev environment currently enables a development-only auth bypass using the
+`demo_marta` account in `liga_db_dev`, so authenticated application flows can
+be tested without GitHub OAuth. All dev visitors share this demo account and
+its portfolio. It is not an administrator, and admin-only actions stay
+unavailable. The bypass is controlled by `DEV_AUTH_BYPASS` and
+`DEV_AUTH_LOGIN` under `[env.dev.vars]`; do not add these variables to the
+production `[vars]` section.
+
+To test actual GitHub OAuth instead, disable `DEV_AUTH_BYPASS` in the dev
+environment and add an initial administrator through D1 using the GitHub login
+that will authorize the development OAuth App:
 
 ```sql
 INSERT INTO users (github_login, display_name, is_admin)

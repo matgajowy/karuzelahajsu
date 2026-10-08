@@ -51,14 +51,17 @@
         if (data.authenticated) {
           currentUser = data.user;
           const userAvatar = currentUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentUser.display_name)}`;
+          const authControls = data.auth_mode === "dev-bypass"
+            ? '<span class="text-[10px] uppercase tracking-wide text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">DEV DEMO</span>'
+            : `<button data-action="logout" class="text-slate-400 hover:text-rose-400 p-1 transition" title="Wyloguj">
+                <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
+              </button>`;
 
           authContainer.innerHTML = `
             <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 py-1 px-2 rounded-xl text-xs">
               <img src="${escapeHtml(userAvatar)}" alt="${escapeHtml(currentUser.display_name)}" class="w-6 h-6 rounded-full bg-slate-800 object-cover border border-indigo-500/30">
               <span class="text-white font-semibold hidden md:inline">${escapeHtml(currentUser.display_name)}</span>
-              <button data-action="logout" class="text-slate-400 hover:text-rose-400 p-1 transition" title="Wyloguj">
-                <i data-lucide="log-out" class="w-3.5 h-3.5"></i>
-              </button>
+              ${authControls}
             </div>
           `;
 

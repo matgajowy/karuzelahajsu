@@ -6,16 +6,29 @@ import worker from "../src/worker/index.js";
 import { allowedMethods, findRoute } from "../src/worker/routes/index.js";
 import { syncAllMarketPrices } from "../src/worker/services/pricing.js";
 
-function createEnv({ user = null, assets = null, rows = [], metadata = {} } = {}) {
+function createEnv({
+  user = null,
+  assets = null,
+  rows = [],
+  metadata = {},
+  devAuthBypass = false,
+  devAuthLogin = "demo_marta",
+  demoUser = null,
+} = {}) {
   const writes = [];
   const env = {
     writes,
     ASSETS: assets,
+    DEV_AUTH_BYPASS: devAuthBypass ? "true" : undefined,
+    DEV_AUTH_LOGIN: devAuthBypass ? devAuthLogin : undefined,
     DB: {
       prepare(sql) {
         return {
           first: async () => {
             if (sql.includes("FROM sessions")) return user;
+            if (sql.includes("FROM users") && sql.includes("github_login = ?")) {
+              return demoUser?.github_login === devAuthLogin ? demoUser : null;
+            }
             const metadataKey = sql.match(/key = '([^']+)'/)?.[1];
             return metadataKey ? metadata[metadataKey] || null : null;
           },
@@ -23,6 +36,9 @@ function createEnv({ user = null, assets = null, rows = [], metadata = {} } = {}
             return {
               first: async () => {
                 if (sql.includes("FROM sessions")) return user;
+                if (sql.includes("FROM users") && sql.includes("github_login = ?")) {
+                  return demoUser?.github_login === values[0] ? demoUser : null;
+                }
                 const metadataKey = sql.match(/key = '([^']+)'/)?.[1];
                 return metadataKey ? metadata[metadataKey] || null : null;
               },
@@ -156,6 +172,67 @@ test("dev OAuth gives a clear configuration response until a dev app is set up",
   );
 
   assert.equal(response.status, 503);
+});
+
+test("dev auth bypass authenticates as the configured demo user without a cookie", async () => {
+  const demoUser = {
+    id: 17,
+    github_login: "demo_marta",
+    display_name: "Marta Demo",
+    avatar_url: null,
+    current_cash: 45500,
+    is_admin: 0,
+  };
+  const env = createEnv({ devAuthBypass: true, demoUser });
+
+  const sessionResponse = await worker.fetch(
+    new Request("https://dev.example/api/me"),
+    env,
+    {},
+  );
+  const session = await sessionResponse.json();
+
+  assert.equal(session.authenticated, true);
+  assert.equal(session.auth_mode, "dev-bypass");
+  assert.equal(session.user.github_login, "demo_marta");
+  assert.equal(session.user.is_admin, 0);
+
+  const portfolioResponse = await worker.fetch(
+    new Request("https://dev.example/api/portfolio"),
+    env,
+    {},
+  );
+  assert.equal(portfolioResponse.status, 200);
+  assert.equal((await portfolioResponse.json()).cash_ck, 45500);
+
+  const adminResponse = await worker.fetch(
+    new Request("https://dev.example/api/admin/users"),
+    env,
+    {},
+  );
+  assert.equal(adminResponse.status, 403);
+});
+
+test("auth bypass is disabled unless its explicit environment flag is enabled", async () => {
+  const env = createEnv({ devAuthLogin: "demo_marta" });
+  const response = await worker.fetch(
+    new Request("https://prod.example/api/me"),
+    env,
+    {},
+  );
+
+  assert.deepEqual(await response.json(), { authenticated: false });
+});
+
+test("dev auth bypass fails clearly when its configured demo account is missing", async () => {
+  const env = createEnv({ devAuthBypass: true, demoUser: null });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/me"),
+    env,
+    {},
+  );
+
+  assert.deepEqual(await response.json(), { authenticated: false });
 });
 
 test("profile update validates input and persists for the authenticated user", async () => {
