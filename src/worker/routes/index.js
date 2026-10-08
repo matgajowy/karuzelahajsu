@@ -5,6 +5,7 @@ import { handleInstrumentSearch } from "./instruments.js";
 import { handleLeaderboard } from "./leaderboard.js";
 import { handleLogout } from "./logout.js";
 import { handlePortfolio } from "./portfolio.js";
+import { handleOpponentPortfolio } from "../services/p2.js";
 import { handleGenerateNickname, handleProfileUpdate } from "./profile.js";
 import { handleCurrentSession } from "./session.js";
 import { handleTrade } from "./trades.js";
@@ -18,6 +19,7 @@ const routes = new Map([
   ["POST /api/logout", handleLogout],
   ["GET /api/leaderboard", handleLeaderboard],
   ["GET /api/portfolio", handlePortfolio],
+  ["GET /api/opponent-portfolio", handleOpponentPortfolio],
   ["GET /api/instruments/search", handleInstrumentSearch],
   ["POST /api/trade", handleTrade],
   ["GET /api/feed", handleFeed],
