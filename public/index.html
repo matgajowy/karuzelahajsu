@@ -318,6 +318,18 @@
     <!-- ========================================== -->
     <div id="viewAdmin" style="display: none;" class="space-y-6">
 
+      <section class="bg-rose-950/20 border border-rose-500/40 rounded-2xl p-6 shadow-xl space-y-3">
+        <div>
+          <h3 class="text-base font-bold text-rose-300 flex items-center gap-2">
+            <i data-lucide="triangle-alert" class="w-4 h-4"></i> Danger Zone — Benchmarki
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Reset ustawia wartość początkową obu benchmarków na 100 000 CK. Operacja jest nieodwracalna.</p>
+        </div>
+        <button type="button" data-action="open-benchmark-reset" class="bg-rose-700 hover:bg-rose-600 text-white border border-rose-500/50 text-xs font-bold px-4 py-2 rounded-lg transition">
+          ⚠️ Zresetuj bazę Benchmarków (100k CK)
+        </button>
+      </section>
+
       <!-- SEKCJA: ZARZĄDZANIE BIAŁĄ LISTĄ (WHITELIST) -->
       <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl space-y-4">
         <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-4 border-b border-slate-800">
@@ -521,7 +533,7 @@
   <!-- ========================================== -->
   <!-- MODAL: FORMULARZ ZLECENIA                  -->
   <!-- ========================================== -->
-  <div id="tradeModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+  <div id="tradeModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
     <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
       <div class="flex justify-between items-center pb-3 border-b border-slate-800">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
@@ -533,6 +545,10 @@
       </div>
 
       <form id="tradeForm" data-action="submit-trade" class="mt-4 space-y-4">
+        <div class="bg-indigo-950/50 p-3 rounded-xl border border-indigo-500/30 flex justify-between items-center">
+          <span class="text-xs font-medium text-slate-300">Dostępne środki:</span>
+          <span id="tradeAvailableCash" class="font-bold text-emerald-300 font-mono text-sm">0,00 CK</span>
+        </div>
         <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
           <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition">KUPNO</button>
           <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL" class="py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
@@ -599,6 +615,19 @@
           <button type="submit" id="submitTradeBtn" disabled class="w-1/2 bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Złóż zlecenie</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <div id="benchmarkResetModal" class="fixed inset-0 bg-black/70 z-[60] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="benchmarkResetTitle">
+    <div class="bg-slate-900 border border-rose-500/40 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+      <h2 id="benchmarkResetTitle" class="text-lg font-bold text-rose-300">Potwierdź reset benchmarków</h2>
+      <p class="mt-3 text-sm text-slate-300">Ta operacja wyzeruje gotówkę oraz ustawi pozycje S&amp;P 500 i WIG20 na wartość 100 000 CK według bieżących kursów. Nie można jej cofnąć.</p>
+      <label for="benchmarkResetPhrase" class="block text-xs font-medium text-slate-300 mt-4 mb-1">Wpisz dokładnie: <code class="text-rose-300">RESET-BENCHMARKS</code></label>
+      <input id="benchmarkResetPhrase" type="text" autocomplete="off" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-rose-500">
+      <div class="flex gap-2 mt-5">
+        <button type="button" data-action="close-benchmark-reset" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+        <button id="confirmBenchmarkResetBtn" type="button" data-action="confirm-benchmark-reset" disabled class="w-1/2 bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-rose-600 text-white py-2.5 rounded-xl text-xs font-bold transition">Wykonaj reset</button>
+      </div>
     </div>
   </div>
 

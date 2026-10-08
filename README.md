@@ -58,3 +58,22 @@ that will authorize the development OAuth App:
 INSERT INTO users (github_login, display_name, is_admin)
 VALUES ('your-github-login', 'Development Admin', 1);
 ```
+
+## Production deployment
+
+Deploy the top-level production Worker (not the `dev` environment) with:
+
+```sh
+npm run deploy:prod
+```
+
+The explicit empty Wrangler environment selector prevents a warning when the
+configuration also defines named environments such as `dev`. Use this command
+as the Cloudflare build/deploy command for production.
+
+Before using the administrator-only benchmark reset, apply the migrations so
+the `^GSPC` and `WIG20` market-price symbols are available:
+
+```sh
+npx wrangler d1 migrations apply liga_db --remote
+```
