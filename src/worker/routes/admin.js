@@ -186,23 +186,25 @@ export async function handleResetBenchmarks(context) {
     }
 
     let activeCycleFilter = "";
-    if (columns.has("cycle_id")) {
-      const { results: cycleTables } = await env.DB.prepare(`
-        SELECT name FROM sqlite_master WHERE type = 'table' AND name LIKE '%cycle%'
-      `).all();
-      for (const { name } of cycleTables) {
-        const escapedName = name.replaceAll('"', '""');
-        const { results: cycleColumns } = await env.DB.prepare(`PRAGMA table_info("${escapedName}")`).all();
-        const cycleColumnNames = new Set(cycleColumns.map(column => column.name));
-        if (!cycleColumnNames.has("id")) continue;
-        const activeColumn = ["is_active", "active"].find(column => cycleColumnNames.has(column));
-        const hasStatus = cycleColumnNames.has("status");
-        if (activeColumn || hasStatus) {
-          const activePredicate = activeColumn
-            ? `"${activeColumn}" = 1`
-            : `"status" = 'active'`;
-          activeCycleFilter = ` AND cycle_id IN (SELECT id FROM "${escapedName}" WHERE ${activePredicate})`;
-          break;
+    const periodReference = columns.has("cycle_id")
+      ? { column: "cycle_id", table: "cycles" }
+      : columns.has("period_id")
+        ? { column: "period_id", table: "periods" }
+        : null;
+    if (periodReference) {
+      const { results: referenceTables } = await env.DB.prepare(`
+        SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?
+      `).bind(periodReference.table).all();
+      if (referenceTables.length > 0) {
+        const { results: referenceColumns } = await env.DB.prepare(
+          `PRAGMA table_info("${periodReference.table}")`
+        ).all();
+        const referenceColumnNames = new Set(referenceColumns.map(column => column.name));
+        const activeColumn = ["is_active", "active"].find(column => referenceColumnNames.has(column));
+        if (activeColumn) {
+          activeCycleFilter = ` AND ${periodReference.column} IN (SELECT id FROM "${periodReference.table}" WHERE "${activeColumn}" = 1)`;
+        } else if (referenceColumnNames.has("status")) {
+          activeCycleFilter = ` AND ${periodReference.column} IN (SELECT id FROM "${periodReference.table}" WHERE UPPER(status) = 'ACTIVE')`;
         }
       }
     }
