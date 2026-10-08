@@ -13,7 +13,7 @@ const clickActions = {
   "close-trade": () => closeTradeModal(),
   "set-trade-type": element => setTradeType(element.dataset.tradeType),
   "verify-ticker": () => verifyTicker(),
-  "set-shares-percentage": element => setSharesPercentage(Number(element.dataset.percent)),
+  "set-sell-share-percentage": element => setSellSharePercentage(Number(element.dataset.percent)),
   "manual-sync": () => triggerManualSync(),
   "open-benchmark-reset": () => openBenchmarkResetModal(),
   "close-benchmark-reset": () => closeBenchmarkResetModal(),
@@ -21,6 +21,7 @@ const clickActions = {
   "fetch-audit": () => fetchAuditLogs(),
   "logout": () => handleLogout(),
   "open-smart-sell": element => openSmartSell(element.dataset.ticker),
+  "copy-feed-trade": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
 };
 
 document.addEventListener("click", event => {
@@ -52,7 +53,13 @@ document.addEventListener("input", event => {
   }
   if (event.target instanceof HTMLInputElement &&
       event.target.dataset.action === "update-estimated-cost") {
-    updateEstimatedCost();
+    if (event.target.id === "tradeShares") {
+      syncTradeInput("shares");
+    } else if (event.target.id === "tradeAmount") {
+      syncTradeInput("amount");
+    } else {
+      updateEstimatedCost();
+    }
   }
 });
 

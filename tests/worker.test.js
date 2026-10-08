@@ -14,6 +14,7 @@ function createEnv({
   devAuthBypass = false,
   devAuthLogin = "demo_marta",
   demoUser = null,
+  ai = null,
 } = {}) {
   const writes = [];
   const env = {
@@ -21,6 +22,7 @@ function createEnv({
     ASSETS: assets,
     DEV_AUTH_BYPASS: devAuthBypass ? "true" : undefined,
     DEV_AUTH_LOGIN: devAuthBypass ? devAuthLogin : undefined,
+    AI: ai,
     DB: {
       prepare(sql) {
         return {
@@ -65,6 +67,7 @@ test("route registry covers all frontend API endpoints", () => {
     ["GET", "/api/feed"],
     ["GET", "/api/portfolio"],
     ["POST", "/api/profile"],
+    ["POST", "/api/profile/generate-nickname"],
     ["GET", "/api/admin/users"],
     ["POST", "/api/admin/users"],
     ["GET", "/api/instruments/search"],
@@ -98,6 +101,15 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.ok(resetDialogIndex > tradeFormEndIndex);
   assert.ok(resetDialogIndex < footerIndex);
   assert.match(html, /RESET-BENCHMARKS/);
+  assert.match(html, /id="portfolioTotalValue"/);
+  assert.match(html, /id="tradeAmount"/);
+  assert.match(html, /id="tradeAmountRemainder"/);
+  assert.match(html, /data-action="set-sell-share-percentage" data-percent="0\.25"/);
+  assert.match(html, /data-action="set-sell-share-percentage" data-percent="0\.50"/);
+  assert.match(html, /data-action="set-sell-share-percentage" data-percent="1"/);
+  assert.match(html, /MAX \(pełne akcje\)/);
+  assert.match(html, /href="\/favicon\.svg"/);
+  assert.match(html, /id="generateNickBtn"/);
 });
 
 test("CK formatter provides safe text and visual token formats", async () => {
@@ -305,6 +317,271 @@ test("profile update validates input and persists for the authenticated user", a
     values[0] === "New Name" &&
     values[2] === 7
   ));
+});
+
+test("nickname generator requires an authenticated user", async () => {
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/profile/generate-nickname", { method: "POST" }),
+    createEnv(),
+    {},
+  );
+
+  assert.equal(response.status, 401);
+});
+
+test("nickname generator uses Workers AI and returns a validated nickname", async () => {
+  let model;
+  const env = createEnv({
+    user: { id: 7, is_admin: 0 },
+    ai: {
+      async run(modelName, input) {
+        model = { modelName, input };
+        return { response: "\"Rekin z Parkietu.\"" };
+      },
+    },
+  });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/profile/generate-nickname", {
+      method: "POST",
+      headers: { Cookie: "session_token=test-session" },
+    }),
+    env,
+    {},
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "success");
+  assert.equal(body.data.nickname, "Rekin z Parkietu");
+  assert.equal(body.data.fallback, false);
+  assert.equal(model.modelName, "@cf/meta/llama-3.1-8b-instruct");
+  assert.match(model.input.messages[0].content, /dokładnie JEDNĄ/);
+});
+
+test("nickname generator falls back if Workers AI throws", async () => {
+  const env = createEnv({
+    user: { id: 7, is_admin: 0 },
+    ai: { run: async () => { throw new Error("AI unavailable"); } },
+  });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/profile/generate-nickname", {
+      method: "POST",
+      headers: { Cookie: "session_token=test-session" },
+    }),
+    env,
+    {},
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "success");
+  assert.equal(body.data.fallback, true);
+  assert.match(body.data.nickname, /^[\p{L}\p{M}\p{N}'’-]+(?: [\p{L}\p{M}\p{N}'’-]+){1,2}$/u);
+});
+
+test("feed query includes company names from market prices", async () => {
+  const feedRow = {
+    ticker: "NVDA",
+    company_name: "NVIDIA Corp",
+    user_name: "Player",
+  };
+  const env = createEnv({ rows: [feedRow] });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/feed"),
+    env,
+    {},
+  );
+  const body = await response.json();
+  const feedSource = await readFile(new URL("../src/worker/routes/feed.js", import.meta.url), "utf8");
+  const portfolioSource = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+  const eventsSource = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
+
+  assert.equal(body.data[0].company_name, "NVIDIA Corp");
+  assert.match(feedSource, /LEFT JOIN market_prices p ON t\.ticker = p\.ticker/);
+  assert.match(feedSource, /COALESCE\(p\.name, t\.ticker\) AS company_name/);
+  assert.match(feedSource, /t\.total_value_pln AS total_value_ck/);
+  assert.match(portfolioSource, /data-action="copy-feed-trade"/);
+  assert.match(portfolioSource, /const canCopy = isBuy && !isBenchmark\(item\.user_name\) && !isBenchmarkTicker/);
+  assert.match(portfolioSource, /group-hover:opacity-100/);
+  assert.match(portfolioSource, /opacity-100 md:opacity-0/);
+  assert.match(portfolioSource, /item\.total_value_ck \?\? item\.total_value_pln/);
+  assert.match(eventsSource, /window\.karuzela\.copyTrade/);
+
+  const renderedFeed = { innerHTML: "" };
+  const rendered = await runInNewContext(
+    `${portfolioSource}; fetchFeed().then(() => document.getElementById("feedContainer").innerHTML);`,
+    {
+      apiRequest: async () => ({
+        status: "success",
+        data: [
+          { type: "BUY", ticker: "NVDA", user_name: "Trader", shares: 1, company_name: "NVIDIA", created_at: "2026-10-08T10:00:00Z" },
+          { type: "SELL", ticker: "NVDA", user_name: "Trader", shares: 1, company_name: "NVIDIA", created_at: "2026-10-08T10:00:00Z" },
+          { type: "BUY", ticker: "^GSPC", user_name: "Market Benchmark S&P 500", shares: 1, company_name: "S&P 500", created_at: "2026-10-08T10:00:00Z" },
+          { type: "BUY", ticker: "WIG20", user_name: "Market Index", shares: 1, company_name: "WIG20", created_at: "2026-10-08T10:00:00Z" },
+        ],
+      }),
+      document: { getElementById: () => renderedFeed },
+      escapeHtml: value => String(value ?? ""),
+      formatCK: value => String(value ?? 0),
+      isBenchmark: name => /benchmark|index|s&p|wig/i.test(String(name ?? "")),
+      formatQuotePrice: String,
+      currentUser: null,
+      userHoldings: [],
+      console,
+    },
+  );
+  assert.equal((rendered.match(/data-action="copy-feed-trade"/g) || []).length, 1);
+  assert.match(rendered, /⚡<\/span>\s*<span>Kopiuj<\/span>/);
+  assert.match(rendered, /md:pointer-events-none/);
+});
+
+test("copying a feed trade opens and prepares a BUY order", async () => {
+  const focused = [];
+  const elements = new Map();
+  const getElement = id => {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        value: "",
+        innerHTML: "",
+        innerText: "",
+        disabled: false,
+        className: "",
+        classList: { add() {}, remove() {} },
+        focus: () => focused.push(id),
+      });
+    }
+    return elements.get(id);
+  };
+  const tickerInput = getElement("tradeTickerInput");
+  const thesisInput = getElement("tradeThesis");
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const context = {
+    currentUser: { id: 1 },
+    currentTradeType: "BUY",
+    verifiedInstrument: null,
+    selectedHoldingMaxShares: 0,
+    window: {},
+    location: { href: "" },
+    document: { getElementById: getElement },
+    userHoldings: [],
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+    formatQuotePrice: value => String(value),
+    apiRequest: async path => {
+      assert.equal(path, "/api/instruments/search?q=NVDA");
+      return {
+        status: "success",
+        data: { ticker: "NVDA", name: "NVIDIA Corp", price: 45, price_ck: 45, currency: "USD" },
+      };
+    },
+  };
+
+  await runInNewContext(`${source}; window.karuzela.copyTrade("NVDA", "Piotr Wiśniewski");`, context);
+
+  assert.equal(getElement("tradeTickerInput").value, "NVDA");
+  assert.equal(getElement("tradeModal").classList.hidden, undefined);
+  assert.equal(thesisInput.value, "Kopiuję ruch od @Piotr Wiśniewski! Też w to wchodzę.");
+  assert.deepEqual(focused, ["tradeShares"]);
+  assert.equal(getElement("verifiedInstrumentCard").classList.hidden, undefined);
+  assert.equal(typeof context.window.karuzela.copyTrade, "function");
+});
+
+test("trade amount input buys whole shares and shows the remaining budget", async () => {
+  const elements = {
+    tradeShares: { value: "" },
+    tradeAmount: { value: "50" },
+    tradeAmountRemainder: {
+      innerText: "",
+      classList: {
+        hidden: true,
+        add() { this.hidden = true; },
+        remove() { this.hidden = false; },
+      },
+    },
+    estimatedCost: { innerHTML: "" },
+    submitTradeBtn: { disabled: false },
+  };
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    currentTradeType = "BUY";
+    verifiedInstrument = { price_ck: 45 };
+    syncTradeInput("amount");
+    const budgetResult = {
+      shares: document.getElementById("tradeShares").value,
+      amount: document.getElementById("tradeAmount").value,
+      remainder: document.getElementById("tradeAmountRemainder").innerText,
+      visible: !document.getElementById("tradeAmountRemainder").classList.hidden,
+      submitDisabled: document.getElementById("submitTradeBtn").disabled,
+    };
+    document.getElementById("tradeShares").value = "1.5";
+    syncTradeInput("shares");
+    budgetResult.fractionalSharesDisabled = document.getElementById("submitTradeBtn").disabled;
+    budgetResult.fractionalSharesMessage = document.getElementById("tradeAmountRemainder").innerText;
+    JSON.stringify(budgetResult);`, {
+    document: { getElementById: id => elements[id] },
+    currentTradeType: "BUY",
+    verifiedInstrument: { price_ck: 30 },
+    currentUser: null,
+    userHoldings: [],
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+    escapeHtml: value => value,
+    formatQuotePrice: value => String(value),
+    apiRequest: async () => ({}),
+    location: { href: "" },
+    alert() {},
+  });
+  const resultData = JSON.parse(result);
+
+  assert.equal(resultData.shares, "1");
+  assert.equal(resultData.amount, "50");
+  assert.equal(resultData.remainder, "Kupujesz: 1 szt. • Koszt: 45.00 CK • Niewykorzystana reszta: 5.00 CK");
+  assert.equal(resultData.visible, true);
+  assert.equal(resultData.submitDisabled, false);
+  assert.equal(resultData.fractionalSharesDisabled, true);
+  assert.equal(resultData.fractionalSharesMessage, "Zakup dostępny wyłącznie w pełnych akcjach.");
+});
+
+test("trade amount below the share price cannot be submitted", async () => {
+  const elements = {
+    tradeShares: { value: "" },
+    tradeAmount: { value: "44" },
+    tradeAmountRemainder: {
+      innerText: "",
+      classList: {
+        hidden: true,
+        add() { this.hidden = true; },
+        remove() { this.hidden = false; },
+      },
+    },
+    estimatedCost: { innerHTML: "" },
+    submitTradeBtn: { disabled: false },
+  };
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    currentTradeType = "BUY";
+    verifiedInstrument = { price_ck: 45 };
+    syncTradeInput("amount");
+    JSON.stringify({
+      shares: document.getElementById("tradeShares").value,
+      remainder: document.getElementById("tradeAmountRemainder").innerText,
+      submitDisabled: document.getElementById("submitTradeBtn").disabled,
+    });`, {
+    document: { getElementById: id => elements[id] },
+    currentTradeType: "BUY",
+    verifiedInstrument: { price_ck: 45 },
+    currentUser: null,
+    userHoldings: [],
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+    escapeHtml: value => value,
+    formatQuotePrice: value => String(value),
+    apiRequest: async () => ({}),
+    location: { href: "" },
+    alert() {},
+  });
+  const resultData = JSON.parse(result);
+
+  assert.equal(resultData.shares, "");
+  assert.equal(resultData.remainder, "Kupujesz: 0 szt. • Koszt: 0.00 CK • Niewykorzystana reszta: 44.00 CK");
+  assert.equal(resultData.submitDisabled, true);
 });
 
 test("admin can add a validated GitHub login to the whitelist", async () => {
@@ -740,14 +1017,14 @@ function createTradeEnv(currentCash) {
   return env;
 }
 
-async function submitTestBuy(env, shares) {
+async function submitTestTrade(env, shares, type = "BUY") {
   return worker.fetch(
     new Request("https://dev.example/api/trade", {
       method: "POST",
       headers: { Cookie: "session_token=test-session", "Content-Type": "application/json" },
       body: JSON.stringify({
         ticker: "TEST",
-        type: "BUY",
+        type,
         shares,
         thesis: "Kupuję pozycję testową do walidacji.",
       }),
@@ -755,6 +1032,10 @@ async function submitTestBuy(env, shares) {
     env,
     {},
   );
+}
+
+async function submitTestBuy(env, shares) {
+  return submitTestTrade(env, shares, "BUY");
 }
 
 test("trade balance errors use CK and calculate USD value using the PLN parity rate", async () => {
@@ -768,15 +1049,68 @@ test("trade balance errors use CK and calculate USD value using the PLN parity r
 });
 
 test("trade audit log records converted transaction values as CK", async () => {
-  const env = createTradeEnv(1000);
-  const response = await submitTestBuy(env, 0.5);
+  const env = createTradeEnv(2000);
+  const response = await submitTestBuy(env, 1);
   const body = await response.json();
   const audit = env.writes.find(({ sql }) => sql.includes("INSERT INTO audit_log"));
 
   assert.equal(response.status, 200);
   assert.equal(body.status, "success");
-  assert.equal(JSON.parse(audit.values[2]).totalTradeCk, 200);
+  assert.equal(JSON.parse(audit.values[2]).totalTradeCk, 400);
   assert.ok(env.writes.some(({ sql, values }) =>
-    sql.includes("UPDATE users SET current_cash") && values[0] === 200
+    sql.includes("UPDATE users SET current_cash") && values[0] === 400
   ));
+});
+
+test("trade API rejects fractional-share buys and sells before writing transactions", async () => {
+  for (const type of ["BUY", "SELL"]) {
+    const env = createTradeEnv(1000);
+    const response = await submitTestTrade(env, 4.447, type);
+    const body = await response.json();
+
+    assert.equal(response.status, 400);
+    assert.equal(body.message, `${type === "BUY" ? "Kupować" : "Sprzedawać"} można wyłącznie pełne akcje.`);
+    assert.equal(env.writes.length, 0);
+  }
+});
+
+test("sale percentage presets round down to whole shares", async () => {
+  const elements = {
+    tradeShares: { value: "" },
+    tradeError: {
+      innerText: "",
+      classList: {
+        hidden: true,
+        add() { this.hidden = true; },
+        remove() { this.hidden = false; },
+      },
+    },
+    estimatedCost: { innerHTML: "" },
+    submitTradeBtn: { disabled: true },
+  };
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    currentTradeType = "SELL";
+    verifiedInstrument = { price_ck: 45 };
+    selectedHoldingMaxShares = 10;
+    setSellSharePercentage(0.25);
+    const quarter = document.getElementById("tradeShares").value;
+    setSellSharePercentage(0.5);
+    const half = document.getElementById("tradeShares").value;
+    selectedHoldingMaxShares = 4.447;
+    setSellSharePercentage(1);
+    JSON.stringify({
+      quarter,
+      half,
+      max: document.getElementById("tradeShares").value,
+      disabled: document.getElementById("submitTradeBtn").disabled,
+    });`, {
+    document: { getElementById: id => elements[id] },
+    currentTradeType: "SELL",
+    verifiedInstrument: { price_ck: 45 },
+    selectedHoldingMaxShares: 4.447,
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+  });
+
+  assert.deepEqual(JSON.parse(result), { quarter: "2", half: "5", max: "4", disabled: false });
 });

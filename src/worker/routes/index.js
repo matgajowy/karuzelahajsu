@@ -5,7 +5,7 @@ import { handleInstrumentSearch } from "./instruments.js";
 import { handleLeaderboard } from "./leaderboard.js";
 import { handleLogout } from "./logout.js";
 import { handlePortfolio } from "./portfolio.js";
-import { handleProfileUpdate } from "./profile.js";
+import { handleGenerateNickname, handleProfileUpdate } from "./profile.js";
 import { handleCurrentSession } from "./session.js";
 import { handleTrade } from "./trades.js";
 
@@ -14,6 +14,7 @@ const routes = new Map([
   ["GET /api/auth/callback", handleGitHubCallback],
   ["GET /api/me", handleCurrentSession],
   ["POST /api/profile", handleProfileUpdate],
+  ["POST /api/profile/generate-nickname", handleGenerateNickname],
   ["POST /api/logout", handleLogout],
   ["GET /api/leaderboard", handleLeaderboard],
   ["GET /api/portfolio", handlePortfolio],

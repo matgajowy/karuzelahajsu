@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Karuzela Hajsu 🎠💸 — Biurowa Liga Spekulacyjna</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
 </head>
@@ -276,10 +277,14 @@
             </div>
           </div>
 
-          <div class="flex items-center gap-6">
+          <div class="flex flex-wrap items-center gap-4">
+            <div class="text-right bg-slate-950/70 border border-indigo-500/30 rounded-xl px-3 py-2">
+              <div class="text-xs text-slate-400">Wycena całkowita portfela</div>
+              <div id="portfolioTotalValue" class="text-lg font-black text-indigo-200 font-mono tabular-nums">0,00 CK</div>
+            </div>
             <div class="text-right">
               <div class="text-xs text-slate-400">Dostępna Gotówka (CK):</div>
-              <div id="userCashDisplay" class="text-xl font-black text-emerald-400 font-mono">0,00 CK</div>
+              <div id="userCashDisplay" class="text-xl font-black text-emerald-400 font-mono tabular-nums">0,00 CK</div>
             </div>
             <button data-action="open-trade" data-trade-type="BUY" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 transition">
               <i data-lucide="plus-circle" class="w-4 h-4"></i> Nowe Zlecenie
@@ -464,7 +469,7 @@
         <div>
           <div class="flex justify-between items-center mb-1">
             <label class="text-xs font-medium text-slate-300">Wyświetlana Ksywka</label>
-            <button type="button" data-action="generate-nick" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">
+            <button id="generateNickBtn" type="button" data-action="generate-nick" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">
               🎲 Wylosuj ksywkę
             </button>
           </div>
@@ -589,12 +594,18 @@
             <label class="text-xs font-medium text-slate-300">Liczba akcji (szt.)</label>
             <span id="availableSharesBadge" class="hidden text-[11px] text-slate-400 font-mono">Dostępne: <b id="availableSharesCount" class="text-indigo-300">0</b></span>
           </div>
-          <input type="number" step="0.001" min="0.001" id="tradeShares" data-action="update-estimated-cost" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
+          <input type="number" step="1" min="1" id="tradeShares" data-action="update-estimated-cost" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
+
+          <div id="tradeAmountSection" class="mt-3">
+            <label for="tradeAmount" class="block text-xs font-medium text-slate-300 mb-1">Kwota zakupu (CK)</label>
+            <input type="number" step="0.01" min="0.01" id="tradeAmount" data-action="update-estimated-cost" placeholder="np. 500,00" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono tabular-nums focus:outline-none">
+            <p id="tradeAmountRemainder" class="hidden mt-1.5 text-[11px] text-slate-400 font-mono tabular-nums"></p>
+          </div>
 
           <div id="quickSharesButtons" class="hidden grid grid-cols-3 gap-2 mt-2">
-            <button type="button" data-action="set-shares-percentage" data-percent="0.25" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">25%</button>
-            <button type="button" data-action="set-shares-percentage" data-percent="0.50" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">50%</button>
-            <button type="button" data-action="set-shares-percentage" data-percent="1.00" class="py-1 text-[11px] bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 rounded border border-rose-800/40 font-semibold">MAX (Wszystko)</button>
+            <button type="button" data-action="set-sell-share-percentage" data-percent="0.25" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">25%</button>
+            <button type="button" data-action="set-sell-share-percentage" data-percent="0.50" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">50%</button>
+            <button type="button" data-action="set-sell-share-percentage" data-percent="1" class="py-1 text-[11px] bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 rounded border border-rose-800/40 font-semibold">MAX (pełne akcje)</button>
           </div>
         </div>
 

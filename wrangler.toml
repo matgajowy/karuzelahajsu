@@ -5,6 +5,9 @@ main = "src/worker/index.js"
 [vars]
 GITHUB_CLIENT_ID = "Ov23liBBJtlHrJ0Ey1pf"
 
+[ai]
+binding = "AI"
+
 [triggers]
 crons = ["*/15 8-22 * * 1-5"]
 
@@ -24,6 +27,9 @@ name = "karuzelahajsu-dev"
 GITHUB_CLIENT_ID = "DEV_OAUTH_CLIENT_ID"
 DEV_AUTH_BYPASS = "true"
 DEV_AUTH_LOGIN = "demo_marta"
+
+[env.dev.ai]
+binding = "AI"
 
 [env.dev.assets]
 directory = "./public"

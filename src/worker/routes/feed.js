@@ -4,20 +4,16 @@ export async function handleFeed(context) {
   const { request, env, url, clientIp } = context;
   const query = `
     SELECT
-      t.id,
-      t.ticker,
-      t.type,
-      t.shares,
-      t.price,
+      t.*,
       t.total_value_pln AS total_value_ck,
-      t.thesis,
-      t.created_at,
       u.display_name AS user_name,
-      u.avatar_url
+      u.avatar_url,
+      COALESCE(p.name, t.ticker) AS company_name
     FROM transactions t
     JOIN users u ON t.user_id = u.id
+    LEFT JOIN market_prices p ON t.ticker = p.ticker
     ORDER BY t.created_at DESC
-    LIMIT 25
+    LIMIT 20
   `;
   const { results } = await env.DB.prepare(query).all();
   return jsonResponse({ status: "success", data: results });
