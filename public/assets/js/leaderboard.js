@@ -1,3 +1,114 @@
+    const opponentPortfolioCache = new Map();
+    let expandedPortfolioUserId = null;
+
+    function toggleOpponentAccordion(userId, row) {
+      const requestedId = String(userId);
+      if (expandedPortfolioUserId === requestedId) {
+        row.nextElementSibling?.remove();
+        row.setAttribute("aria-expanded", "false");
+        expandedPortfolioUserId = null;
+        return;
+      }
+
+      if (expandedPortfolioUserId !== null) {
+        const previousRow = document.getElementById(`leaderboard-user-${expandedPortfolioUserId}`);
+        previousRow?.nextElementSibling?.remove();
+        previousRow?.setAttribute("aria-expanded", "false");
+      }
+
+      expandedPortfolioUserId = requestedId;
+      row.setAttribute("aria-expanded", "true");
+      row.insertAdjacentHTML("afterend", `
+        <tr id="accordion-user-${Number(userId)}" class="bg-slate-950/90 border-b border-slate-800/80">
+          <td colspan="6" class="p-4 text-xs text-slate-400">Pobieranie portfela...</td>
+        </tr>
+      `);
+      const detailCell = document.querySelector(`#accordion-user-${Number(userId)} td`);
+      const cached = opponentPortfolioCache.get(requestedId);
+      if (cached) {
+        detailCell.innerHTML = renderOpponentAccordion(cached);
+        return;
+      }
+
+      apiRequest(`/api/opponent-portfolio?user_id=${encodeURIComponent(requestedId)}`)
+        .then(result => {
+          opponentPortfolioCache.set(requestedId, result.data);
+          if (expandedPortfolioUserId !== requestedId || !detailCell.isConnected) return;
+          detailCell.innerHTML = renderOpponentAccordion(result.data);
+        })
+        .catch(error => {
+          console.error("Opponent portfolio loading failed:", error);
+          if (expandedPortfolioUserId === requestedId && detailCell.isConnected) {
+            detailCell.innerText = error.message || "Nie udało się pobrać portfela.";
+            detailCell.className = "p-4 text-xs text-rose-300";
+          }
+        });
+    }
+
+    function renderOpponentAccordion(player) {
+      const valuation = Number(player.valuation_ck) || 0;
+      const cash = Number(player.cash_ck) || 0;
+      const stocks = Number(player.stocks_value_ck) || 0;
+      const cashPercent = valuation > 0 ? Math.min(100, Math.max(0, cash / valuation * 100)) : 0;
+      const holdings = player.holdings.length
+        ? player.holdings.map(position => {
+          const returnPct = Number(position.return_pct);
+          const roundedReturn = Number.isFinite(returnPct) ? Number(returnPct.toFixed(2)) : null;
+          const returnColor = roundedReturn > 0
+            ? "text-emerald-400"
+            : roundedReturn < 0
+              ? "text-rose-400"
+              : "text-slate-400";
+          const formattedReturn = roundedReturn === null
+            ? "--"
+            : `${roundedReturn > 0 ? "+" : ""}${roundedReturn.toFixed(2)}%`;
+          return `
+            <article class="bg-slate-900 border border-slate-800 rounded-xl p-3">
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <p class="text-sm font-bold text-white">${escapeHtml(position.name)} <span class="text-slate-500 font-mono text-xs">${escapeHtml(position.ticker)}</span></p>
+                  <p class="text-[11px] text-slate-400 mt-1">${escapeHtml(position.shares)} akcji · ${escapeHtml(formatQuotePrice(position.current_price, position.currency))}</p>
+                </div>
+                <div class="text-right shrink-0">
+                  <p class="font-mono tabular-nums text-slate-200 text-xs">${formatCK(position.current_value_ck, false)}</p>
+                  <p class="font-mono text-[11px] ${returnColor}">${formattedReturn}</p>
+                </div>
+                <button type="button" data-action="copy-accordion-holding" data-ticker="${escapeHtml(position.ticker)}" data-user-name="${escapeHtml(player.display_name)}" class="shrink-0 px-2.5 py-1 rounded-lg text-[10px] font-semibold text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 transition" title="Skopiuj zakup gracza">
+                  ⚡ Kopiuj
+                </button>
+              </div>
+            </article>
+          `;
+        }).join("")
+        : '<p class="text-xs text-slate-500 bg-slate-900 rounded-xl p-3">Brak otwartych pozycji.</p>';
+      const thesis = player.last_thesis
+        ? `<blockquote class="mt-4 border-l-2 border-indigo-500/50 pl-3 text-xs text-slate-300"><span class="block text-[10px] uppercase tracking-wide text-slate-500 mb-1">Ostatnia teza · ${escapeHtml(player.last_thesis.type)} ${escapeHtml(player.last_thesis.ticker)}</span>${escapeHtml(player.last_thesis.thesis)}</blockquote>`
+        : '<p class="mt-4 text-xs text-slate-500">Gracz nie dodał jeszcze tezy inwestycyjnej.</p>';
+
+      return `
+        <div class="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-4">
+          <section class="rounded-xl bg-slate-900 border border-slate-800 p-3">
+            <div class="flex justify-between text-xs mb-2">
+              <span class="text-slate-300">Podział portfela</span>
+              <span class="font-mono tabular-nums text-white">${formatCK(valuation, false)}</span>
+            </div>
+            <div class="flex h-2 overflow-hidden rounded-full bg-slate-800" role="img" aria-label="Gotówka ${cashPercent.toFixed(1)} procent, akcje ${(100 - cashPercent).toFixed(1)} procent">
+              <span class="bg-emerald-400" style="width:${cashPercent}%"></span>
+              <span class="bg-indigo-400" style="width:${100 - cashPercent}%"></span>
+            </div>
+            <div class="flex justify-between gap-2 mt-2 text-[10px]">
+              <span class="text-emerald-300">Gotówka ${formatCK(cash, false)}</span>
+              <span class="text-indigo-300">Spółki ${formatCK(stocks, false)}</span>
+            </div>
+            ${thesis}
+          </section>
+          <section class="grid grid-cols-1 sm:grid-cols-2 gap-2 content-start" aria-label="Pozycje ${escapeHtml(player.display_name)}">
+            ${holdings}
+          </section>
+        </div>
+      `;
+    }
+
     function renderDashboard(items, lastSyncTs, syncStatus, syncSummary) {
       const statusText = document.getElementById("syncStatusText");
       const syncBadge = document.getElementById("syncStatusBadge");
@@ -77,6 +188,9 @@
 
       const tbody = document.getElementById("leaderboardBody");
       tbody.innerHTML = "";
+      expandedPortfolioUserId = null;
+      opponentPortfolioCache.clear();
+      renderDerbyTrack(items);
 
       let livePlayerRank = 0;
       items.forEach(item => {
@@ -86,7 +200,7 @@
         const retCol = roundedProfit === 0 ? "text-slate-400" : pctColorClass(item.Stopa_Zwrotu);
         const rowBg = isBench
           ? "bg-indigo-950/20 border-l-4 border-indigo-500 font-semibold"
-          : "hover:bg-slate-900/60 transition";
+          : "cursor-pointer hover:bg-slate-900/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-indigo-400 transition";
 
         // Rozpoznawanie flagi dla benchmarku
         const nLower = (item.Uczestnik || '').toLowerCase();
@@ -130,9 +244,9 @@
             <div class="flex items-center gap-2.5">
               <img src="${escapeHtml(avatar)}" alt="${escapeHtml(item.Uczestnik)}" class="w-7 h-7 rounded-full bg-slate-800 object-cover border border-slate-700">
               <div class="flex flex-col">
-                <button type="button" data-action="open-opponent-portfolio" data-user-id="${Number(item.id)}" class="text-left text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded">
-                  ${escapeHtml(item.Uczestnik)}
-                </button>
+                <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 hover:text-indigo-300">
+                  ${escapeHtml(item.Uczestnik)} <span class="text-[9px] text-slate-500" aria-hidden="true">▾</span>
+                </span>
                 ${item.github_login ? `<span class="text-[10px] text-slate-500">@${escapeHtml(item.github_login)}</span>` : ''}
               </div>
             </div>
@@ -140,7 +254,7 @@
         }
 
         tbody.innerHTML += `
-          <tr class="${rowBg} border-b border-slate-800/60">
+          <tr class="${rowBg} border-b border-slate-800/60" ${!isBench ? `id="leaderboard-user-${Number(item.id)}" data-action="toggle-opponent-accordion" data-user-id="${Number(item.id)}" tabindex="0" aria-expanded="false" aria-controls="accordion-user-${Number(item.id)}"` : ""}>
             <td class="py-3.5 px-4 text-center font-mono">${rankBadge}</td>
             <td class="py-3.5 px-4">${participantCell}</td>
             <td class="py-3.5 px-4 text-right font-mono text-slate-200">${formatCK(item.Wycena_Calkowita_CK)}</td>
