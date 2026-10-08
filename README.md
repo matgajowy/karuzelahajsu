@@ -12,7 +12,7 @@ identical to CK, so existing balances and transaction history are unchanged.
 - `src/worker/index.js` is the Worker entry point.
 - `src/worker/routes/` contains HTTP handlers grouped by feature.
 - `src/worker/lib/` contains shared HTTP and authentication helpers.
-- `src/worker/services/` contains market-price integrations.
+- `src/worker/services/` contains market-price, Gemini, and email integrations.
 - `migrations/` contains the D1 schema history.
 
 ## Local checks
@@ -26,13 +26,30 @@ npx wrangler deploy --env dev --dry-run
 
 ## Development deployment
 
-The `dev` Wrangler environment uses the separate `liga_db_dev` database and
-does not run scheduled price updates. Initialize its schema and deploy it with:
+The `dev` Wrangler environment uses the separate `liga_db_dev` database. It
+sends weekday briefings at `06:30` and `15:30` UTC and syncs market prices
+every 15 minutes from `07:00` through `20:45` UTC. Initialize its schema and
+deploy it with:
 
 ```sh
 npx wrangler d1 migrations apply liga_db_dev --remote --env dev
 npx wrangler deploy --env dev
 ```
+
+Configure the briefing secrets directly in the Cloudflare Worker environment;
+never put their values in `wrangler.toml` or source control:
+
+```sh
+npx wrangler secret put GEMINI_API_KEY --env dev
+npx wrangler secret put RESEND_API_KEY --env dev
+npx wrangler secret put SLACK_CHANNEL_EMAIL --env dev
+```
+
+`SLACK_CHANNEL_EMAIL` must be the email address generated for the Slack
+channel. Resend must be permitted to deliver to that recipient. The fixed cron
+times are UTC; local delivery time shifts when Poland changes between CET and
+CEST. Configure the same three secrets on any other Worker environment where
+you want AI-generated briefings and roast text.
 
 The development Worker has its own `workers.dev` URL. To test GitHub login,
 create a separate GitHub OAuth App with that Worker URL's

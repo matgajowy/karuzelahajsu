@@ -5,7 +5,9 @@ import { runInNewContext } from "node:vm";
 import worker from "../src/worker/index.js";
 import { allowedMethods, findRoute } from "../src/worker/routes/index.js";
 import { syncAllMarketPrices } from "../src/worker/services/pricing.js";
-import { handleMarketRace, handleMarketRecap, handleOpponentPortfolio } from "../src/worker/services/p2.js";
+import { handleOpponentPortfolio } from "../src/worker/services/p2.js";
+import { generateText } from "../src/worker/services/ai.js";
+import { sendEmailToSlack, sendEveningRecap, sendMorningBriefing } from "../src/worker/services/slackBriefing.js";
 
 function createEnv({
   user = null,
@@ -68,8 +70,6 @@ test("route registry covers all frontend API endpoints", () => {
     ["GET", "/api/feed"],
     ["GET", "/api/portfolio"],
     ["GET", "/api/opponent-portfolio"],
-    ["GET", "/api/market-race"],
-    ["GET", "/api/market-recap"],
     ["POST", "/api/profile"],
     ["POST", "/api/profile/generate-nickname"],
     ["GET", "/api/admin/users"],
@@ -114,31 +114,53 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.match(html, /MAX \(pełne akcje\)/);
   assert.match(html, /href="\/favicon\.svg"/);
   assert.match(html, /id="generateNickBtn"/);
-  assert.match(html, /id="opponentPortfolioDrawer"/);
-  assert.match(html, /id="marketRaceChart"/);
-  assert.match(html, /id="marketRecapContent"/);
-  assert.match(html, /chart\.umd\.min\.js/);
-  assert.match(html, /\/assets\/js\/market\.js/);
+  assert.match(html, /id="derbyTrack"/);
+  assert.doesNotMatch(html, /dailyRecapBanner|marketRecapContent|marketRaceChart|opponentPortfolioDrawer/);
+  assert.doesNotMatch(html, /chart\.umd\.min\.js/);
+  assert.match(html, /\/assets\/js\/derby\.js/);
 });
 
-test("P2 portfolio, roast, and market insights are wired into the UI", async () => {
+test("accordion portfolio and Derby Track are wired into the UI", async () => {
   const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
-  const market = await readFile(new URL("../public/assets/js/market.js", import.meta.url), "utf8");
-  const app = await readFile(new URL("../public/assets/js/app.js", import.meta.url), "utf8");
+  const derby = await readFile(new URL("../public/assets/js/derby.js", import.meta.url), "utf8");
+  const leaderboard = await readFile(new URL("../public/assets/js/leaderboard.js", import.meta.url), "utf8");
   const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
 
-  assert.match(events, /"open-opponent-portfolio": element => openOpponentPortfolio/);
-  assert.match(events, /"close-opponent-drawer": \(\) => closeOpponentPortfolio/);
-  assert.match(market, /new Chart\(/);
-  assert.match(market, /pointStyle: image/);
-  assert.match(market, /\/api\/opponent-portfolio\?user_id=/);
-  assert.match(market, /\/api\/market-race/);
-  assert.match(market, /\/api\/market-recap/);
-  assert.match(app, /await fetchMarketInsights\(\)/);
+  assert.match(events, /"toggle-opponent-accordion": element => toggleOpponentAccordion/);
+  assert.match(events, /"copy-accordion-holding": element => window\.karuzela\.copyTrade/);
+  assert.match(derby, /function renderDerbyTrack/);
+  assert.match(derby, /Math\.min\(96, Math\.max\(4/);
+  assert.match(derby, /isSp500 \? "Benchmark S&P 500"/);
+  assert.match(leaderboard, /\/api\/opponent-portfolio\?user_id=/);
+  assert.match(leaderboard, /last_thesis/);
+  assert.match(leaderboard, /data-action="copy-accordion-holding"/);
   assert.match(portfolio, /item\.ai_roast/);
 });
 
-test("P2 public endpoints return opponent portfolio, market race, and recap data", async () => {
+test("Derby Track clamps marker positions and renders all competitors", async () => {
+  const source = await readFile(new URL("../public/assets/js/derby.js", import.meta.url), "utf8");
+  const track = { innerHTML: "" };
+  const items = [
+    { id: 1, github_login: "leader", Uczestnik: "Lider", Stopa_Zwrotu: 0.5, avatar_url: null },
+    { id: 2, github_login: "behind", Uczestnik: "Tył tabeli", Stopa_Zwrotu: -0.5, avatar_url: null },
+    { id: 3, github_login: "benchmark_sp500", Uczestnik: "S&P 500", Stopa_Zwrotu: 0.03 },
+  ];
+  runInNewContext(`${source}\nrenderDerbyTrack(items);`, {
+    document: { getElementById: () => track },
+    items,
+    escapeHtml: value => String(value),
+    formatPct: value => `${(value * 100).toFixed(2)}%`,
+    encodeURIComponent,
+  });
+  assert.match(track.innerHTML, /left:96%/);
+  assert.match(track.innerHTML, /left:4%/);
+  assert.match(track.innerHTML, /left:43\.333333333333336%/);
+  assert.match(track.innerHTML, /Lider/);
+  assert.match(track.innerHTML, /Tył tabeli/);
+  assert.match(track.innerHTML, /Benchmark S&P 500/);
+});
+
+test("opponent portfolio endpoint returns holdings and latest thesis", async () => {
   const opponent = {
     id: 12,
     github_login: "player",
@@ -156,18 +178,22 @@ test("P2 public endpoints return opponent portfolio, market race, and recap data
     current_value_ck: 220,
     return_pct: 10,
   };
-  const snapshots = [{ user_id: 12, user_name: "Test Player", date: "2025-01-01", valuation_ck: 470 }];
-  const recap = { date: "2025-01-01", content: "Rynek przetrwał kolejną sesję." };
+  const thesis = { ticker: "NVDA", type: "BUY", thesis: "Dane wskazują na wzrost.", created_at: "2025-01-01" };
   const env = {
     DB: {
       prepare(sql) {
         return {
-          bind: (...values) => ({
-            first: async () => sql.includes("SELECT id, github_login") && values[0] === 12 ? opponent : null,
-            all: async () => sql.includes("FROM holdings h") ? { results: [holding] } : { results: [] },
-          }),
-          all: async () => ({ results: snapshots }),
-          first: async () => recap,
+          bind: (...values) => {
+            const statement = {
+              first: async () => {
+                if (sql.includes("SELECT id, github_login")) return values[0] === 12 ? opponent : null;
+                if (sql.includes("FROM transactions")) return thesis;
+                return null;
+              },
+              all: async () => ({ results: sql.includes("FROM holdings h") ? [holding] : [] }),
+            };
+            return statement;
+          },
         };
       },
     },
@@ -186,13 +212,215 @@ test("P2 public endpoints return opponent portfolio, market race, and recap data
     stocks_value_ck: 220,
     valuation_ck: 470,
     holdings: [holding],
+    last_thesis: thesis,
   });
+});
 
-  const raceResponse = await handleMarketRace({ env });
-  assert.deepEqual((await raceResponse.json()).data, snapshots);
+test("Gemini text generation sends the configured prompt and returns generated text", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl;
+  let requestBody;
+  globalThis.fetch = async (url, options) => {
+    requestUrl = new URL(url);
+    requestBody = JSON.parse(options.body);
+    return Response.json({
+      candidates: [{ content: { parts: [{ text: "  Roast giełdowy.  " }] } }],
+    });
+  };
+  try {
+    const text = await generateText(
+      { GEMINI_API_KEY: "test-key" },
+      "System po polsku",
+      "Prompt użytkownika",
+      "Fallback"
+    );
+    assert.equal(text, "Roast giełdowy.");
+    assert.equal(requestUrl.pathname, "/v1beta/models/gemini-2.5-flash:generateContent");
+    assert.equal(requestUrl.searchParams.get("key"), "test-key");
+    assert.deepEqual(requestBody.systemInstruction, { parts: [{ text: "System po polsku" }] });
+    assert.deepEqual(requestBody.contents, [{ parts: [{ text: "Prompt użytkownika" }] }]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
-  const recapResponse = await handleMarketRecap({ env });
-  assert.deepEqual((await recapResponse.json()).data, recap);
+test("Gemini text generation returns the supplied fallback when the API key is missing", async () => {
+  const originalConsoleError = console.error;
+  console.error = () => {};
+  try {
+    assert.equal(await generateText({}, "System", "Prompt", "Fallback testowy"), "Fallback testowy");
+  } finally {
+    console.error = originalConsoleError;
+  }
+});
+
+test("Resend sends the briefing email to the configured Slack channel address", async () => {
+  const originalFetch = globalThis.fetch;
+  let requestUrl;
+  let requestHeaders;
+  let requestBody;
+  globalThis.fetch = async (url, options) => {
+    requestUrl = String(url);
+    requestHeaders = options.headers;
+    requestBody = JSON.parse(options.body);
+    return Response.json({ id: "email-test" });
+  };
+  try {
+    const result = await sendEmailToSlack({
+      RESEND_API_KEY: "resend-test",
+      SLACK_CHANNEL_EMAIL: "channel@example.test",
+    }, "Subject test", "<p>Briefing</p>");
+    assert.equal(requestUrl, "https://api.resend.com/emails");
+    assert.equal(requestHeaders.Authorization, "Bearer resend-test");
+    assert.deepEqual(requestBody, {
+      from: "Biurowy Makler <onboarding@resend.dev>",
+      to: ["channel@example.test"],
+      subject: "Subject test",
+      html: "<p>Briefing</p>",
+    });
+    assert.equal(result.id, "email-test");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("morning briefing composes market data and sends the fixed Slack subject", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    const endpoint = String(url);
+    requests.push({ endpoint, options });
+    if (endpoint.includes("generativelanguage.googleapis.com")) {
+      return Response.json({
+        candidates: [{ content: { parts: [{ text: "Kawa gotowa. Rynek jeszcze w szlafroku." }] } }],
+      });
+    }
+    return Response.json({ id: "morning-test" });
+  };
+  const env = {
+    GEMINI_API_KEY: "gemini-test",
+    RESEND_API_KEY: "resend-test",
+    SLACK_CHANNEL_EMAIL: "briefings@example.test",
+    DB: {
+      prepare(sql) {
+        return {
+          first: async () => {
+            if (sql.includes("fx_to_pln")) return { fx_to_pln: 4.02 };
+            return { user_name: "Test User", ticker: "NVDA", type: "BUY", thesis: "Teza <w nawiasach>", ai_roast: null };
+          },
+          all: async () => ({
+            results: [
+              { ticker: "^GSPC", name: "S&P 500", price: 5200, currency: "USD" },
+              { ticker: "WIG20", name: "WIG20", price: 2800, currency: "PLN" },
+            ],
+          }),
+        };
+      },
+    },
+  };
+  try {
+    const result = await sendMorningBriefing(env);
+    assert.equal(result.id, "morning-test");
+    assert.equal(requests.length, 2);
+    const geminiPrompt = JSON.parse(requests[0].options.body).contents[0].parts[0].text;
+    assert.match(geminiPrompt, /USD\/CK: 4,0200/);
+    assert.match(geminiPrompt, /Teza <w nawiasach>/);
+    const email = JSON.parse(requests[1].options.body);
+    assert.equal(email.subject, "☕ PORANNY BIULETYN: Kawa & Krew [08:30]");
+    assert.match(email.html, /Kawa gotowa/);
+    assert.match(email.html, /Teza &lt;w nawiasach&gt;/);
+    assert.doesNotMatch(email.html, /Teza <w nawiasach>/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("evening recap includes league standings and today's transaction count", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url, options) => {
+    const endpoint = String(url);
+    requests.push({ endpoint, options });
+    if (endpoint.includes("generativelanguage.googleapis.com")) {
+      return Response.json({
+        candidates: [{ content: { parts: [{ text: "Dzwonek wybrzmiał." }] } }],
+      });
+    }
+    return Response.json({ id: "evening-test" });
+  };
+  const env = {
+    GEMINI_API_KEY: "gemini-test",
+    RESEND_API_KEY: "resend-test",
+    SLACK_CHANNEL_EMAIL: "briefings@example.test",
+    DB: {
+      prepare(sql) {
+        return {
+          all: async () => ({
+            results: [
+              { id: 1, github_login: "winner", display_name: "Lider", valuation_ck: 120000 },
+              { id: 2, github_login: "bottom", display_name: "Ostatni", valuation_ck: 90000 },
+              { id: 3, github_login: "benchmark_sp500", display_name: "S&P 500", valuation_ck: 110000 },
+              { id: 4, github_login: "benchmark_wig20", display_name: "WIG20", valuation_ck: 105000 },
+            ],
+          }),
+          first: async () => sql.includes("COUNT(*)") ? { count: 7 } : null,
+        };
+      },
+    },
+  };
+  try {
+    const result = await sendEveningRecap(env);
+    assert.equal(result.id, "evening-test");
+    const prompt = JSON.parse(requests[0].options.body).contents[0].parts[0].text;
+    assert.match(prompt, /Lider: Lider/);
+    assert.match(prompt, /Dół tabeli: Ostatni/);
+    assert.match(prompt, /transakcji: 7/);
+    assert.match(prompt, /S&P 500/);
+    assert.match(JSON.parse(requests[1].options.body).subject, /Dzwonek & Zgliszcza \[17:30\]/);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("morning cron dispatches the briefing without running the price sync", async () => {
+  const originalFetch = globalThis.fetch;
+  const requests = [];
+  globalThis.fetch = async (url) => {
+    const endpoint = String(url);
+    requests.push(endpoint);
+    if (endpoint.includes("generativelanguage.googleapis.com")) {
+      return Response.json({
+        candidates: [{ content: { parts: [{ text: "Poranek na giełdzie." }] } }],
+      });
+    }
+    return Response.json({ id: "scheduled-briefing" });
+  };
+  const env = {
+    GEMINI_API_KEY: "gemini-test",
+    RESEND_API_KEY: "resend-test",
+    SLACK_CHANNEL_EMAIL: "briefings@example.test",
+    DB: {
+      prepare(sql) {
+        return {
+          first: async () => sql.includes("fx_to_pln") ? { fx_to_pln: 4 } : null,
+          all: async () => ({ results: [] }),
+        };
+      },
+    },
+  };
+  const promises = [];
+  try {
+    await worker.scheduled({ cron: "30 6 * * 1-5" }, env, {
+      waitUntil: promise => promises.push(promise),
+    });
+    await Promise.all(promises);
+    assert.deepEqual(requests, [
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=gemini-test",
+      "https://api.resend.com/emails",
+    ]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });
 
 test("CK formatter provides safe text and visual token formats", async () => {

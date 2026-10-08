@@ -22,8 +22,8 @@ const clickActions = {
   "logout": () => handleLogout(),
   "open-smart-sell": element => openSmartSell(element.dataset.ticker),
   "copy-feed-trade": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
-  "open-opponent-portfolio": element => openOpponentPortfolio(element.dataset.userId, element),
-  "close-opponent-drawer": () => closeOpponentPortfolio(),
+  "toggle-opponent-accordion": element => toggleOpponentAccordion(element.dataset.userId, element),
+  "copy-accordion-holding": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
 };
 
 document.addEventListener("click", event => {
@@ -73,8 +73,11 @@ document.addEventListener("change", event => {
 });
 
 document.addEventListener("keydown", event => {
-  if (event.key === "Escape" && !document.getElementById("opponentPortfolioDrawer").classList.contains("hidden")) {
-    closeOpponentPortfolio();
+  if ((event.key === "Enter" || event.key === " ") &&
+      event.target instanceof HTMLTableRowElement &&
+      event.target.dataset.action === "toggle-opponent-accordion") {
+    event.preventDefault();
+    event.target.click();
     return;
   }
   if (event.key === "Enter" && event.target instanceof HTMLInputElement &&

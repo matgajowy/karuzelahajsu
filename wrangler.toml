@@ -9,7 +9,7 @@ GITHUB_CLIENT_ID = "Ov23liBBJtlHrJ0Ey1pf"
 binding = "AI"
 
 [triggers]
-crons = ["*/15 8-22 * * 1-5", "5 22 * * 1-5"]
+crons = ["30 6 * * 1-5", "30 15 * * 1-5", "*/15 7-20 * * 1-5"]
 
 [assets]
 directory = "./public"
@@ -36,7 +36,7 @@ directory = "./public"
 binding = "ASSETS"
 
 [env.dev.triggers]
-crons = ["5 22 * * 1-5"]
+crons = ["30 6 * * 1-5", "30 15 * * 1-5", "*/15 7-20 * * 1-5"]
 
 [[env.dev.d1_databases]]
 binding = "DB"
