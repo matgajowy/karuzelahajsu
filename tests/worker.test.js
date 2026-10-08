@@ -394,13 +394,95 @@ test("feed query includes company names from market prices", async () => {
   const body = await response.json();
   const feedSource = await readFile(new URL("../src/worker/routes/feed.js", import.meta.url), "utf8");
   const portfolioSource = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+  const eventsSource = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
 
   assert.equal(body.data[0].company_name, "NVIDIA Corp");
   assert.match(feedSource, /LEFT JOIN market_prices p ON t\.ticker = p\.ticker/);
   assert.match(feedSource, /COALESCE\(p\.name, t\.ticker\) AS company_name/);
   assert.match(feedSource, /t\.total_value_pln AS total_value_ck/);
   assert.match(portfolioSource, /data-action="copy-feed-trade"/);
+  assert.match(portfolioSource, /const canCopy = isBuy && !isBenchmark\(item\.user_name\) && !isBenchmarkTicker/);
+  assert.match(portfolioSource, /group-hover:opacity-100/);
+  assert.match(portfolioSource, /opacity-100 md:opacity-0/);
   assert.match(portfolioSource, /item\.total_value_ck \?\? item\.total_value_pln/);
+  assert.match(eventsSource, /window\.karuzela\.copyTrade/);
+
+  const renderedFeed = { innerHTML: "" };
+  const rendered = await runInNewContext(
+    `${portfolioSource}; fetchFeed().then(() => document.getElementById("feedContainer").innerHTML);`,
+    {
+      apiRequest: async () => ({
+        status: "success",
+        data: [
+          { type: "BUY", ticker: "NVDA", user_name: "Trader", shares: 1, company_name: "NVIDIA", created_at: "2026-10-08T10:00:00Z" },
+          { type: "SELL", ticker: "NVDA", user_name: "Trader", shares: 1, company_name: "NVIDIA", created_at: "2026-10-08T10:00:00Z" },
+          { type: "BUY", ticker: "^GSPC", user_name: "Market Benchmark S&P 500", shares: 1, company_name: "S&P 500", created_at: "2026-10-08T10:00:00Z" },
+          { type: "BUY", ticker: "WIG20", user_name: "Market Index", shares: 1, company_name: "WIG20", created_at: "2026-10-08T10:00:00Z" },
+        ],
+      }),
+      document: { getElementById: () => renderedFeed },
+      escapeHtml: value => String(value ?? ""),
+      formatCK: value => String(value ?? 0),
+      isBenchmark: name => /benchmark|index|s&p|wig/i.test(String(name ?? "")),
+      formatQuotePrice: String,
+      currentUser: null,
+      userHoldings: [],
+      console,
+    },
+  );
+  assert.equal((rendered.match(/data-action="copy-feed-trade"/g) || []).length, 1);
+  assert.match(rendered, /⚡<\/span>\s*<span>Kopiuj<\/span>/);
+  assert.match(rendered, /md:pointer-events-none/);
+});
+
+test("copying a feed trade opens and prepares a BUY order", async () => {
+  const focused = [];
+  const elements = new Map();
+  const getElement = id => {
+    if (!elements.has(id)) {
+      elements.set(id, {
+        value: "",
+        innerHTML: "",
+        innerText: "",
+        disabled: false,
+        className: "",
+        classList: { add() {}, remove() {} },
+        focus: () => focused.push(id),
+      });
+    }
+    return elements.get(id);
+  };
+  const tickerInput = getElement("tradeTickerInput");
+  const thesisInput = getElement("tradeThesis");
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const context = {
+    currentUser: { id: 1 },
+    currentTradeType: "BUY",
+    verifiedInstrument: null,
+    selectedHoldingMaxShares: 0,
+    window: {},
+    location: { href: "" },
+    document: { getElementById: getElement },
+    userHoldings: [],
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+    formatQuotePrice: value => String(value),
+    apiRequest: async path => {
+      assert.equal(path, "/api/instruments/search?q=NVDA");
+      return {
+        status: "success",
+        data: { ticker: "NVDA", name: "NVIDIA Corp", price: 45, price_ck: 45, currency: "USD" },
+      };
+    },
+  };
+
+  await runInNewContext(`${source}; window.karuzela.copyTrade("NVDA", "Piotr Wiśniewski");`, context);
+
+  assert.equal(getElement("tradeTickerInput").value, "NVDA");
+  assert.equal(getElement("tradeModal").classList.hidden, undefined);
+  assert.equal(thesisInput.value, "Kopiuję ruch od @Piotr Wiśniewski! Też w to wchodzę.");
+  assert.deepEqual(focused, ["tradeShares"]);
+  assert.equal(getElement("verifiedInstrumentCard").classList.hidden, undefined);
+  assert.equal(typeof context.window.karuzela.copyTrade, "function");
 });
 
 test("trade amount input buys whole shares and shows the remaining budget", async () => {
