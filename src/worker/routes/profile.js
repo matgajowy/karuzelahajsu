@@ -44,7 +44,7 @@ export async function handleGenerateNickname({ request, env }) {
   let timeoutId;
   try {
     const result = await Promise.race([
-      env.AI.run("@cf/meta/llama-3.1-8b-instruct", {
+      env.AI.run("@cf/meta/llama-3.1-8b-instruct-fp8", {
         messages: [{ role: "user", content: nicknamePrompt }],
         max_tokens: 40,
       }),
