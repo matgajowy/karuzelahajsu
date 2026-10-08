@@ -33,6 +33,57 @@ export async function fetchYahooQuote(symbol) {
   }
 }
 
+async function fetchYahooQuotes(symbols) {
+  const cleanSymbols = [...new Set(symbols.map(symbol => symbol.trim().toUpperCase()))];
+  if (cleanSymbols.length === 0) return new Map();
+
+  const url = new URL("https://query1.finance.yahoo.com/v7/finance/spark");
+  url.searchParams.set("symbols", cleanSymbols.join(","));
+  url.searchParams.set("range", "1d");
+  url.searchParams.set("interval", "1d");
+
+  try {
+    const res = await fetch(url, {
+      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+    });
+    if (!res.ok) {
+      console.error(`Yahoo Finance batch quote returned HTTP ${res.status}`);
+      return new Map();
+    }
+
+    const json = await res.json();
+    const results = json?.spark?.result;
+    if (!Array.isArray(results)) {
+      console.error("Yahoo Finance batch quote returned an invalid response");
+      return new Map();
+    }
+
+    const quotes = new Map();
+    for (const item of results) {
+      const ticker = typeof item?.symbol === "string" ? item.symbol.toUpperCase() : "";
+      const metadata = item?.response?.[0]?.meta;
+      const price = Number(metadata?.regularMarketPrice);
+      if (!ticker || !Number.isFinite(price) || price <= 0) {
+        console.error(`Yahoo Finance batch quote returned no valid price for ${ticker || "unknown ticker"}`);
+        continue;
+      }
+
+      let currency = metadata.currency || "USD";
+      if (ticker.endsWith(".WA")) currency = "PLN";
+      quotes.set(ticker, {
+        ticker,
+        name: metadata.shortName || metadata.longName || ticker,
+        price,
+        currency: currency.toUpperCase(),
+      });
+    }
+    return quotes;
+  } catch (error) {
+    console.error("Yahoo Finance batch quote request failed:", error);
+    return new Map();
+  }
+}
+
 export async function syncAllMarketPrices(env) {
   const logs = [];
   const { results: tickers } = await env.DB.prepare("SELECT ticker, currency FROM market_prices").all();
@@ -44,14 +95,9 @@ export async function syncAllMarketPrices(env) {
   const quoteSymbols = [...new Set(tickers.map(({ ticker }) =>
     ticker === "WIG20" ? "WIG20.WA" : ticker
   ))];
-  const quoteCache = new Map();
-  const quoteFor = symbol => {
-    if (!quoteCache.has(symbol)) quoteCache.set(symbol, fetchYahooQuote(symbol));
-    return quoteCache.get(symbol);
-  };
 
   // The USD/PLN quote is the USD/CK rate because 1 CK = 1 PLN.
-  const usdQuote = await quoteFor("PLN=X");
+  const usdQuote = await fetchYahooQuote("PLN=X");
   const usdCkRate = usdQuote?.price;
   if (usdCkRate) logs.push(`Kurs USD/CK: ${usdCkRate.toFixed(4)}`);
   else {
@@ -59,13 +105,7 @@ export async function syncAllMarketPrices(env) {
     logs.push("Nie udało się pobrać kursu USD/CK; notowania USD pozostawiono bez zmian.");
   }
 
-  const quotes = new Map();
-  const batchSize = 5;
-  for (let index = 0; index < quoteSymbols.length; index += batchSize) {
-    const batch = quoteSymbols.slice(index, index + batchSize);
-    const quoteResults = await Promise.all(batch.map(async symbol => [symbol, await quoteFor(symbol)]));
-    for (const [symbol, quote] of quoteResults) quotes.set(symbol, quote);
-  }
+  const quotes = await fetchYahooQuotes(quoteSymbols);
 
   for (const item of tickers) {
     const sourceSymbol = item.ticker === "WIG20" ? "WIG20.WA" : item.ticker;
