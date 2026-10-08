@@ -199,14 +199,15 @@
       }
     }
 
-    function setMaxSellShares() {
-      const wholeShares = Math.floor(Number(selectedHoldingMaxShares) || 0);
+    function setSellSharePercentage(percentage) {
+      if (!Number.isFinite(percentage) || percentage <= 0 || percentage > 1) return;
+      const wholeShares = Math.floor((Number(selectedHoldingMaxShares) || 0) * percentage);
       const sharesInput = document.getElementById("tradeShares");
       const error = document.getElementById("tradeError");
       error.classList.add("hidden");
       if (wholeShares < 1) {
         sharesInput.value = "";
-        error.innerText = "Nie masz pełnej akcji do sprzedaży.";
+        error.innerText = "Wybrany procent odpowiada mniej niż jednej pełnej akcji.";
         error.classList.remove("hidden");
       } else {
         sharesInput.value = String(wholeShares);

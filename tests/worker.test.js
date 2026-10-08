@@ -104,8 +104,9 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.match(html, /id="portfolioTotalValue"/);
   assert.match(html, /id="tradeAmount"/);
   assert.match(html, /id="tradeAmountRemainder"/);
-  assert.doesNotMatch(html, /data-action="set-shares-percentage"/);
-  assert.match(html, /data-action="set-max-sell-shares"/);
+  assert.match(html, /data-action="set-sell-share-percentage" data-percent="0\.25"/);
+  assert.match(html, /data-action="set-sell-share-percentage" data-percent="0\.50"/);
+  assert.match(html, /data-action="set-sell-share-percentage" data-percent="1"/);
   assert.match(html, /MAX \(pełne akcje\)/);
   assert.match(html, /href="\/favicon\.svg"/);
   assert.match(html, /id="generateNickBtn"/);
@@ -991,7 +992,7 @@ test("trade API rejects fractional-share buys and sells before writing transacti
   }
 });
 
-test("MAX sale preset selects only available whole shares", async () => {
+test("sale percentage presets round down to whole shares", async () => {
   const elements = {
     tradeShares: { value: "" },
     tradeError: {
@@ -1009,10 +1010,17 @@ test("MAX sale preset selects only available whole shares", async () => {
   const result = runInNewContext(`${source}
     currentTradeType = "SELL";
     verifiedInstrument = { price_ck: 45 };
+    selectedHoldingMaxShares = 10;
+    setSellSharePercentage(0.25);
+    const quarter = document.getElementById("tradeShares").value;
+    setSellSharePercentage(0.5);
+    const half = document.getElementById("tradeShares").value;
     selectedHoldingMaxShares = 4.447;
-    setMaxSellShares();
+    setSellSharePercentage(1);
     JSON.stringify({
-      shares: document.getElementById("tradeShares").value,
+      quarter,
+      half,
+      max: document.getElementById("tradeShares").value,
       disabled: document.getElementById("submitTradeBtn").disabled,
     });`, {
     document: { getElementById: id => elements[id] },
@@ -1022,5 +1030,5 @@ test("MAX sale preset selects only available whole shares", async () => {
     formatCK: value => `${Number(value).toFixed(2)} CK`,
   });
 
-  assert.deepEqual(JSON.parse(result), { shares: "4", disabled: false });
+  assert.deepEqual(JSON.parse(result), { quarter: "2", half: "5", max: "4", disabled: false });
 });
