@@ -19,7 +19,7 @@
                     <div class="flex items-center flex-wrap gap-2">
                       <span class="font-bold text-white text-xs">${escapeHtml(item.user_name)}</span>
                       <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${escapeHtml(item.type)}</span>
-                      <span class="font-semibold text-slate-200 text-xs font-mono">${escapeHtml(item.shares)} szt. ${escapeHtml(item.ticker)}</span>
+                      <span class="font-semibold text-slate-200 text-xs font-mono">${escapeHtml(item.shares)} szt. ${escapeHtml(item.company_name || item.ticker)} (${escapeHtml(item.ticker)})</span>
                       <span class="text-[11px] text-slate-500 font-mono">(${formatCK(item.total_value_ck)})</span>
                     </div>
                     <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
@@ -27,8 +27,13 @@
                     </p>
                   </div>
                 </div>
-                <div class="text-[10px] text-slate-400 font-mono whitespace-nowrap self-end md:self-center">
-                  ${escapeHtml(dateStr)}
+                <div class="flex items-center justify-between md:justify-end gap-3">
+                  <button type="button" data-action="copy-feed-trade" data-ticker="${escapeHtml(item.ticker)}" data-user-name="${escapeHtml(item.user_name)}" class="text-[10px] text-indigo-300 hover:text-white bg-indigo-500/10 hover:bg-indigo-500/20 border border-indigo-500/20 px-2 py-1 rounded-lg transition whitespace-nowrap">
+                    🚀 Ja też tak chcę!
+                  </button>
+                  <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap">
+                    ${escapeHtml(dateStr)}
+                  </span>
                 </div>
               </div>
             `;
@@ -48,6 +53,10 @@
           userHoldings = json.data || [];
           if (currentUser) currentUser.current_cash = json.cash_ck;
           document.getElementById("userCashDisplay").innerHTML = formatCK(json.cash_ck, true, true);
+          const stockValue = userHoldings.reduce((total, holding) =>
+            total + Number(holding.current_value_pln ?? holding.current_value_ck ?? 0), 0);
+          document.getElementById("portfolioTotalValue").innerHTML =
+            formatCK(Number(json.cash_ck || 0) + stockValue, true, true);
           const tbody = document.getElementById("portfolioTableBody");
 
           if (userHoldings.length === 0) {

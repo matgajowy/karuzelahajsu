@@ -14,6 +14,7 @@ function createEnv({
   devAuthBypass = false,
   devAuthLogin = "demo_marta",
   demoUser = null,
+  ai = null,
 } = {}) {
   const writes = [];
   const env = {
@@ -21,6 +22,7 @@ function createEnv({
     ASSETS: assets,
     DEV_AUTH_BYPASS: devAuthBypass ? "true" : undefined,
     DEV_AUTH_LOGIN: devAuthBypass ? devAuthLogin : undefined,
+    AI: ai,
     DB: {
       prepare(sql) {
         return {
@@ -65,6 +67,7 @@ test("route registry covers all frontend API endpoints", () => {
     ["GET", "/api/feed"],
     ["GET", "/api/portfolio"],
     ["POST", "/api/profile"],
+    ["POST", "/api/profile/generate-nickname"],
     ["GET", "/api/admin/users"],
     ["POST", "/api/admin/users"],
     ["GET", "/api/instruments/search"],
@@ -98,6 +101,11 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.ok(resetDialogIndex > tradeFormEndIndex);
   assert.ok(resetDialogIndex < footerIndex);
   assert.match(html, /RESET-BENCHMARKS/);
+  assert.match(html, /id="portfolioTotalValue"/);
+  assert.match(html, /id="tradeAmount"/);
+  assert.match(html, /id="tradeAmountRemainder"/);
+  assert.match(html, /href="\/favicon\.svg"/);
+  assert.match(html, /id="generateNickBtn"/);
 });
 
 test("CK formatter provides safe text and visual token formats", async () => {
@@ -305,6 +313,133 @@ test("profile update validates input and persists for the authenticated user", a
     values[0] === "New Name" &&
     values[2] === 7
   ));
+});
+
+test("nickname generator requires an authenticated user", async () => {
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/profile/generate-nickname", { method: "POST" }),
+    createEnv(),
+    {},
+  );
+
+  assert.equal(response.status, 401);
+});
+
+test("nickname generator uses Workers AI and returns a validated nickname", async () => {
+  let model;
+  const env = createEnv({
+    user: { id: 7, is_admin: 0 },
+    ai: {
+      async run(modelName, input) {
+        model = { modelName, input };
+        return { response: "\"Rekin z Parkietu.\"" };
+      },
+    },
+  });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/profile/generate-nickname", {
+      method: "POST",
+      headers: { Cookie: "session_token=test-session" },
+    }),
+    env,
+    {},
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "success");
+  assert.equal(body.data.nickname, "Rekin z Parkietu");
+  assert.equal(body.data.fallback, false);
+  assert.equal(model.modelName, "@cf/meta/llama-3.1-8b-instruct");
+  assert.match(model.input.messages[0].content, /dokładnie JEDNĄ/);
+});
+
+test("nickname generator falls back if Workers AI throws", async () => {
+  const env = createEnv({
+    user: { id: 7, is_admin: 0 },
+    ai: { run: async () => { throw new Error("AI unavailable"); } },
+  });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/profile/generate-nickname", {
+      method: "POST",
+      headers: { Cookie: "session_token=test-session" },
+    }),
+    env,
+    {},
+  );
+  const body = await response.json();
+
+  assert.equal(response.status, 200);
+  assert.equal(body.status, "success");
+  assert.equal(body.data.fallback, true);
+  assert.match(body.data.nickname, /^[\p{L}\p{M}\p{N}'’-]+(?: [\p{L}\p{M}\p{N}'’-]+){1,2}$/u);
+});
+
+test("feed query includes company names from market prices", async () => {
+  const feedRow = {
+    ticker: "NVDA",
+    company_name: "NVIDIA Corp",
+    user_name: "Player",
+  };
+  const env = createEnv({ rows: [feedRow] });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/feed"),
+    env,
+    {},
+  );
+  const body = await response.json();
+  const feedSource = await readFile(new URL("../src/worker/routes/feed.js", import.meta.url), "utf8");
+  const portfolioSource = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+
+  assert.equal(body.data[0].company_name, "NVIDIA Corp");
+  assert.match(feedSource, /LEFT JOIN market_prices p ON t\.ticker = p\.ticker/);
+  assert.match(feedSource, /COALESCE\(p\.name, t\.ticker\) AS company_name/);
+  assert.match(portfolioSource, /data-action="copy-feed-trade"/);
+});
+
+test("trade amount input calculates fractional shares and remainder", async () => {
+  const elements = {
+    tradeShares: { value: "" },
+    tradeAmount: { value: "100" },
+    tradeAmountRemainder: {
+      innerText: "",
+      classList: {
+        hidden: true,
+        add() { this.hidden = true; },
+        remove() { this.hidden = false; },
+      },
+    },
+    estimatedCost: { innerHTML: "" },
+  };
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const result = runInNewContext(`${source}
+    currentTradeType = "BUY";
+    verifiedInstrument = { price_ck: 30 };
+    syncTradeInput("amount");
+    JSON.stringify({
+      shares: document.getElementById("tradeShares").value,
+      amount: document.getElementById("tradeAmount").value,
+      remainder: document.getElementById("tradeAmountRemainder").innerText,
+      visible: !document.getElementById("tradeAmountRemainder").classList.hidden,
+    });`, {
+    document: { getElementById: id => elements[id] },
+    currentTradeType: "BUY",
+    verifiedInstrument: { price_ck: 30 },
+    currentUser: null,
+    userHoldings: [],
+    formatCK: value => `${Number(value).toFixed(2)} CK`,
+    escapeHtml: value => value,
+    formatQuotePrice: value => String(value),
+    apiRequest: async () => ({}),
+    location: { href: "" },
+    alert() {},
+  });
+  const resultData = JSON.parse(result);
+
+  assert.equal(resultData.shares, "3.333");
+  assert.equal(resultData.amount, "100");
+  assert.equal(resultData.remainder, "Kupujesz: 3.333 szt. • Koszt: 99.99 CK • Niewykorzystana reszta: 0.01 CK");
+  assert.equal(resultData.visible, true);
 });
 
 test("admin can add a validated GitHub login to the whitelist", async () => {

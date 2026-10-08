@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title">
+  <title id="title">Cyrk Koin — złota moneta z namiotem</title>
+  <defs>
+    <radialGradient id="gold" cx="32%" cy="24%" r="75%">
+      <stop offset="0" stop-color="#fff7b0"/>
+      <stop offset=".48" stop-color="#fbbf24"/>
+      <stop offset="1" stop-color="#b45309"/>
+    </radialGradient>
+    <linearGradient id="rim" x2="1" y2="1">
+      <stop stop-color="#fef3c7"/>
+      <stop offset="1" stop-color="#92400e"/>
+    </linearGradient>
+  </defs>
+  <circle cx="32" cy="32" r="30" fill="url(#rim)"/>
+  <circle cx="32" cy="32" r="26.5" fill="url(#gold)" stroke="#fffbeb" stroke-width="1"/>
+  <circle cx="32" cy="32" r="23.5" fill="none" stroke="#92400e" stroke-opacity=".55" stroke-width="1" stroke-dasharray="2 2"/>
+  <path d="M16 33 32 17l16 16H16Z" fill="#fff7ed" stroke="#7f1d1d" stroke-width="1.5" stroke-linejoin="round"/>
+  <path d="m32 17 7 7v9h-7V17Z" fill="#b91c1c"/>
+  <path d="m32 17-7 7v9h7V17Z" fill="#fff7ed"/>
+  <path d="M15 33h34v3H15z" fill="#7f1d1d"/>
+  <path d="M29 36h6v7h-6z" fill="#92400e"/>
+  <text x="32" y="52" text-anchor="middle" fill="#7f1d1d" stroke="#fef3c7" stroke-width=".6" paint-order="stroke" font-family="system-ui,sans-serif" font-size="9" font-weight="900" letter-spacing="1">CK</text>
+</svg>
