@@ -271,7 +271,7 @@
       }
     }
 
-    async function copyFeedTrade(ticker, userName) {
+    async function copyTrade(ticker, targetUserName) {
       if (!currentUser) {
         location.href = "/api/auth/github";
         return;
@@ -280,9 +280,15 @@
       openTradeModal("BUY");
       setTradeType("BUY");
       document.getElementById("tradeTickerInput").value = ticker;
-      document.getElementById("tradeThesis").value =
-        `Kopiuję ruch od @${userName}! Też w to wchodzę.`;
       await verifyTicker();
+      document.getElementById("tradeThesis").value =
+        `Kopiuję ruch od @${targetUserName}! Też w to wchodzę.`;
+      document.getElementById("tradeShares").focus();
+    }
+
+    if (typeof window !== "undefined") {
+      window.karuzela = window.karuzela || {};
+      window.karuzela.copyTrade = copyTrade;
     }
 
     async function submitTrade(e) {

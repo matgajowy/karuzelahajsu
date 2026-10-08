@@ -21,7 +21,7 @@ const clickActions = {
   "fetch-audit": () => fetchAuditLogs(),
   "logout": () => handleLogout(),
   "open-smart-sell": element => openSmartSell(element.dataset.ticker),
-  "copy-feed-trade": element => copyFeedTrade(element.dataset.ticker, element.dataset.userName),
+  "copy-feed-trade": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
 };
 
 document.addEventListener("click", event => {
