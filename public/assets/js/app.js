@@ -97,6 +97,7 @@
     async function fetchAllData() {
       await fetchLeaderboard();
       await fetchFeed();
+      await fetchMarketInsights();
     }
 
     async function triggerQuickRefresh() {

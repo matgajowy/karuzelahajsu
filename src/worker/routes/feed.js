@@ -6,6 +6,7 @@ export async function handleFeed(context) {
     SELECT
       t.*,
       t.total_value_pln AS total_value_ck,
+      t.ai_roast,
       u.display_name AS user_name,
       u.avatar_url,
       COALESCE(p.name, t.ticker) AS company_name

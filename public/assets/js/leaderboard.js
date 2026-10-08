@@ -130,9 +130,9 @@
             <div class="flex items-center gap-2.5">
               <img src="${escapeHtml(avatar)}" alt="${escapeHtml(item.Uczestnik)}" class="w-7 h-7 rounded-full bg-slate-800 object-cover border border-slate-700">
               <div class="flex flex-col">
-                <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5">
+                <button type="button" data-action="open-opponent-portfolio" data-user-id="${Number(item.id)}" class="text-left text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5 hover:text-indigo-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-400 rounded">
                   ${escapeHtml(item.Uczestnik)}
-                </span>
+                </button>
                 ${item.github_login ? `<span class="text-[10px] text-slate-500">@${escapeHtml(item.github_login)}</span>` : ''}
               </div>
             </div>
