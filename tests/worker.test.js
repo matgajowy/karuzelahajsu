@@ -114,50 +114,26 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.match(html, /MAX \(pełne akcje\)/);
   assert.match(html, /href="\/favicon\.svg"/);
   assert.match(html, /id="generateNickBtn"/);
-  assert.match(html, /id="derbyTrack"/);
+  assert.doesNotMatch(html, /derbyTrack|derby\.js|Memiczny Tor Wyścigowy/);
   assert.doesNotMatch(html, /dailyRecapBanner|marketRecapContent|marketRaceChart|opponentPortfolioDrawer/);
   assert.doesNotMatch(html, /chart\.umd\.min\.js/);
-  assert.match(html, /\/assets\/js\/derby\.js/);
 });
 
-test("accordion portfolio and Derby Track are wired into the UI", async () => {
+test("accordion portfolio remains wired and transaction feed has no roast", async () => {
   const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
-  const derby = await readFile(new URL("../public/assets/js/derby.js", import.meta.url), "utf8");
   const leaderboard = await readFile(new URL("../public/assets/js/leaderboard.js", import.meta.url), "utf8");
   const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+  const feedRoute = await readFile(new URL("../src/worker/routes/feed.js", import.meta.url), "utf8");
+  const tradeRoute = await readFile(new URL("../src/worker/routes/trades.js", import.meta.url), "utf8");
 
   assert.match(events, /"toggle-opponent-accordion": element => toggleOpponentAccordion/);
   assert.match(events, /"copy-accordion-holding": element => window\.karuzela\.copyTrade/);
-  assert.match(derby, /function renderDerbyTrack/);
-  assert.match(derby, /Math\.min\(96, Math\.max\(4/);
-  assert.match(derby, /isSp500 \? "Benchmark S&P 500"/);
   assert.match(leaderboard, /\/api\/opponent-portfolio\?user_id=/);
   assert.match(leaderboard, /last_thesis/);
   assert.match(leaderboard, /data-action="copy-accordion-holding"/);
-  assert.match(portfolio, /item\.ai_roast/);
-});
-
-test("Derby Track clamps marker positions and renders all competitors", async () => {
-  const source = await readFile(new URL("../public/assets/js/derby.js", import.meta.url), "utf8");
-  const track = { innerHTML: "" };
-  const items = [
-    { id: 1, github_login: "leader", Uczestnik: "Lider", Stopa_Zwrotu: 0.5, avatar_url: null },
-    { id: 2, github_login: "behind", Uczestnik: "Tył tabeli", Stopa_Zwrotu: -0.5, avatar_url: null },
-    { id: 3, github_login: "benchmark_sp500", Uczestnik: "S&P 500", Stopa_Zwrotu: 0.03 },
-  ];
-  runInNewContext(`${source}\nrenderDerbyTrack(items);`, {
-    document: { getElementById: () => track },
-    items,
-    escapeHtml: value => String(value),
-    formatPct: value => `${(value * 100).toFixed(2)}%`,
-    encodeURIComponent,
-  });
-  assert.match(track.innerHTML, /left:96%/);
-  assert.match(track.innerHTML, /left:4%/);
-  assert.match(track.innerHTML, /left:43\.333333333333336%/);
-  assert.match(track.innerHTML, /Lider/);
-  assert.match(track.innerHTML, /Tył tabeli/);
-  assert.match(track.innerHTML, /Benchmark S&P 500/);
+  assert.doesNotMatch(portfolio, /Roast Master|ai_roast/);
+  assert.doesNotMatch(feedRoute, /ai_roast/);
+  assert.doesNotMatch(tradeRoute, /generateText|ai_roast|Roast Master/);
 });
 
 test("opponent portfolio endpoint returns holdings and latest thesis", async () => {
@@ -306,7 +282,7 @@ test("morning briefing composes market data and sends the fixed Slack subject", 
         return {
           first: async () => {
             if (sql.includes("fx_to_pln")) return { fx_to_pln: 4.02 };
-            return { user_name: "Test User", ticker: "NVDA", type: "BUY", thesis: "Teza <w nawiasach>", ai_roast: null };
+            return { user_name: "Test User", ticker: "NVDA", type: "BUY", thesis: "Teza <w nawiasach>" };
           },
           all: async () => ({
             results: [

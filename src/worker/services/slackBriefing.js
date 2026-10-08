@@ -66,7 +66,8 @@ export async function sendEmailToSlack(env, subject, htmlContent) {
   });
 
   if (!response.ok) {
-    throw new Error(`Resend API returned HTTP ${response.status}.`);
+    const responseBody = await response.text();
+    throw new Error(`Resend API returned HTTP ${response.status}: ${responseBody.slice(0, 500)}`);
   }
   return response.json();
 }
@@ -92,7 +93,6 @@ async function loadMorningData(env) {
         t.ticker,
         t.type,
         t.thesis,
-        t.ai_roast,
         t.created_at
       FROM transactions t
       JOIN users u ON u.id = t.user_id
@@ -114,7 +114,7 @@ export async function sendMorningBriefing(env) {
     `S&P 500: ${sp500 ? `${formatNumber(sp500.price)} ${sp500.currency}` : "brak notowania"}`,
     `WIG20: ${wig20 ? `${formatNumber(wig20.price)} ${wig20.currency}` : "brak notowania"}`,
     thesis
-      ? `Wczorajsza teza ${thesis.type} ${thesis.ticker} (${thesis.user_name}): ${thesis.thesis}${thesis.ai_roast ? ` | roast: ${thesis.ai_roast}` : ""}`
+      ? `Wczorajsza teza ${thesis.type} ${thesis.ticker} (${thesis.user_name}): ${thesis.thesis}`
       : "Wczoraj nie odnotowano transakcji.",
   ];
   const facts = marketFacts.join("\n");
