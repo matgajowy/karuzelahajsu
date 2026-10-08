@@ -37,6 +37,7 @@ export async function syncAllMarketPrices(env) {
   const logs = [];
   const { results: tickers } = await env.DB.prepare("SELECT ticker, currency FROM market_prices").all();
   const failedTickers = [];
+  const errors = [];
   let updatedCount = 0;
 
   // WIG20 is the legacy benchmark ticker; Yahoo publishes this index as WIG20.WA.
@@ -54,7 +55,7 @@ export async function syncAllMarketPrices(env) {
   const usdCkRate = usdQuote?.price;
   if (usdCkRate) logs.push(`Kurs USD/CK: ${usdCkRate.toFixed(4)}`);
   else {
-    failedTickers.push("PLN=X (kurs USD/CK)");
+    errors.push("Nie udało się pobrać kursu USD/CK.");
     logs.push("Nie udało się pobrać kursu USD/CK; notowania USD pozostawiono bez zmian.");
   }
 
@@ -90,11 +91,17 @@ export async function syncAllMarketPrices(env) {
     logs.push(`Zaktualizowano ${item.ticker} na podstawie ${sourceSymbol}: ${quote.price} ${quote.currency}`);
   }
 
-  const status = updatedCount === 0 ? "failed" : failedTickers.length > 0 ? "partial" : "success";
+  const status = updatedCount === 0
+    ? "failed"
+    : failedTickers.length > 0 || errors.length > 0
+      ? "partial"
+      : "success";
   const summary = {
+    total_count: tickers.length,
     updated_count: updatedCount,
     failed_count: failedTickers.length,
     failed_tickers: failedTickers,
+    errors,
   };
   const metadata = [
     ["last_price_sync", new Date().toISOString()],

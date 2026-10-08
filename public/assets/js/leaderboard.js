@@ -8,16 +8,24 @@
         const timeStr = syncDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         if (syncStatus === "partial") {
           const updated = syncSummary?.updated_count ?? 0;
-          const failed = syncSummary?.failed_count ?? 0;
-          statusText.innerText = `Niepełne kursy: ${updated}/${updated + failed}`;
-          syncTitle = syncSummary?.failed_tickers?.length
-            ? `Nie zaktualizowano: ${syncSummary.failed_tickers.join(", ")}`
-            : "Nie wszystkie kursy zostały zaktualizowane.";
+          const total = syncSummary?.total_count ?? updated + (syncSummary?.failed_count ?? 0);
+          statusText.innerText = `Niepełne kursy: ${updated}/${total}`;
+          const issues = [
+            ...(syncSummary?.failed_tickers?.length
+              ? [`Nie zaktualizowano: ${syncSummary.failed_tickers.join(", ")}`]
+              : []),
+            ...(syncSummary?.errors || []),
+          ];
+          syncTitle = issues.join(" ");
         } else if (syncStatus === "failed") {
           statusText.innerText = `Błąd synchronizacji: ${timeStr}`;
-          syncTitle = syncSummary?.failed_tickers?.length
-            ? `Nie zaktualizowano: ${syncSummary.failed_tickers.join(", ")}`
-            : "Synchronizacja nie zaktualizowała żadnych kursów.";
+          const issues = [
+            ...(syncSummary?.failed_tickers?.length
+              ? [`Nie zaktualizowano: ${syncSummary.failed_tickers.join(", ")}`]
+              : []),
+            ...(syncSummary?.errors || []),
+          ];
+          syncTitle = issues.join(" ") || "Synchronizacja nie zaktualizowała żadnych kursów.";
         } else {
           statusText.innerText = `Kursy: ${timeStr} • Cron: 15m`;
         }
