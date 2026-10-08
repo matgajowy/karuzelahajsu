@@ -20,7 +20,7 @@
                       <span class="font-bold text-white text-xs">${escapeHtml(item.user_name)}</span>
                       <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${escapeHtml(item.type)}</span>
                       <span class="font-semibold text-slate-200 text-xs font-mono">${escapeHtml(item.shares)} szt. ${escapeHtml(item.ticker)}</span>
-                      <span class="text-[11px] text-slate-500 font-mono">(${formatPLN(item.total_value_pln)})</span>
+                      <span class="text-[11px] text-slate-500 font-mono">(${formatCK(item.total_value_ck)})</span>
                     </div>
                     <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
                       "${escapeHtml(item.thesis)}"
@@ -46,7 +46,7 @@
         const json = await apiRequest('/api/portfolio');
         if (json.status === "success") {
           userHoldings = json.data || [];
-          document.getElementById("userCashDisplay").innerText = formatPLN(json.cash);
+          document.getElementById("userCashDisplay").innerHTML = formatCK(json.cash_ck);
           const tbody = document.getElementById("portfolioTableBody");
 
           if (userHoldings.length === 0) {
@@ -61,9 +61,9 @@
               <tr class="border-b border-slate-800/40 hover:bg-slate-900/40 transition">
                 <td class="py-3 font-semibold text-white font-sans">${escapeHtml(p.ticker)} <span class="text-slate-400 font-normal">(${escapeHtml(p.name)})</span></td>
                 <td class="py-3 text-right font-mono text-slate-200">${escapeHtml(p.shares)}</td>
-                <td class="py-3 text-right text-slate-400">${escapeHtml(p.avg_buy_price.toFixed(2))} ${escapeHtml(p.currency)}</td>
-                <td class="py-3 text-right text-slate-200">${escapeHtml(p.current_price.toFixed(2))} ${escapeHtml(p.currency)}</td>
-                <td class="py-3 text-right text-slate-200 font-bold">${formatPLN(p.current_value_pln)}</td>
+                <td class="py-3 text-right text-slate-400">${escapeHtml(formatQuotePrice(p.avg_buy_price, p.currency))}</td>
+                <td class="py-3 text-right text-slate-200">${escapeHtml(formatQuotePrice(p.current_price, p.currency))}</td>
+                <td class="py-3 text-right text-slate-200 font-bold">${formatCK(p.current_value_ck)}</td>
                 <td class="py-3 text-right font-semibold ${retCol}">${p.return_pct >= 0 ? '+' : ''}${p.return_pct.toFixed(2)}%</td>
                 <td class="py-3 text-center font-sans">
                   <button data-action="open-smart-sell" data-ticker="${escapeHtml(p.ticker)}" class="text-[11px] bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 px-2.5 py-1 rounded-md transition font-semibold">

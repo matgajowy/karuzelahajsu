@@ -24,8 +24,11 @@ export async function handleTrade(context) {
     return jsonResponse({ status: "error", message: "Walor nie został zweryfikowany w bazie." }, 400);
   }
 
-  const pricePln = inst.price * inst.fx_to_pln;
-  const totalTradePln = shares * pricePln;
+  // The database's legacy PLN conversion factor is also the CK conversion factor:
+  // 1 CK = 1 PLN.
+  const priceCk = inst.price * inst.fx_to_pln;
+  const totalTradeCk = shares * priceCk;
+  // Keep storing the same numeric amount in the legacy *_pln transaction column.
 
   // Wycena całkowita portfela użytkownika
   const portSummary = await env.DB.prepare(`
@@ -39,30 +42,32 @@ export async function handleTrade(context) {
     GROUP BY u.id
   `).bind(user.id).first();
 
-  const totalPortfolioValue = (portSummary.current_cash || 0) + (portSummary.stocks_value || 0);
+  const totalPortfolioValueCk = (portSummary.current_cash || 0) + (portSummary.stocks_value || 0);
 
   if (type === "BUY") {
-    // 1. Sprawdzenie salda gotówki
-    if (user.current_cash < totalTradePln) {
-      return jsonResponse({ status: "error", message: `Niewystarczające saldo gotówki. Posiadasz: ${user.current_cash.toFixed(2)} zł, potrzebujesz: ${totalTradePln.toFixed(2)} zł.` }, 400);
+    if (user.current_cash < totalTradeCk) {
+      return jsonResponse({
+        status: "error",
+        message: `Niewystarczające saldo Cyrk Koinów. Posiadasz: ${user.current_cash.toFixed(2)} CK, a zlecenie wymaga: ${totalTradeCk.toFixed(2)} CK.`,
+      }, 400);
     }
 
     // 2. Walidacja limitu 35% na walor
     const existingHolding = await env.DB.prepare("SELECT shares FROM holdings WHERE user_id = ? AND ticker = ?").bind(user.id, ticker).first();
     const existingShares = existingHolding ? existingHolding.shares : 0;
-    const postTradeTickerValue = (existingShares + shares) * pricePln;
-    const exposurePct = (postTradeTickerValue / totalPortfolioValue) * 100;
+    const postTradeTickerValueCk = (existingShares + shares) * priceCk;
+    const exposurePct = (postTradeTickerValueCk / totalPortfolioValueCk) * 100;
 
     if (exposurePct > 35.01) {
       return jsonResponse({
         status: "error",
-        message: `Naruszenie limitu koncentracji (Max 35%). Po transakcji walor stanowiłby ${exposurePct.toFixed(1)}% Twojego portfela!`
+        message: `Naruszenie limitu koncentracji (Max 35%). Po zakupie pozycja byłaby warta ${postTradeTickerValueCk.toFixed(2)} CK, czyli ${exposurePct.toFixed(1)}% Twojego portfela.`
       }, 400);
     }
 
     // Wykonanie zakupu w atomowej paczce batch()
     await env.DB.batch([
-      env.DB.prepare("UPDATE users SET current_cash = current_cash - ? WHERE id = ? AND current_cash >= ?").bind(totalTradePln, user.id, totalTradePln),
+      env.DB.prepare("UPDATE users SET current_cash = current_cash - ? WHERE id = ? AND current_cash >= ?").bind(totalTradeCk, user.id, totalTradeCk),
       env.DB.prepare(`
         INSERT INTO holdings (user_id, ticker, shares, avg_buy_price)
         VALUES (?, ?, ?, ?)
@@ -73,10 +78,10 @@ export async function handleTrade(context) {
       env.DB.prepare(`
         INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis)
         VALUES (?, ?, 'BUY', ?, ?, ?, ?)
-      `).bind(user.id, ticker, shares, inst.price, totalTradePln, thesis.trim())
+      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim())
     ]);
 
-    await logAudit(env, user.id, "TRADE_BUY", { ticker, shares, totalTradePln }, clientIp, "SUCCESS");
+    await logAudit(env, user.id, "TRADE_BUY", { ticker, shares, totalTradeCk }, clientIp, "SUCCESS");
     return jsonResponse({ status: "success", message: "Zlecenie kupna zrealizowane pomyślnie!" });
 
   } else if (type === "SELL") {
@@ -90,11 +95,11 @@ export async function handleTrade(context) {
     const remainingShares = existingHolding.shares - shares;
 
     const batchQueries = [
-      env.DB.prepare("UPDATE users SET current_cash = current_cash + ? WHERE id = ?").bind(totalTradePln, user.id),
+      env.DB.prepare("UPDATE users SET current_cash = current_cash + ? WHERE id = ?").bind(totalTradeCk, user.id),
       env.DB.prepare(`
         INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis)
         VALUES (?, ?, 'SELL', ?, ?, ?, ?)
-      `).bind(user.id, ticker, shares, inst.price, totalTradePln, thesis.trim())
+      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim())
     ];
 
     if (remainingShares <= 0.0001) {
@@ -104,7 +109,7 @@ export async function handleTrade(context) {
     }
 
     await env.DB.batch(batchQueries);
-    await logAudit(env, user.id, "TRADE_SELL", { ticker, shares, totalTradePln }, clientIp, "SUCCESS");
+    await logAudit(env, user.id, "TRADE_SELL", { ticker, shares, totalTradeCk }, clientIp, "SUCCESS");
     return jsonResponse({ status: "success", message: "Zlecenie sprzedaży zrealizowane pomyślnie!" });
   }
 }

@@ -9,7 +9,7 @@ export async function handleFeed(context) {
       t.type,
       t.shares,
       t.price,
-      t.total_value_pln,
+      t.total_value_pln AS total_value_ck,
       t.thesis,
       t.created_at,
       u.display_name AS user_name,

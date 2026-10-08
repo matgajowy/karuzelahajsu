@@ -12,7 +12,7 @@
               <tr class="border-b border-slate-800/40 hover:bg-slate-950/40">
                 <td class="py-2 text-white font-sans font-semibold">${escapeHtml(u.display_name)}</td>
                 <td class="py-2 text-slate-400">@${escapeHtml(u.github_login)}</td>
-                <td class="py-2 text-right text-emerald-400">${formatPLN(u.current_cash)}</td>
+                <td class="py-2 text-right text-emerald-400">${formatCK(u.current_cash_ck)}</td>
                 <td class="py-2 text-center">${roleBadge}</td>
               </tr>
             `;

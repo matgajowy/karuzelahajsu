@@ -29,12 +29,12 @@ export async function fetchYahooQuote(symbol) {
 export async function syncAllMarketPrices(env) {
   const logs = [];
 
-  // 1. Kurs USD/PLN
+  // 1. The USD/PLN quote is the USD/CK rate at the fixed 1:1 parity.
   let usdPln = 4.0;
   const usdQuote = await fetchYahooQuote("PLN=X");
   if (usdQuote) {
     usdPln = usdQuote.price;
-    logs.push(`Kurs USD/PLN: ${usdPln.toFixed(4)}`);
+    logs.push(`Kurs USD/CK: ${usdPln.toFixed(4)}`);
   }
 
   // 2. Pobranie unikalnych tickerów z bazy

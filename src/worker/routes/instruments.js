@@ -11,7 +11,7 @@ export async function handleInstrumentSearch(context) {
     return jsonResponse({ status: "error", message: `Walor "${q}" nie został znaleziony lub nie jest dozwolony.` }, 404);
   }
 
-  // Pobranie aktualnego kursu USD/PLN
+  // The Yahoo USD/PLN quote is also USD/CK because 1 CK = 1 PLN.
   let fxRate = 1.0;
   if (quote.currency === "USD") {
     const usdQuote = await fetchYahooQuote("PLN=X");
@@ -29,8 +29,8 @@ export async function handleInstrumentSearch(context) {
     status: "success",
     data: {
       ...quote,
-      fx_to_pln: fxRate,
-      price_pln: quote.price * fxRate,
+      fx_to_ck: fxRate,
+      price_ck: quote.price * fxRate,
     },
   });
 }

@@ -6,7 +6,7 @@
       document.getElementById("tradeError").classList.add("hidden");
       document.getElementById("tradeShares").value = "";
       document.getElementById("tradeThesis").value = "";
-      document.getElementById("estimatedCost").innerText = "0.00 zł";
+      document.getElementById("estimatedCost").innerHTML = formatCK(0);
       document.getElementById("verifiedInstrumentCard").classList.add("hidden");
       document.getElementById("tradeTickerInput").value = "";
       verifiedInstrument = null;
@@ -90,16 +90,16 @@
           name: holding.name,
           price: holding.current_price,
           currency: holding.currency,
-          fx_to_pln: holding.fx_to_pln,
-          price_pln: holding.current_price * holding.fx_to_pln
+          fx_to_ck: holding.fx_to_ck,
+          price_ck: holding.current_price * holding.fx_to_ck
         };
 
         document.getElementById("instFullName").innerText = verifiedInstrument.name;
         document.getElementById("instTickerDisplay").innerText = verifiedInstrument.ticker;
-        document.getElementById("instPriceDisplay").innerText = `${verifiedInstrument.price.toFixed(2)} ${verifiedInstrument.currency}`;
-        document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "PLN"
-          ? "1.00 PLN"
-          : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN`;
+        document.getElementById("instPriceDisplay").innerText = formatQuotePrice(verifiedInstrument.price, verifiedInstrument.currency);
+        document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "USD"
+          ? `≈ ${formatCK(verifiedInstrument.price_ck, false)} / akcję`
+          : "Parytet 1:1 z CK";
 
         document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
         submitBtn.disabled = false;
@@ -135,10 +135,10 @@
           verifiedInstrument = json.data;
           document.getElementById("instFullName").innerText = verifiedInstrument.name;
           document.getElementById("instTickerDisplay").innerText = verifiedInstrument.ticker;
-          document.getElementById("instPriceDisplay").innerText = `${verifiedInstrument.price.toFixed(2)} ${verifiedInstrument.currency}`;
-          document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "PLN"
-            ? "1.00 PLN"
-            : `≈ ${verifiedInstrument.price_pln.toFixed(2)} PLN`;
+          document.getElementById("instPriceDisplay").innerText = formatQuotePrice(verifiedInstrument.price, verifiedInstrument.currency);
+          document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "USD"
+            ? `≈ ${formatCK(verifiedInstrument.price_ck, false)} / akcję`
+            : "Parytet 1:1 z CK";
 
           document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
           submitBtn.disabled = false;
@@ -162,10 +162,10 @@
     function updateEstimatedCost() {
       const shares = Number(document.getElementById("tradeShares").value) || 0;
       if (verifiedInstrument && shares > 0) {
-        const val = shares * verifiedInstrument.price_pln;
-        document.getElementById("estimatedCost").innerText = formatPLN(val);
+        const val = shares * verifiedInstrument.price_ck;
+        document.getElementById("estimatedCost").innerHTML = formatCK(val);
       } else {
-        document.getElementById("estimatedCost").innerText = "0.00 zł";
+        document.getElementById("estimatedCost").innerHTML = formatCK(0);
       }
     }
 

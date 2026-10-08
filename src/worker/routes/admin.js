@@ -11,7 +11,7 @@ export async function handleAdminUsers(context) {
 
   if (request.method === "GET") {
     const { results } = await env.DB.prepare(`
-      SELECT id, github_login, display_name, current_cash, is_admin
+      SELECT id, github_login, display_name, current_cash AS current_cash_ck, is_admin
       FROM users
       ORDER BY display_name COLLATE NOCASE
     `).all();

@@ -1,7 +1,3 @@
-    function formatPLN(val) {
-      return (Number(val) || 0).toLocaleString('pl-PL', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " zł";
-    }
-
     function formatPct(val) {
       const num = (Number(val) || 0) * 100;
       return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
@@ -17,7 +13,7 @@
         statusText.innerText = `Brak synchronizacji`;
       }
       document.getElementById("syncStatusBadge").classList.remove("hidden");
-      document.getElementById("dataTimestamp").innerText = `Baza SQLite (D1)`;
+      document.getElementById("dataTimestamp").innerText = `Waluta: CK (1 CK = 1 PLN)`;
 
       const isBenchmarkRow = (name) => {
         const n = (name || '').toLowerCase();
@@ -119,9 +115,9 @@
           <tr class="${rowBg} border-b border-slate-800/60">
             <td class="py-3.5 px-4 text-center font-mono">${rankBadge}</td>
             <td class="py-3.5 px-4">${participantCell}</td>
-            <td class="py-3.5 px-4 text-right font-mono text-slate-200">${formatPLN(item.Wycena_Calkowita_PLN)}</td>
-            <td class="py-3.5 px-4 text-right font-mono text-slate-400">${formatPLN(item.Gotowka_PLN)}</td>
-            <td class="py-3.5 px-4 text-right font-mono ${retCol}">${formatPLN(item.Zysk_Strata_PLN)}</td>
+            <td class="py-3.5 px-4 text-right font-mono text-slate-200">${formatCK(item.Wycena_Calkowita_CK)}</td>
+            <td class="py-3.5 px-4 text-right font-mono text-slate-400">${formatCK(item.Gotowka_CK)}</td>
+            <td class="py-3.5 px-4 text-right font-mono ${retCol}">${formatCK(item.Zysk_Strata_CK)}</td>
             <td class="py-3.5 px-4 text-right font-mono font-bold ${retCol}">${formatPct(item.Stopa_Zwrotu)}</td>
           </tr>
         `;

@@ -23,7 +23,14 @@
             <h1 class="text-base font-extrabold tracking-tight text-white leading-tight flex items-center gap-1.5">
               Karuzela Hajsu <span class="text-xs font-mono font-medium text-indigo-400 bg-indigo-950/60 border border-indigo-800/40 px-1.5 py-0.2 rounded">v2.2</span>
             </h1>
-            <p class="text-[11px] text-slate-400">Biurowa Liga Spekulacyjna</p>
+            <div class="mt-1 flex flex-wrap items-center gap-2">
+              <p class="text-[11px] text-slate-400">Biurowa Liga Spekulacyjna</p>
+              <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-semibold">
+                <span>🎪</span>
+                <span>Waluta ligi: <strong>Cyrk Koin (CK)</strong></span>
+                <span class="text-[9px] text-amber-400/80 bg-amber-400/10 px-1.5 py-0.5 rounded font-mono">1 CK = 1.00 PLN</span>
+              </span>
+            </div>
           </div>
         </a>
       </div>
@@ -184,9 +191,9 @@
               <tr>
                 <th scope="col" class="py-3 px-4 w-14 text-center">#</th>
                 <th scope="col" class="py-3 px-4">Uczestnik</th>
-                <th scope="col" class="py-3 px-4 text-right">Wycena całkowita</th>
-                <th scope="col" class="py-3 px-4 text-right">Gotówka</th>
-                <th scope="col" class="py-3 px-4 text-right">Wynik (PLN)</th>
+                <th scope="col" class="py-3 px-4 text-right">Wycena portfela (CK)</th>
+                <th scope="col" class="py-3 px-4 text-right">Gotówka (CK)</th>
+                <th scope="col" class="py-3 px-4 text-right">Wynik (CK)</th>
                 <th scope="col" class="py-3 px-4 text-right">Stopa zwrotu</th>
               </tr>
             </thead>
@@ -241,8 +248,8 @@
 
           <div class="flex items-center gap-6">
             <div class="text-right">
-              <div class="text-xs text-slate-400">Dostępna Gotówka:</div>
-              <div id="userCashDisplay" class="text-xl font-black text-emerald-400 font-mono">0.00 zł</div>
+              <div class="text-xs text-slate-400">Dostępna Gotówka (CK):</div>
+              <div id="userCashDisplay" class="text-xl font-black text-emerald-400 font-mono">0,00 CK</div>
             </div>
             <button data-action="open-trade" data-trade-type="BUY" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-5 py-2.5 rounded-xl text-sm font-bold shadow-lg shadow-indigo-600/20 transition">
               <i data-lucide="plus-circle" class="w-4 h-4"></i> Nowe Zlecenie
@@ -259,9 +266,9 @@
                 <tr>
                   <th class="py-2.5">Walor</th>
                   <th class="py-2.5 text-right">Liczba akcji</th>
-                  <th class="py-2.5 text-right">Śr. zakup</th>
-                  <th class="py-2.5 text-right">Kurs bieżący</th>
-                  <th class="py-2.5 text-right">Wycena (PLN)</th>
+                  <th class="py-2.5 text-right">Śr. zakup (waluta waloru)</th>
+                  <th class="py-2.5 text-right">Kurs bieżący (waluta waloru)</th>
+                  <th class="py-2.5 text-right">Wycena (CK)</th>
                   <th class="py-2.5 text-right">Wynik</th>
                   <th class="py-2.5 text-center">Szybka Akcja</th>
                 </tr>
@@ -321,7 +328,7 @@
                 <tr>
                   <th class="py-2">Gracz</th>
                   <th class="py-2">GitHub Login</th>
-                  <th class="py-2 text-right">Gotówka</th>
+                  <th class="py-2 text-right">Gotówka (CK)</th>
                   <th class="py-2 text-center">Rola</th>
                 </tr>
               </thead>
@@ -448,8 +455,8 @@
 
       <div class="mt-4 space-y-3.5 text-xs text-slate-300 leading-relaxed">
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span class="font-bold text-white block mb-0.5">💵 1. Kapitał Startowy: 100 000 PLN</span>
-          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. Handlujemy na realnych cenach giełdowych.
+          <span class="font-bold text-white block mb-0.5">💵 1. Kapitał Startowy: 100 000 CK</span>
+          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. 1 CK ma stały parytet 1:1 z PLN, a notowania giełdowe przeliczamy na CK.
         </div>
 
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
@@ -546,8 +553,8 @@
         </div>
 
         <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
-          <span class="text-slate-400">Wartość zlecenia:</span>
-          <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0.00 zł</span>
+          <span class="text-slate-400">Wartość zlecenia (CK):</span>
+          <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0,00 CK</span>
         </div>
 
         <div>

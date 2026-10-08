@@ -2,6 +2,10 @@
 
 Cloudflare Worker application for a small paper-trading league.
 
+The league's virtual currency is Cyrk Koin (CK), fixed at `1 CK = 1 PLN`.
+Legacy D1 columns retain their PLN names; their stored values are numerically
+identical to CK, so existing balances and transaction history are unchanged.
+
 ## Project layout
 
 - `public/` contains the static site, styles, and browser scripts.
