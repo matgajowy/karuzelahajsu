@@ -110,7 +110,7 @@
       try {
         const json = await apiRequest('/api/leaderboard');
         if (json.status === "success") {
-          renderDashboard(json.data, json.last_sync);
+          renderDashboard(json.data, json.last_sync, json.sync_status, json.sync_summary);
         }
       } catch (e) {
         console.error("Leaderboard error:", e);

@@ -90,12 +90,12 @@
       try {
         const json = await apiRequest('/api/admin/sync-prices');
         if (json.status === "success") {
-          alert("Synchronizacja zakończona!");
+          alert(`${json.message}\n\n${json.logs.join("\n")}`);
           fetchAllData();
         } else {
           alert("Błąd: " + json.message);
         }
       } catch (e) {
-        alert("Błąd sieci.");
+        alert(`Nie udało się zsynchronizować kursów: ${e.message}`);
       }
     }
