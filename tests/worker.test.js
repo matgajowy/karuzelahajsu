@@ -225,7 +225,7 @@ test("leaderboard API exposes all portfolio values in CK at the fixed parity", a
     metadata: {
       last_price_sync: { value: "2026-10-08 08:30:00" },
       last_price_sync_status: { value: "partial" },
-      last_price_sync_summary: { value: JSON.stringify({ updated_count: 2, failed_count: 1, failed_tickers: ["WIG20"] }) },
+      last_price_sync_summary: { value: JSON.stringify({ total_count: 3, updated_count: 2, failed_count: 1, failed_tickers: ["WIG20"], errors: [] }) },
     },
   });
   const response = await worker.fetch(
@@ -305,6 +305,7 @@ test("price sync refreshes legacy WIG20 from WIG20.WA and reports missed quotes"
     );
 
     assert.equal(result.status, "partial");
+    assert.equal(result.summary.total_count, 3);
     assert.equal(result.summary.updated_count, 2);
     assert.deepEqual(result.summary.failed_tickers, ["AAPL"]);
     assert.equal(priceUpdates.length, 2);
@@ -333,7 +334,8 @@ test("price sync does not update USD quotes when the conversion rate is unavaila
     const result = await syncAllMarketPrices(env);
     assert.equal(result.status, "failed");
     assert.equal(result.summary.updated_count, 0);
-    assert.deepEqual(result.summary.failed_tickers, ["PLN=X (kurs USD/CK)", "AAPL"]);
+    assert.deepEqual(result.summary.failed_tickers, ["AAPL"]);
+    assert.deepEqual(result.summary.errors, ["Nie udało się pobrać kursu USD/CK."]);
     assert.equal(env.writes.some(({ sql }) => sql.includes("UPDATE market_prices")), false);
   } finally {
     globalThis.fetch = originalFetch;
