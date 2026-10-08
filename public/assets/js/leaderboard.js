@@ -190,7 +190,6 @@
       tbody.innerHTML = "";
       expandedPortfolioUserId = null;
       opponentPortfolioCache.clear();
-      renderDerbyTrack(items);
 
       let livePlayerRank = 0;
       items.forEach(item => {

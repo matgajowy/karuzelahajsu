@@ -28,7 +28,6 @@
                     <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
                       "${escapeHtml(item.thesis)}"
                     </p>
-                    ${item.ai_roast ? `<p class="text-[11px] text-amber-300/90 pl-3">🔥 Roast Master: ${escapeHtml(item.ai_roast)}</p>` : ""}
                   </div>
                 </div>
                 <div class="flex items-center gap-3 shrink-0 self-end md:self-center">
