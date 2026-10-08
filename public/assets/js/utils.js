@@ -10,39 +10,47 @@ function escapeHtml(value) {
 
 let ckCoinSequence = 0;
 
-function renderGoldCoinSvg() {
+function renderGoldCoinSvg(large = false) {
   const id = ++ckCoinSequence;
-  const faceGradient = `ckGoldFace${id}`;
-  const rimGradient = `ckGoldRim${id}`;
+  const faceGradient = `coinGold${id}`;
+  const rimGradient = `coinRim${id}`;
+  const shadowFilter = `embossShadow${id}`;
 
   return `
-    <svg class="ck-gold-coin" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <svg class="ck-coin${large ? " ck-coin-lg" : ""}" viewBox="0 0 32 32" width="${large ? 32 : 28}" height="${large ? 32 : 28}" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cyrk Koin">
       <defs>
-        <radialGradient id="${faceGradient}" cx="32%" cy="28%" r="68%">
-          <stop offset="0%" stop-color="#FFFDE7"/>
-          <stop offset="22%" stop-color="#FEEA61"/>
-          <stop offset="55%" stop-color="#F59E0B"/>
-          <stop offset="85%" stop-color="#B45309"/>
+        <radialGradient id="${faceGradient}" cx="35%" cy="30%" r="70%">
+          <stop offset="0%" stop-color="#FFFBEB"/>
+          <stop offset="25%" stop-color="#FDE047"/>
+          <stop offset="60%" stop-color="#D97706"/>
+          <stop offset="90%" stop-color="#B45309"/>
           <stop offset="100%" stop-color="#78350F"/>
         </radialGradient>
         <linearGradient id="${rimGradient}" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#FEF9C3"/>
-          <stop offset="35%" stop-color="#F59E0B"/>
-          <stop offset="70%" stop-color="#D97706"/>
+          <stop offset="0%" stop-color="#FEF08A"/>
+          <stop offset="40%" stop-color="#F59E0B"/>
+          <stop offset="80%" stop-color="#92400E"/>
           <stop offset="100%" stop-color="#451A03"/>
         </linearGradient>
+        <filter id="${shadowFilter}" x="-10%" y="-10%" width="120%" height="120%">
+          <feDropShadow dx="0" dy="0.75" stdDeviation="0.4" flood-color="#451A03" flood-opacity="0.8"/>
+        </filter>
       </defs>
-      <circle cx="16" cy="16" r="15" fill="url(#${rimGradient})" stroke="#FEF08A" stroke-width="0.75"/>
-      <circle cx="16" cy="16" r="13.3" fill="none" stroke="#78350F" stroke-width="0.65" stroke-dasharray="1.2 1.2"/>
-      <circle cx="16" cy="16" r="12" fill="url(#${faceGradient})" stroke="#FDE047" stroke-width="0.5"/>
-      <g transform="translate(0, -0.5)">
-        <line x1="16" y1="5.2" x2="16" y2="7.2" stroke="#FFFBEB" stroke-width="0.7" stroke-linecap="round"/>
-        <path d="M16 5.5L18 6.3L16 7.1Z" fill="#DC2626"/>
-        <path d="M16 7L21.5 12.8H10.5L16 7Z" fill="#FFFBEB" opacity="0.95"/>
-        <path d="M16 7L18.4 12.8H13.6L16 7Z" fill="#DC2626"/>
-        <line x1="10" y1="13.2" x2="22" y2="13.2" stroke="#78350F" stroke-width="0.5" stroke-linecap="round"/>
+      <circle cx="16" cy="16" r="15" fill="url(#${rimGradient})" stroke="#FEF9C3" stroke-width="0.6"/>
+      <circle cx="16" cy="16" r="13.4" fill="none" stroke="#78350F" stroke-width="0.5" stroke-dasharray="1 1"/>
+      <circle cx="16" cy="16" r="12.3" fill="url(#${faceGradient})" stroke="#FDE68A" stroke-width="0.4"/>
+      <g filter="url(#${shadowFilter})">
+        <line x1="16" y1="5.2" x2="16" y2="7.5" stroke="#FEF9C3" stroke-width="0.7" stroke-linecap="round"/>
+        <path d="M16 5.5L18.2 6.4L16 7.3Z" fill="#DC2626"/>
+        <path d="M16 7.5L22 13.2H10L16 7.5Z" fill="#FFFBEB"/>
+        <path d="M16 7.5L18.2 13.2H13.8L16 7.5Z" fill="#B91C1C"/>
+        <path d="M20.2 11.5L22 13.2H19.5L18.8 11.5Z" fill="#B91C1C"/>
+        <path d="M11.8 11.5L10 13.2H12.5L13.2 11.5Z" fill="#B91C1C"/>
+        <rect x="9.5" y="13.2" width="13" height="1" rx="0.5" fill="#78350F"/>
       </g>
-      <text x="16" y="23.2" font-family="'JetBrains Mono', monospace, sans-serif" font-weight="900" font-size="9" fill="#FFFDE7" text-anchor="middle" letter-spacing="-0.3" filter="drop-shadow(0px 1px 0px rgba(69, 26, 3, 0.95))">CK</text>
+      <g filter="url(#${shadowFilter})">
+        <text x="16" y="23.8" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="9.8" fill="#991B1B" stroke="#FEF08A" stroke-width="0.35" text-anchor="middle" letter-spacing="0.4">CK</text>
+      </g>
     </svg>
   `.trim();
 }
@@ -55,15 +63,11 @@ function formatCK(value, asHtml = true, largeBadge = false) {
   });
 
   if (!asHtml) return `${amount} CK`;
-  const badgeClass = largeBadge ? "ck-badge ck-badge-lg" : "ck-badge";
 
   return `
-    <span class="ck-token font-mono tabular-nums">
+    <span class="ck-token font-mono tabular-nums" title="Cyrk Koin (1 CK = 1 PLN)">
       <span>${amount}</span>
-      <span class="${badgeClass}" title="Cyrk Koin (1 CK = 1 PLN)">
-        ${renderGoldCoinSvg()}
-        <span class="ck-ticker">CK</span>
-      </span>
+      ${renderGoldCoinSvg(largeBadge)}
     </span>
   `.trim();
 }

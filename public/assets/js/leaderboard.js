@@ -68,7 +68,7 @@
         // Kolumna #
         let rankBadge = `<span class="text-slate-500 font-mono text-xs">${idx + 1}</span>`;
         if (isBench) {
-          rankBadge = `<span class="text-base" title="Oficjalny Benchmark">${flag}</span>`;
+          rankBadge = `<span class="text-slate-500 font-mono text-xs" title="Pozycja benchmarku">${idx + 1}</span>`;
         } else if (idx === 0) {
           rankBadge = `<span class="text-amber-400 text-base">🥇</span>`;
         } else if (idx === 1) {
@@ -81,8 +81,8 @@
         let participantCell = "";
         if (isBench) {
           participantCell = `
-            <div class="flex items-center gap-2 py-0.5">
-              <span class="text-base">${flag}</span>
+            <div class="flex items-center gap-2.5 py-0.5">
+              <span role="img" aria-label="${isSpFlag ? 'USA' : 'Polska'}" class="w-7 h-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-sm">${flag}</span>
               <div class="flex flex-col">
                 <span class="text-white font-semibold text-xs sm:text-sm flex items-center gap-1.5">
                   ${escapeHtml(item.Uczestnik)}

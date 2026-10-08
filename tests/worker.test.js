@@ -71,14 +71,22 @@ test("CK formatter provides safe text and visual token formats", async () => {
 
   assert.equal(formatted.text, "12 345,67 CK");
   assert.equal(formatted.invalid, "0,00 CK");
-  assert.match(formatted.visual, /class="ck-badge"/);
-  assert.match(formatted.visual, /class="ck-gold-coin"/);
+  assert.match(formatted.visual, /class="ck-coin"/);
   assert.match(formatted.visual, /<text[^>]*>CK<\/text>/);
   assert.match(formatted.visual, /12 345,67/);
-  assert.match(formatted.large, /class="ck-badge ck-badge-lg"/);
-  assert.match(formatted.visual, /id="ckGoldFace1"/);
-  assert.match(formatted.next, /id="ckGoldFace3"/);
-  assert.match(formatted.next, /fill="url\(#ckGoldFace3\)"/);
+  assert.doesNotMatch(formatted.visual, /ck-badge|ck-ticker/);
+  assert.match(formatted.large, /class="ck-coin ck-coin-lg"/);
+  assert.match(formatted.visual, /id="coinGold1"/);
+  assert.match(formatted.next, /id="coinGold3"/);
+  assert.match(formatted.next, /fill="url\(#coinGold3\)"/);
+  assert.match(formatted.visual, /<feDropShadow[^>]*\/>/);
+  assert.doesNotMatch(formatted.visual, /<\/feDropShadow>/);
+});
+
+test("benchmark flags appear only in round participant markers, not rank cells", async () => {
+  const source = await readFile(new URL("../public/assets/js/leaderboard.js", import.meta.url), "utf8");
+  assert.match(source, /if \(isBench\) \{\s*rankBadge = `<span class="text-slate-500 font-mono text-xs" title="Pozycja benchmarku">\$\{idx \+ 1\}<\/span>`;/);
+  assert.match(source, /role="img" aria-label="\$\{isSpFlag \? 'USA' : 'Polska'\}" class="w-7 h-7 rounded-full/);
 });
 
 test("unmatched methods return 405 and available methods", async () => {
