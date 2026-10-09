@@ -57,6 +57,17 @@
     </div>
 
     <div class="v2-sidebar-foot">
+      <div id="v2UserCard" class="v2-usercard hidden">
+        <div class="v2-usercard-top">
+          <img id="v2UserAvatar" src="" alt="">
+          <div class="v2-usercard-id">
+            <b id="v2UserName">—</b>
+            <span id="v2UserRank">—</span>
+          </div>
+          <button type="button" data-action="open-profile" class="v2-icon-btn" style="min-width:2rem;height:2rem;padding:0" aria-label="Ustawienia profilu"><span class="material-symbols-outlined" style="font-size:1.1rem" aria-hidden="true">settings</span></button>
+        </div>
+        <div class="v2-usercard-cash"><span>Dostępne środki:</span><b id="v2UserCash">—</b></div>
+      </div>
       <div id="syncStatusBadge" class="v2-status hidden">
         <span class="v2-dot" aria-hidden="true"></span>
         <span id="syncStatusText">Synchronizacja...</span>
@@ -78,8 +89,11 @@
       <span class="v2-pill v2-pill-rate" title="Cyrk Koin (CK) — oficjalna waluta ligi: 1 CK = 1 PLN">
         <span class="material-symbols-outlined" style="font-size:.9rem" aria-hidden="true">currency_exchange</span>1 CK = 1.00 PLN
       </span>
+      <span id="v2Markets" class="v2-markets" aria-label="Status giełd"></span>
     </div>
     <div class="v2-topbar-right">
+      <button type="button" data-action="quick-refresh" class="v2-icon-btn v2-hide-md" title="Odśwież dane" aria-label="Odśwież dane"><span class="material-symbols-outlined" aria-hidden="true">refresh</span></button>
+      <div id="v2ValuePill" class="v2-value-pill hidden"><span>Wartość:</span><b id="v2ValueCk">—</b><em id="v2ValuePct"></em></div>
       <button type="button" data-action="open-rules" class="v2-icon-btn" title="Zasady gry">
         <span class="material-symbols-outlined" aria-hidden="true">menu_book</span><span class="v2-hide-md">Zasady</span>
       </button>
@@ -109,58 +123,89 @@
               <span class="material-symbols-outlined" style="color:var(--v2-secondary);font-size:1.6rem" aria-hidden="true">workspace_premium</span>
             </div>
             <div class="v2-leader" style="margin-top:.9rem">
-              <img id="kpiLeaderAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=leader" alt="Lider">
+              <span class="v2-leader-avatar"><img id="kpiLeaderAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=leader" alt="Lider"><i>#1</i></span>
               <div style="min-width:0">
                 <div id="leaderName" class="v2-leader-name">Ładowanie...</div>
-                <div id="leaderValue" class="v2-leader-value font-mono">-- CK</div>
+                <small id="v2LeaderLogin" class="v2-muted"></small>
               </div>
             </div>
-            <div id="leaderReturn" class="v2-leader-return font-mono" style="margin-top:.6rem">--</div>
+            <div class="v2-leader-figures">
+              <div>
+                <small>Wycena całkowita</small>
+                <div id="leaderValue" class="v2-leader-value font-mono">-- CK</div>
+              </div>
+              <div class="v2-leader-ret">
+                <span id="leaderReturn" class="v2-leader-return font-mono">--</span>
+                <small id="v2LeaderProfit">—</small>
+              </div>
+            </div>
           </div>
-          <div class="v2-card-note">Prowadzi w klasyfikacji generalnej ligi</div>
+          <div class="v2-card-note">Płynna gotówka: <b id="v2LeaderCash">—</b></div>
         </div>
 
         <div class="v2-card">
           <div>
             <div class="v2-card-head">
-              <span class="v2-label">Benchmarki Rynkowe</span>
-              <span class="v2-label" style="color:var(--v2-primary)">Indeksy</span>
+              <span class="v2-label">Benchmarki rynkowe</span>
+              <span class="v2-label" style="color:var(--v2-primary)">Pasywne indeksy</span>
             </div>
             <div class="v2-bench-grid">
-              <div class="v2-bench"><small>🇺🇸 S&amp;P 500</small><b id="benchSp500Val" class="font-mono">--</b></div>
-              <div class="v2-bench"><small>🇵🇱 WIG 20</small><b id="benchWig20Val" class="font-mono">--</b></div>
+              <div class="v2-bench">
+                <small>🇺🇸 S&amp;P 500 ETF <span class="v2-muted">SPY</span></small>
+                <b id="benchSp500Val" class="font-mono">--</b>
+                <span id="v2BenchSpValue" class="v2-bench-val">—</span>
+              </div>
+              <div class="v2-bench">
+                <small>🇵🇱 WIG20 GPW <span class="v2-muted">WIG20.WA</span></small>
+                <b id="benchWig20Val" class="font-mono">--</b>
+                <span id="v2BenchWigValue" class="v2-bench-val">—</span>
+              </div>
             </div>
+            <p class="v2-bench-note">Baza odniesienia: kapitał startowy 100 000 CK.</p>
           </div>
-          <div class="v2-card-note">Punkt odniesienia dla portfeli</div>
+          <div class="v2-card-note v2-split"><span>Średnia rynku: <b id="v2MarketAvg">—</b></span><span class="v2-tag">Tryb: pasywny HODL</span></div>
         </div>
 
         <div class="v2-card">
           <div>
             <div class="v2-card-head">
-              <span class="v2-label">Średnia Drużyny</span>
-              <span class="material-symbols-outlined" style="color:var(--v2-outline)" aria-hidden="true">groups</span>
+              <span class="v2-label">Kondycja ringu</span>
+              <span id="beatTheMarketNote" class="v2-tag" data-tone="good">Rywalizacja trwa</span>
             </div>
             <div style="margin-top:.5rem">
+              <small class="v2-muted">Średnia stopa zespołu</small>
               <div id="avgReturn" class="v2-big font-mono">--</div>
-              <div id="activeParticipantsCount" style="font-size:.75rem;color:var(--v2-on-surface-variant);margin-top:.25rem">Sprawdzanie wyników...</div>
+              <div id="activeParticipantsCount" class="v2-muted" style="font-size:.72rem">Sprawdzanie wyników...</div>
+            </div>
+            <div class="v2-health">
+              <div><small>Współczynnik alfa</small><b id="v2Alpha2">—</b></div>
+              <div><small>Dominacja vs indeksy</small><b id="v2Dominance">—</b></div>
             </div>
           </div>
-          <div id="beatTheMarketNote" class="v2-card-note" style="color:var(--v2-primary);font-weight:600">Rywalizacja trwa</div>
+          <div class="v2-card-note">Łączna wycena graczy: <b id="v2TotalValuation">—</b></div>
         </div>
 
       </section>
 
       <div class="v2-arena-grid">
+        <div class="v2-stack-sm">
         <section class="v2-panel" aria-labelledby="rankingTitle">
           <div class="v2-panel-head">
             <div>
               <h2 id="rankingTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-secondary)" aria-hidden="true">emoji_events</span>Oficjalny Ranking Inwestycyjny</h2>
               <p class="v2-panel-sub">Wycena portfeli na żywo z uwzględnieniem kursów giełdowych</p>
             </div>
-            <span id="dataTimestamp" class="v2-label" style="text-transform:none;letter-spacing:0">Ładowanie danych...</span>
+            <div class="v2-tools">
+              <div class="v2-seg-sm" role="group" aria-label="Filtr rankingu">
+                <button type="button" data-v2-action="rank-filter" data-filter="all" data-active>Wszystkie</button>
+                <button type="button" data-v2-action="rank-filter" data-filter="players">Tylko gracze</button>
+                <button type="button" data-v2-action="rank-filter" data-filter="bench">Benchmarki</button>
+              </div>
+              <span id="dataTimestamp" class="hidden">Ładowanie danych...</span>
+            </div>
           </div>
           <div class="v2-table-wrap">
-            <table class="w-full text-left text-sm text-slate-300">
+            <table class="v2-rank w-full text-left text-sm text-slate-300">
               <thead class="text-[11px] uppercase bg-slate-950/70 text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
                 <tr>
                   <th scope="col" class="py-3 px-4 w-14 text-center">#</th>
@@ -176,8 +221,22 @@
               </tbody>
             </table>
           </div>
+          <div class="v2-rank-foot"><span class="material-symbols-outlined" aria-hidden="true">info</span><span>Wyceny aktualizowane w interwale 15-minutowym przez Cloudflare Cron Worker</span><b id="v2RankCount">—</b></div>
         </section>
 
+        <section class="v2-panel" aria-labelledby="allocTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h2 id="allocTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">donut_large</span>Agregacja alokacji w lidze</h2>
+              <p id="v2AllocInsight" class="v2-panel-sub">Ładowanie…</p>
+            </div>
+            <button type="button" data-v2-action="analyze-portfolios" class="v2-icon-btn"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span><span class="v2-hide-sm">Analiza portfeli</span></button>
+          </div>
+          <div class="v2-panel-body" id="v2Allocation"></div>
+        </section>
+        </div>
+
+        <div class="v2-stack-sm">
         <section class="v2-panel" aria-labelledby="feedTitle">
           <div class="v2-panel-head">
             <div>
@@ -190,6 +249,13 @@
             <div class="text-center text-slate-400 text-xs py-8">Ładowanie ostatnich zleceń...</div>
           </div>
         </section>
+
+        <aside class="v2-transparency">
+          <div class="v2-transparency-head"><span class="material-symbols-outlined" aria-hidden="true">gavel</span><b>Zasada transparentności</b></div>
+          <p>Wszystkie zlecenia są nieodwracalnie zapisywane w logu audytowym, a każda teza inwestycyjna jest publiczna dla całej ligi.</p>
+          <button type="button" data-v2-action="open-audit" class="v2-link-btn">Otwórz pełny rejestr audytu <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+        </aside>
+        </div>
       </div>
     </div>
 
@@ -203,6 +269,7 @@
           <div class="v2-who">
             <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar">
             <span id="userNameDisplay">--</span>
+            <span id="v2RankChip" class="v2-tag hidden">—</span>
             <button type="button" data-action="open-profile" class="v2-link-btn">✏️ Edytuj profil</button>
           </div>
         </div>
@@ -233,6 +300,8 @@
           <div class="v2-stat-top"><span class="v2-label">Limit koncentracji</span><span class="material-symbols-outlined" aria-hidden="true">verified_user</span></div>
           <div class="v2-stat-value"><span id="v2MaxPos">—</span> <small>/ limit 35,0%</small></div>
           <div class="v2-meter" role="img" aria-label="Największa pozycja względem limitu"><span id="v2MaxPosBar" style="width:0"></span><i style="left:100%"></i></div>
+          <div id="v2ExposureBar" class="v2-stack-bar" role="img" aria-label="Struktura portfela"></div>
+          <div id="v2ExposureLegend" class="v2-legend"></div>
           <div id="v2CodexNote" class="v2-stat-sub">Brak otwartych pozycji.</div>
         </div>
       </section>
@@ -240,10 +309,14 @@
       <section class="v2-panel" aria-labelledby="positionsTitle">
         <div class="v2-panel-head">
           <div>
-            <h3 id="positionsTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">table_rows</span>Otwarte pozycje</h3>
+            <h3 id="positionsTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">table_rows</span>Otwarte pozycje <span id="v2PositionsBadge" class="v2-count">0</span></h3>
             <p class="v2-panel-sub">Wycena w CK według bieżących kursów i przeliczenia walut</p>
           </div>
           <div class="v2-tools">
+            <div class="v2-seg-sm" role="group" aria-label="Sortowanie pozycji">
+              <button type="button" data-v2-action="sort-positions" data-sort="profit"><span class="material-symbols-outlined" aria-hidden="true">trending_up</span>Wg zysku</button>
+              <button type="button" data-v2-action="sort-positions" data-sort="value" data-active><span class="material-symbols-outlined" aria-hidden="true">pie_chart</span>Wg wartości</button>
+            </div>
             <label class="v2-select"><span class="material-symbols-outlined" aria-hidden="true">filter_list</span>
               <select id="v2MarketFilter" aria-label="Filtr rynku">
                 <option value="all">Wszystkie rynki</option>
@@ -412,9 +485,14 @@
    </div>
 
    <footer class="v2-footer">
-     <p style="margin:0 0 .35rem;font-weight:600;color:var(--v2-on-surface-variant)">Karuzela Hajsu • Biurowa Liga Spekulacyjna</p>
-     <p style="margin:0 auto;max-width:36rem;line-height:1.5">Żadna z informacji na tej platformie nie stanowi rekomendacji finansowej. Wszystkie transakcje są fikcyjne, ale ból po przegraniu z benchmarkiem S&amp;P 500 — w 100% autentyczny.</p>
-     <p style="margin:.75rem 0 0"><button type="button" data-action="open-rules">📜 Kodeks Spekulanta</button></p>
+     <div class="v2-footer-row">
+       <span><b>Karuzela Hajsu Engine</b> • Wersja 2.2</span>
+       <span class="v2-footer-links">
+         <button type="button" data-action="open-rules">Kodeks Spekulanta</button>
+         <button type="button" data-v2-action="open-audit">Whitelist &amp; audyt</button>
+       </span>
+     </div>
+     <p>Symulacja portfela nie stanowi rekomendacji finansowej w rozumieniu KNF/ESMA. Wszystkie transakcje są fikcyjne, a punkty CK nie są środkiem płatniczym — gra ma charakter edukacyjny w ramach wewnętrznej ligi biurowej.</p>
    </footer>
   </main>
 
@@ -554,8 +632,8 @@
           <fieldset class="v2-field">
             <legend>Kierunek operacji</legend>
             <div class="v2-seg">
-              <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="bg-emerald-600">KUPNO</button>
-              <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL">SPRZEDAŻ</button>
+              <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="bg-emerald-600"><span class="material-symbols-outlined" aria-hidden="true">trending_up</span>KUPNO</button>
+              <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL"><span class="material-symbols-outlined" aria-hidden="true">trending_down</span>SPRZEDAŻ</button>
             </div>
           </fieldset>
 
