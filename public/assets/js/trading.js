@@ -1,6 +1,31 @@
     let isUpdatingTradeInputs = false;
     let tradeInputSource = "shares";
 
+    function isMarketClosed() {
+      return verifiedInstrument?.market_status?.is_open === false;
+    }
+
+    function renderMarketStatus() {
+      const badge = document.getElementById("marketStatusBadge");
+      if (!badge) return;
+      const status = verifiedInstrument?.market_status;
+      if (!status) {
+        badge.classList.add("hidden");
+        badge.innerHTML = "";
+        return;
+      }
+      const hours = escapeHtml(String(status.hours || "").replace(/^Pn-Pt /, ""));
+      const market = escapeHtml(status.market);
+      if (status.is_open) {
+        const until = hours.split("-")[1] || "";
+        badge.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-950/40 border border-emerald-500/30 text-emerald-400 text-[11px] font-semibold">🟢 ${market}: Sesja otwarta do ${until}</span>`;
+      } else {
+        const next = status.next_open ? ` ${escapeHtml(status.next_open)}.` : "";
+        badge.innerHTML = `<div class="p-2.5 rounded-lg bg-amber-950/40 border border-amber-500/40 text-amber-400 text-[11px] leading-snug">⚠️ Rynek ${market} jest obecnie zamknięty. Składanie zleceń jest zablokowane (Sesja: Pon-Pt ${hours}).${next}</div>`;
+      }
+      badge.classList.remove("hidden");
+    }
+
     function openTradeModal(type = 'BUY') {
       if (!currentUser) {
         alert("Musisz być zalogowany!");
@@ -18,6 +43,7 @@
       document.getElementById("verifiedInstrumentCard").classList.add("hidden");
       document.getElementById("tradeTickerInput").value = "";
       verifiedInstrument = null;
+      renderMarketStatus();
 
       populateHoldingsDropdown();
       setTradeType(type);
@@ -145,7 +171,14 @@
       const shares = Number(document.getElementById("tradeShares").value);
       const validShares = Number.isSafeInteger(shares) && shares > 0 &&
         (currentTradeType === "BUY" || shares <= selectedHoldingMaxShares);
-      document.getElementById("submitTradeBtn").disabled = !verifiedInstrument || !validShares;
+      const closed = isMarketClosed();
+      const submitBtn = document.getElementById("submitTradeBtn");
+      submitBtn.disabled = !verifiedInstrument || !validShares || closed;
+      if (submitBtn.classList) {
+        const lockClasses = ["opacity-50", "cursor-not-allowed", "bg-slate-700"];
+        lockClasses.forEach(c => submitBtn.classList[closed ? "add" : "remove"](c));
+        submitBtn.classList[closed ? "remove" : "add"]("bg-indigo-600");
+      }
     }
 
     function populateHoldingsDropdown() {
@@ -166,6 +199,7 @@
         document.getElementById("availableSharesCount").innerText = "0";
         document.getElementById("verifiedInstrumentCard").classList.add("hidden");
         verifiedInstrument = null;
+        renderMarketStatus();
         updateTradeAvailability();
         updateEstimatedCost();
         return;
@@ -182,7 +216,8 @@
           price: holding.current_price,
           currency: holding.currency,
           fx_to_ck: holding.fx_to_ck,
-          price_ck: holding.current_price * holding.fx_to_ck
+          price_ck: holding.current_price * holding.fx_to_ck,
+          market_status: holding.market_status
         };
 
         document.getElementById("instFullName").innerText = verifiedInstrument.name;
@@ -193,6 +228,7 @@
           : "Parytet 1:1 z CK";
 
         document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
+        renderMarketStatus();
         updateTradeAvailability();
         if (currentTradeType === "BUY") syncTradeInput(tradeInputSource);
         updateEstimatedCost();
@@ -242,13 +278,15 @@
             : "Parytet 1:1 z CK";
 
           document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
-          submitBtn.disabled = false;
+          renderMarketStatus();
+          updateTradeAvailability();
           if (currentTradeType === "BUY") syncTradeInput(tradeInputSource);
           updateEstimatedCost();
         } else {
           verifiedInstrument = null;
           document.getElementById("verifiedInstrumentCard").classList.add("hidden");
-          submitBtn.disabled = true;
+          renderMarketStatus();
+          updateTradeAvailability();
           errDiv.innerText = json.message || "Walor nie został znaleziony.";
           errDiv.classList.remove("hidden");
         }
@@ -291,6 +329,13 @@
       window.karuzela.copyTrade = copyTrade;
     }
 
+    function showMarketClosedError(errDiv, status, message) {
+      const hours = String(status?.hours || "").replace(/^Pn-Pt /, "");
+      const base = message || `Handel na rynku ${status?.market || ""} jest obecnie zablokowany. Sesja trwa w godzinach ${hours} (Pn-Pt).`;
+      errDiv.innerText = `⚠️ ${base}${status?.next_open ? ` ${status.next_open}.` : ""}`;
+      errDiv.classList.remove("hidden");
+    }
+
     async function submitTrade(e) {
       e.preventDefault();
       const errDiv = document.getElementById("tradeError");
@@ -299,6 +344,11 @@
       if (!verifiedInstrument) {
         errDiv.innerText = "Wybierz lub zweryfikuj walor przed złożeniem zlecenia.";
         errDiv.classList.remove("hidden");
+        return;
+      }
+
+      if (isMarketClosed()) {
+        showMarketClosedError(errDiv, verifiedInstrument.market_status);
         return;
       }
 
@@ -338,7 +388,11 @@
           errDiv.classList.remove("hidden");
         }
       } catch (err) {
-        errDiv.innerText = err.message || "Błąd połączenia z serwerem.";
-        errDiv.classList.remove("hidden");
+        if (err.code === "MARKET_CLOSED") {
+          showMarketClosedError(errDiv, err.data?.market_status || verifiedInstrument?.market_status, err.message);
+        } else {
+          errDiv.innerText = err.message || "Błąd połączenia z serwerem.";
+          errDiv.classList.remove("hidden");
+        }
       }
     }

@@ -1,5 +1,6 @@
 import { jsonResponse } from "../lib/http.js";
 import { fetchYahooQuote } from "../services/pricing.js";
+import { getMarketInfo, toMarketStatus } from "../lib/marketHours.js";
 
 export async function handleInstrumentSearch(context) {
   const { request, env, url, clientIp } = context;
@@ -31,6 +32,7 @@ export async function handleInstrumentSearch(context) {
       ...quote,
       fx_to_ck: fxRate,
       price_ck: quote.price * fxRate,
+      market_status: toMarketStatus(getMarketInfo(quote.ticker)),
     },
   });
 }

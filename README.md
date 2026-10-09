@@ -33,7 +33,7 @@ deploy it with:
 
 ```sh
 npx wrangler d1 migrations apply liga_db_dev --remote --env dev
-npx wrangler deploy --env dev
+npm run deploy:dev
 ```
 
 Configure the briefing secrets directly in the Cloudflare Worker environment;
@@ -88,9 +88,8 @@ The explicit empty Wrangler environment selector prevents a warning when the
 configuration also defines named environments such as `dev`. Use this command
 as the Cloudflare build/deploy command for production.
 
-Before using the administrator-only benchmark reset, apply the migrations so
-the `^GSPC` and `WIG20` market-price symbols are available:
-
-```sh
-npx wrangler d1 migrations apply liga_db --remote
-```
+The existing production D1 database predates the tracked migration history and
+already contains the `^GSPC` and `WIG20` market-price symbols. Do not run
+`wrangler d1 migrations apply` against it until its baseline is reconciled:
+Wrangler currently reports the initial schema migration as pending, and
+applying it could attempt to recreate existing tables.

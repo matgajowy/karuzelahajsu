@@ -1,5 +1,6 @@
 import { jsonResponse } from "../lib/http.js";
 import { getSessionUser } from "../lib/auth.js";
+import { getMarketInfo, toMarketStatus } from "../lib/marketHours.js";
 
 export async function handlePortfolio(context) {
   const { request, env, url, clientIp } = context;
@@ -28,6 +29,6 @@ export async function handlePortfolio(context) {
   return jsonResponse({
     status: "success",
     cash_ck: user.current_cash,
-    data: results,
+    data: results.map(h => ({ ...h, market_status: toMarketStatus(getMarketInfo(h.ticker)) })),
   });
 }

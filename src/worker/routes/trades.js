@@ -1,5 +1,6 @@
 import { jsonResponse } from "../lib/http.js";
 import { getSessionUser, logAudit } from "../lib/auth.js";
+import { getMarketInfo, marketClosedMessage, toMarketStatus } from "../lib/marketHours.js";
 
 export async function handleTrade(context) {
   const { request, env, url, clientIp } = context;
@@ -23,6 +24,18 @@ export async function handleTrade(context) {
 
   if (!thesis || thesis.trim().length < 15) {
     return jsonResponse({ status: "error", message: "Uzasadnienie (Teza inwestycyjna) musi mieć co najmniej 15 znaków!" }, 400);
+  }
+
+  // Market Hours Guard: zlecenia tylko w sesji regularnej (czas Europe/Warsaw)
+  const marketInfo = getMarketInfo(ticker);
+  if (!marketInfo.isOpen) {
+    await logAudit(env, user.id, `TRADE_${type}`, { ticker, shares, market: marketInfo.market, reason: marketInfo.reason }, clientIp, "REJECTED_MARKET_CLOSED");
+    return jsonResponse({
+      status: "error",
+      code: "MARKET_CLOSED",
+      message: marketClosedMessage(marketInfo),
+      market_status: toMarketStatus(marketInfo),
+    }, 400);
   }
 
   // Pobranie bieżącego kursu z bazy
