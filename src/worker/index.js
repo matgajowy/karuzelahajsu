@@ -48,6 +48,13 @@ export default {
       return jsonResponse({ status: "error", message: "Nie znaleziono endpointu." }, 404);
     }
 
+    if (env.ASSETS && (url.pathname === "/v2" || url.pathname === "/v2/") &&
+        (request.method === "GET" || request.method === "HEAD")) {
+      // Nowy interfejs wybiera wyłącznie adres /v2 (bez ciasteczek i parametrów).
+      // Ścieżka bez rozszerzenia: Workers Assets zamieniłby "/index-v2.html" na przekierowanie.
+      return env.ASSETS.fetch(new Request(new URL("/index-v2", url), request));
+    }
+
     if (env.ASSETS) return env.ASSETS.fetch(request);
     return new Response("Not found", { status: 404 });
   },
