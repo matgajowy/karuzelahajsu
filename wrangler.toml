@@ -34,6 +34,9 @@ DEV_AUTH_LOGIN = "demo_marta"
 [env.dev.ai]
 binding = "AI"
 
+[env.dev.observability]
+enabled = true
+
 [env.dev.assets]
 directory = "./public"
 binding = "ASSETS"
