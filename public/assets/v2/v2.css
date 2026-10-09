@@ -680,3 +680,13 @@ select.v2-input { appearance: none; cursor: pointer; }
   .v2-nav-trade[style*="none"] { display: none !important; }
   .v2-nav-trade .v2-nav-item { margin-top: -1.4rem; }
 }
+
+/* poprawki mobile: nagłówek, filtr rankingu */
+.v2-brand-compact { white-space: nowrap; }
+@media (max-width: 767px) {
+  .v2-topbar-right .v2-icon-btn[data-action="open-rules"] { display: none; }
+  .v2-panel-head { flex-wrap: wrap; }
+  .v2-panel-head > .v2-tools { width: 100%; }
+  .v2-panel-head .v2-seg-sm { width: 100%; }
+  .v2-panel-head .v2-seg-sm button { flex: 1; justify-content: center; padding: .45rem .3rem; }
+}

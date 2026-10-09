@@ -454,9 +454,11 @@
         <div><span>${r.label}</span><b>${pct(share(r.value))} <span class="v2-muted">· ${ck(r.value)}</span></b></div>
         <span class="v2-bar-track"><i data-tone="${r.tone}" style="width:${share(r.value).toFixed(1)}%"></i></span>
       </div>`).join("");
-    const biggest = rows.slice(0, 2).sort((a, b) => num(b.value) - num(a.value))[0];
+    const [gpw, usa] = rows;
+    const leading = num(usa.value) >= num(gpw.value) ? "amerykańskich" : "polskich";
+    const leadingShare = Math.max(share(gpw.value), share(usa.value));
     $("v2AllocInsight").textContent = total > 0
-      ? `Gracze trzymają najwięcej w ${biggest.label.toLowerCase().replace("akcje ", "akcjach ")} (${pct(share(biggest.value))}); gotówka stanowi ${pct(share(data.cash_ck))}.`
+      ? `Gracze trzymają najwięcej w akcjach ${leading} spółek (${pct(leadingShare)}); gotówka to ${pct(share(data.cash_ck))}.`
       : "Brak danych o alokacji.";
   }
 
