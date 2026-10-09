@@ -1,10 +1,25 @@
 import { jsonResponse } from "./lib/http.js";
 import { allowedMethods, findRoute } from "./routes/index.js";
 import { syncAllMarketPrices } from "./services/pricing.js";
+import { sendEveningRecap, sendMorningBriefing } from "./services/slackBriefing.js";
 
 export default {
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(syncAllMarketPrices(env));
+  async scheduled(event, env, ctx) {
+    if (event.cron === "30 6 * * 1-5") {
+      ctx.waitUntil(sendMorningBriefing(env).catch(error => {
+        console.error("Morning Slack briefing failed.", error);
+      }));
+      return;
+    }
+    if (event.cron === "30 15 * * 1-5") {
+      ctx.waitUntil(sendEveningRecap(env).catch(error => {
+        console.error("Evening Slack recap failed.", error);
+      }));
+      return;
+    }
+    ctx.waitUntil(syncAllMarketPrices(env).catch(error => {
+      console.error("Scheduled market price sync failed.", error);
+    }));
   },
 
   async fetch(request, env, ctx) {

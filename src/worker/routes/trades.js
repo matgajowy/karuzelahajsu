@@ -113,7 +113,6 @@ export async function handleTrade(context) {
     }
 
     const remainingShares = existingHolding.shares - shares;
-
     const batchQueries = [
       env.DB.prepare("UPDATE users SET current_cash = current_cash + ? WHERE id = ?").bind(totalTradeCk, user.id),
       env.DB.prepare(`
