@@ -42,7 +42,7 @@ directory = "./public"
 binding = "ASSETS"
 
 [env.dev.triggers]
-crons = ["30 6 * * MON-FRI", "30 15 * * MON-FRI", "*/5 6-21 * * MON-FRI"]
+crons = ["30 6 * * MON-FRI", "30 15 * * MON-FRI", "*/15 6-21 * * MON-FRI"]
 
 [[env.dev.d1_databases]]
 binding = "DB"
