@@ -1129,3 +1129,91 @@ test("sale percentage presets round down to whole shares", async () => {
 
   assert.deepEqual(JSON.parse(result), { quarter: "2", half: "5", max: "4", disabled: false });
 });
+
+function createAssetsRecorder() {
+  const requested = [];
+  return {
+    requested,
+    fetch: async request => {
+      requested.push(new URL(request.url).pathname);
+      return new Response(`asset:${new URL(request.url).pathname}`, { status: 200 });
+    },
+  };
+}
+
+test("/v2 and /v2/ serve the new UI document while / keeps the legacy page", async () => {
+  const assets = createAssetsRecorder();
+  const env = createEnv({ assets });
+
+  for (const path of ["/v2", "/v2/"]) {
+    const response = await worker.fetch(new Request(`https://example.com${path}`), env, {});
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "asset:/index-v2");
+  }
+  const root = await worker.fetch(new Request("https://example.com/"), env, {});
+  assert.equal(await root.text(), "asset:/");
+  assert.deepEqual(assets.requested, ["/index-v2", "/index-v2", "/"]);
+});
+
+test("UI version is selected only by path: no cookie or query switch", async () => {
+  const assets = createAssetsRecorder();
+  const env = createEnv({ assets });
+  const response = await worker.fetch(
+    new Request("https://example.com/?ui=v2", { headers: { Cookie: "ui_version=v2" } }),
+    env,
+    {}
+  );
+  assert.equal(await response.text(), "asset:/");
+  assert.equal(response.headers.get("Set-Cookie"), null);
+});
+
+test("/v2 does not swallow API routes or other paths", async () => {
+  const assets = createAssetsRecorder();
+  const env = createEnv({ assets });
+  const api = await worker.fetch(new Request("https://example.com/api/v2/anything"), env, {});
+  assert.equal(api.status, 404);
+  assert.equal((await api.json()).status, "error");
+  await worker.fetch(new Request("https://example.com/v2/other"), env, {});
+  await worker.fetch(new Request("https://example.com/assets/v2/v2.css"), env, {});
+  assert.deepEqual(assets.requested, ["/v2/other", "/assets/v2/v2.css"]);
+});
+
+test("v2 page keeps every element and action the shared scripts depend on", async () => {
+  const [html, legacy, events, ...scripts] = await Promise.all([
+    readFile(new URL("../public/index-v2.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8"),
+    ...["app", "leaderboard", "portfolio", "profile", "admin", "trading"].map(name =>
+      readFile(new URL(`../public/assets/js/${name}.js`, import.meta.url), "utf8")),
+  ]);
+
+  // Każde ID, po które sięga wspólny JS i które istnieje w starym UI, musi istnieć w v2.
+  const scriptIds = new Set(scripts.flatMap(source =>
+    [...source.matchAll(/getElementById\(["']([^"']+)["']\)/g)].map(match => match[1])));
+  const missingIds = [...scriptIds]
+    .filter(id => legacy.includes(`id="${id}"`))
+    .filter(id => !html.includes(`id="${id}"`));
+  assert.ok(scriptIds.size > 20);
+  assert.deepEqual(missingIds, []);
+
+  const staticActions = [
+    ...events.matchAll(/^\s+"([a-z-]+)":/gm),
+    ...events.matchAll(/dataset\.action === "([a-z-]+)"/g),
+  ].map(match => match[1]);
+  const legacyActions = new Set([...legacy.matchAll(/data-action="([^"]+)"/g)].map(match => match[1]));
+  const v2Actions = new Set([...html.matchAll(/data-action="([^"]+)"/g)].map(match => match[1]));
+  for (const action of legacyActions) {
+    assert.ok(staticActions.includes(action), `unknown action ${action}`);
+    assert.ok(v2Actions.has(action), `v2 is missing action ${action}`);
+  }
+
+  assert.ok(scripts.length > 0);
+  assert.match(html, /<link rel="stylesheet" href="\/assets\/v2\/v2\.css">/);
+  assert.match(html, /href="\/api\/auth\/github"/);
+  assert.doesNotMatch(html, /\son(?:click|change|submit|input|keypress)=/i);
+  for (const script of ["state", "api", "utils", "leaderboard", "portfolio", "profile", "admin", "trading", "app", "events"]) {
+    assert.match(html, new RegExp(`src="/assets/js/${script}\\.js"`));
+  }
+  // Wszystkie zasoby są ścieżkami root-relative — działają pod /v2 i /v2/.
+  assert.doesNotMatch(html, /(?:src|href)="(?!https?:|\/|#|data:)[^"]+"/);
+});

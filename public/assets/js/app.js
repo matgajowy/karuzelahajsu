@@ -28,11 +28,18 @@
 
       Object.keys(tabs).forEach(key => {
         if (!tabs[key]) return;
+        if (tabs[key].dataset.ui === "v2") return;
         if (key === tabId) {
           tabs[key].className = "py-3 px-4 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition";
         } else {
           tabs[key].className = "py-3 px-4 text-xs font-bold border-b-2 border-transparent text-slate-400 hover:text-slate-200 flex items-center gap-2 transition";
         }
+      });
+
+      document.querySelectorAll('[data-ui="v2"][data-tab]').forEach(button => {
+        button.toggleAttribute("data-active", button.dataset.tab === tabId);
+        if (button.dataset.tab === tabId) button.setAttribute("aria-current", "page");
+        else button.removeAttribute("aria-current");
       });
 
       if (tabId === 'portfolio') fetchUserPortfolio();
