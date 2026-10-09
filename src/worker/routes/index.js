@@ -3,6 +3,7 @@ import { handleAdminUsers, handleAuditLogs, handlePriceSync, handleResetBenchmar
 import { handleFeed } from "./feed.js";
 import { handleInstrumentSearch } from "./instruments.js";
 import { handleLeaderboard } from "./leaderboard.js";
+import { handleLeagueAllocation } from "./leagueAllocation.js";
 import { handleLogout } from "./logout.js";
 import { handlePortfolio } from "./portfolio.js";
 import { handleOpponentPortfolio } from "../services/p2.js";
@@ -19,6 +20,7 @@ const routes = new Map([
   ["POST /api/profile/generate-nickname", handleGenerateNickname],
   ["POST /api/logout", handleLogout],
   ["GET /api/leaderboard", handleLeaderboard],
+  ["GET /api/league-allocation", handleLeagueAllocation],
   ["GET /api/portfolio", handlePortfolio],
   ["GET /api/opponent-portfolio", handleOpponentPortfolio],
   ["GET /api/instruments/search", handleInstrumentSearch],

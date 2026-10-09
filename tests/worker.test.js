@@ -1248,7 +1248,7 @@ test("v2 extensions only use hooks that exist in the shared scripts", async () =
   ]);
   const sharedSource = shared.join("\n");
   // Każda funkcja opakowywana w v2.js musi nadal istnieć we wspólnych skryptach.
-  for (const name of ["fetchUserPortfolio", "renderDashboard", "switchTab", "updateTradeAvailability", "openTradeModal", "closeTradeModal", "setTradeType"]) {
+  for (const name of ["fetchUserPortfolio", "renderDashboard", "fetchAllData", "fetchFeed", "switchTab", "updateTradeAvailability", "openTradeModal", "closeTradeModal", "setTradeType"]) {
     assert.match(sharedSource, new RegExp(`function ${name}\\(`), name);
     assert.match(v2, new RegExp(`window\\.${name} = `), `v2.js should wrap ${name}`);
   }
@@ -1257,4 +1257,44 @@ test("v2 extensions only use hooks that exist in the shared scripts", async () =
   const ids = new Set([...v2.matchAll(/\$\("([A-Za-z0-9]+)"\)/g)].map(match => match[1]));
   const missing = [...ids].filter(id => !html.includes(`id="${id}"`));
   assert.deepEqual(missing, []);
+});
+
+test("league allocation aggregates player holdings by market and excludes benchmarks", async () => {
+  const queries = [];
+  const env = {
+    DB: {
+      prepare(sql) {
+        queries.push(sql);
+        return {
+          first: async () => (sql.includes("current_cash") && !sql.includes("holdings")
+            ? { cash_ck: 91000.5 }
+            : { gpw_ck: 42000, usa_ck: 28000 }),
+        };
+      },
+    },
+  };
+  const response = await worker.fetch(new Request("https://example.com/api/league-allocation"), env, {});
+  assert.equal(response.status, 200);
+  assert.deepEqual((await response.json()).data, { gpw_ck: 42000, usa_ck: 28000, cash_ck: 91000.5 });
+  assert.ok(queries.every(sql => sql.includes("benchmark_sp500") && sql.includes("benchmark_wig20")));
+});
+
+test("v2 markup is balanced and exposes the Ring dashboard hooks", async () => {
+  const html = await readFile(new URL("../public/index-v2.html", import.meta.url), "utf8");
+  const body = html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<!--[\s\S]*?-->/g, "");
+  const voidTags = new Set(["meta", "link", "img", "input", "br", "hr", "source", "path", "circle", "line", "rect", "stop", "defs"]);
+  const stack = [];
+  for (const [, closing, name, selfClosing] of body.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g)) {
+    const tag = name.toLowerCase();
+    if (voidTags.has(tag) || selfClosing) continue;
+    if (closing) assert.equal(stack.pop(), tag, `unbalanced </${tag}>`);
+    else stack.push(tag);
+  }
+  assert.deepEqual(stack, []);
+  for (const id of ["v2Markets", "v2ValuePill", "v2UserCard", "v2Allocation", "v2RankCount", "v2ExposureBar", "v2PositionsBadge"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  for (const action of ["rank-filter", "sort-positions", "analyze-portfolios", "open-audit"]) {
+    assert.match(html, new RegExp(`data-v2-action="${action}"`));
+  }
 });
