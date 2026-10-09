@@ -112,6 +112,7 @@ body.v2 {
 .v2-nav-item:focus-visible, .v2-icon-btn:focus-visible, .v2-cta:focus-visible {
   outline: 2px solid var(--v2-primary); outline-offset: 2px;
 }
+.v2-short { display: none; }
 .v2-nav-admin { color: var(--v2-secondary); }
 .v2-nav-trade { flex: none; }
 
@@ -226,6 +227,8 @@ body.v2 {
     background: var(--v2-surface-low); border-top: 1px solid var(--v2-surface-high);
   }
   .v2-nav > * { flex: 1 1 0; min-width: 0; }
+  .v2-long { display: none; }
+  .v2-short { display: inline; }
   .v2-nav-item {
     flex-direction: column; justify-content: center; gap: .15rem; min-height: 3.25rem; padding: .25rem; border-radius: .75rem;
     font-size: .65rem; letter-spacing: 0; text-align: center;
