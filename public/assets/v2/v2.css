@@ -531,3 +531,13 @@ select.v2-input { appearance: none; cursor: pointer; }
   .v2-quick-sell { grid-template-columns: repeat(3, 1fr); }
   .v2-wallet b { font-size: 1rem; }
 }
+
+/* tabela pozycji: kompaktowe odstępy i akcje w kolumnie, bez poziomego przewijania na 1440px */
+.v2-tbl th, .v2-tbl td { padding-left: .6rem; padding-right: .6rem; }
+.v2-tbl th:first-child, .v2-tbl td:first-child { padding-left: 1.25rem; }
+.v2-tbl th:last-child, .v2-tbl td:last-child { padding-right: 1.25rem; }
+@media (min-width: 768px) {
+  .v2-tbl .act { width: 9.5rem; }
+  .v2-tbl .act .v2-act { display: flex; width: 100%; justify-content: center; margin: 0; }
+  .v2-tbl .act .v2-act + .v2-act { margin-top: .35rem; }
+}
