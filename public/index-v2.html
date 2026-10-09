@@ -81,7 +81,7 @@
     </div>
     <div class="v2-topbar-right">
       <button type="button" data-action="open-rules" class="v2-icon-btn" title="Zasady gry">
-        <span class="material-symbols-outlined" aria-hidden="true">menu_book</span><span class="hidden md:inline">Zasady</span>
+        <span class="material-symbols-outlined" aria-hidden="true">menu_book</span><span class="v2-hide-md">Zasady</span>
       </button>
       <div id="authContainer">
         <a href="/api/auth/github" class="v2-cta" style="min-height:2.5rem">
@@ -196,59 +196,108 @@
     <!-- WIDOK 2: MÓJ PORTFEL -->
     <div id="viewPortfolio" style="display: none;" class="v2-stack">
 
-      <section class="v2-panel">
-        <div class="v2-panel-body" style="padding:1.25rem">
-          <div class="v2-account">
-            <div class="v2-account-id">
-              <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar">
-              <div style="min-width:0">
-                <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
-                  <span class="v2-label" style="color:var(--v2-primary)">Rachunek Inwestycyjny</span>
-                  <button type="button" data-action="open-profile" class="v2-icon-btn" style="height:1.75rem;padding:0 .6rem;font-size:.7rem">✏️ Edytuj profil</button>
-                </div>
-                <h2 id="userNameDisplay" style="font-size:1.6rem;font-weight:800;letter-spacing:-.02em;margin:.2rem 0 0">--</h2>
-                <p style="margin:0;font-size:.75rem;color:var(--v2-on-surface-variant)">Limit dywersyfikacji: max 35% na pojedynczą spółkę</p>
-              </div>
-            </div>
-            <div class="v2-account-stats">
-              <div class="v2-stat"><small>Wycena całkowita portfela</small><b id="portfolioTotalValue" class="font-mono" style="color:var(--v2-on-surface)">0,00 CK</b></div>
-              <div class="v2-stat"><small>Dostępna Gotówka (CK):</small><b id="userCashDisplay" class="font-mono" style="color:var(--v2-secondary)">0,00 CK</b></div>
-              <button type="button" data-action="open-trade" data-trade-type="BUY" class="v2-cta">
-                <span class="material-symbols-outlined" aria-hidden="true">add</span>Nowe Zlecenie
-              </button>
-            </div>
+      <div class="v2-page-head">
+        <div style="min-width:0">
+          <span class="v2-label" style="color:var(--v2-primary)">Portfel główny spekulanta</span>
+          <h2 class="v2-h1">Mój Portfel Aktywów</h2>
+          <div class="v2-who">
+            <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar">
+            <span id="userNameDisplay">--</span>
+            <button type="button" data-action="open-profile" class="v2-link-btn">✏️ Edytuj profil</button>
           </div>
+        </div>
+        <div class="v2-page-actions">
+          <span class="v2-live" title="Dane odświeżane automatycznie co 15 sekund"><span class="v2-dot"></span>Live · 15 s</span>
+          <button type="button" data-v2-action="goto-journal" class="v2-icon-btn"><span class="material-symbols-outlined" aria-hidden="true">history_edu</span><span class="v2-hide-sm">Historia &amp; audyt</span></button>
+          <button type="button" data-action="open-trade" data-trade-type="BUY" class="v2-cta"><span class="material-symbols-outlined" aria-hidden="true">add</span>Nowe zlecenie</button>
+        </div>
+      </div>
+
+      <section class="v2-stats" aria-label="Podsumowanie portfela">
+        <div class="v2-stat-card v2-stat-main">
+          <div class="v2-stat-top"><span class="v2-label">Wycena całkowita</span><span class="material-symbols-outlined" aria-hidden="true">account_balance_wallet</span></div>
+          <div id="portfolioTotalValue" class="v2-stat-value font-mono">0,00 CK</div>
+          <div id="v2TotalDelta" class="v2-stat-sub">—</div>
+        </div>
+        <div class="v2-stat-card">
+          <div class="v2-stat-top"><span class="v2-label">Dostępna gotówka</span><span class="material-symbols-outlined" aria-hidden="true">payments</span></div>
+          <div id="userCashDisplay" class="v2-stat-value font-mono">0,00 CK</div>
+          <div class="v2-stat-sub"><span>Siła nabywcza: <b id="v2CashShare">—</b></span><span id="v2Liquidity" class="v2-tag">—</span></div>
+        </div>
+        <div class="v2-stat-card">
+          <div class="v2-stat-top"><span class="v2-label">W akcjach</span><span class="material-symbols-outlined" aria-hidden="true">pie_chart</span></div>
+          <div id="v2StocksValue" class="v2-stat-value font-mono">0,00 CK</div>
+          <div class="v2-stat-sub"><span>Ekspozycja: <b id="v2Exposure">—</b> <span id="v2PositionCount"></span></span><span id="v2Risk" class="v2-tag">—</span></div>
+        </div>
+        <div id="v2CodexCard" class="v2-stat-card" data-state="ok">
+          <div class="v2-stat-top"><span class="v2-label">Limit koncentracji</span><span class="material-symbols-outlined" aria-hidden="true">verified_user</span></div>
+          <div class="v2-stat-value"><span id="v2MaxPos">—</span> <small>/ limit 35,0%</small></div>
+          <div class="v2-meter" role="img" aria-label="Największa pozycja względem limitu"><span id="v2MaxPosBar" style="width:0"></span><i style="left:100%"></i></div>
+          <div id="v2CodexNote" class="v2-stat-sub">Brak otwartych pozycji.</div>
         </div>
       </section>
 
       <section class="v2-panel" aria-labelledby="positionsTitle">
         <div class="v2-panel-head">
           <div>
-            <h3 id="positionsTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">pie_chart</span>Twoje Otwarte Pozycje</h3>
-            <p class="v2-panel-sub">Kursy w walucie waloru, wycena w CK</p>
+            <h3 id="positionsTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">table_rows</span>Otwarte pozycje</h3>
+            <p class="v2-panel-sub">Wycena w CK według bieżących kursów i przeliczenia walut</p>
+          </div>
+          <div class="v2-tools">
+            <label class="v2-select"><span class="material-symbols-outlined" aria-hidden="true">filter_list</span>
+              <select id="v2MarketFilter" aria-label="Filtr rynku">
+                <option value="all">Wszystkie rynki</option>
+                <option value="GPW">GPW</option>
+                <option value="USA">USA</option>
+              </select>
+            </label>
+            <button type="button" data-v2-action="export-csv" class="v2-icon-btn" title="Pobierz pozycje jako CSV"><span class="material-symbols-outlined" aria-hidden="true">download</span><span class="v2-hide-sm">CSV</span></button>
           </div>
         </div>
-        <div class="v2-panel-body">
-          <div class="v2-table-wrap">
-            <table class="w-full text-left text-xs text-slate-300">
-              <thead class="text-slate-400 uppercase border-b border-slate-800">
-                <tr>
-                  <th class="py-2.5">Walor</th>
-                  <th class="py-2.5 text-right">Liczba akcji</th>
-                  <th class="py-2.5 text-right">Śr. zakup (waluta waloru)</th>
-                  <th class="py-2.5 text-right">Kurs bieżący (waluta waloru)</th>
-                  <th class="py-2.5 text-right">Wycena (CK)</th>
-                  <th class="py-2.5 text-right">Wynik</th>
-                  <th class="py-2.5 text-center">Szybka Akcja</th>
-                </tr>
-              </thead>
-              <tbody id="portfolioTableBody" class="divide-y divide-slate-800/40 font-mono">
-                <tr><td colspan="7" class="py-6 text-center text-slate-400 font-sans">Brak otwartych pozycji</td></tr>
-              </tbody>
-            </table>
-          </div>
+        <div class="v2-table-wrap">
+          <table class="v2-tbl">
+            <thead>
+              <tr>
+                <th>Spółka / ticker</th>
+                <th class="num">Liczba akcji</th>
+                <th class="num">Śr. zakup</th>
+                <th class="num">Kurs bieżący</th>
+                <th class="num">Wycena (CK)</th>
+                <th class="num">Udział</th>
+                <th class="num">Niezrealizowany P&amp;L</th>
+                <th class="act">Szybkie akcje</th>
+              </tr>
+            </thead>
+            <tbody id="portfolioTableBody">
+              <tr><td colspan="8" class="v2-empty">Brak otwartych pozycji</td></tr>
+            </tbody>
+          </table>
         </div>
       </section>
+
+      <div class="v2-two">
+        <section id="v2Journal" class="v2-panel" aria-labelledby="journalTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h3 id="journalTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-secondary)" aria-hidden="true">forum</span>Dziennik transakcji &amp; tez</h3>
+              <p class="v2-panel-sub">Obowiązkowe uzasadnienie każdego ruchu (min. 15 znaków)</p>
+            </div>
+          </div>
+          <div id="v2JournalList" class="v2-journal"><p class="v2-empty">Ładowanie historii…</p></div>
+        </section>
+
+        <section class="v2-panel" aria-labelledby="alphaTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h3 id="alphaTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">donut_large</span>Alokacja &amp; alfa</h3>
+              <p class="v2-panel-sub">Twoja stopa zwrotu na tle benchmarków</p>
+            </div>
+          </div>
+          <div class="v2-panel-body" id="v2Alpha">
+            <p class="v2-empty">Ładowanie…</p>
+          </div>
+        </section>
+      </div>
 
     </div>
 
@@ -370,6 +419,7 @@
   </main>
 
 </div>
+<div id="v2Toasts" class="v2-toasts" aria-live="polite"></div>
 
   <!-- ========================================== -->
   <!-- MODAL: EDYTOR PROFILU & AWATARA            -->
@@ -479,95 +529,133 @@
   </div>
 
   <!-- ========================================== -->
-  <!-- MODAL: FORMULARZ ZLECENIA                  -->
+  <!-- ZLECENIE: KUPNO / SPRZEDAŻ                 -->
   <!-- ========================================== -->
-  <div id="tradeModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
-      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
-        <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <i data-lucide="trending-up" class="w-4 h-4 text-indigo-400"></i> Złóż Zlecenie Giełdowe
-        </h3>
-        <button data-action="close-trade" class="text-slate-400 hover:text-white transition">
-          <i data-lucide="x" class="w-5 h-5"></i>
-        </button>
-      </div>
-
-      <form id="tradeForm" data-action="submit-trade" class="mt-4 space-y-4">
-        <div class="bg-indigo-950/50 p-3 rounded-xl border border-indigo-500/30 flex justify-between items-center">
-          <span class="text-xs font-medium text-slate-300">Dostępne środki:</span>
-          <span id="tradeAvailableCash" class="font-bold text-emerald-300 font-mono text-sm">0,00 CK</span>
+  <div id="tradeModal" class="v2-trade hidden" role="dialog" aria-modal="true" aria-labelledby="tradeTitle">
+    <div class="v2-trade-sheet">
+      <header class="v2-trade-head">
+        <div class="v2-trade-title">
+          <span class="v2-trade-icon material-symbols-outlined" aria-hidden="true">bolt</span>
+          <div>
+            <h3 id="tradeTitle">Złóż zlecenie</h3>
+            <p>Kupno lub sprzedaż akcji GPW &amp; USA w ramach Ringu Spekulantów.</p>
+          </div>
         </div>
-        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
-          <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition">KUPNO</button>
-          <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL" class="py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
-        </div>
+        <button type="button" data-action="close-trade" class="v2-icon-btn" aria-label="Zamknij"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      </header>
 
-        <div id="buyInstrumentSection">
-          <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
-          <div class="flex gap-2">
-            <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
-            <button type="button" id="verifyBtn" data-action="verify-ticker" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
-              Sprawdź
-            </button>
+      <form id="tradeForm" data-action="submit-trade" class="v2-trade-body" autocomplete="off">
+        <div class="v2-trade-col">
+          <div class="v2-wallet">
+            <div><small>Dostępne środki</small><b id="tradeAvailableCash" class="font-mono">0,00 CK</b></div>
+            <div><small>Wycena całkowita</small><b id="v2TradeTotal" class="font-mono">—</b></div>
+          </div>
+
+          <fieldset class="v2-field">
+            <legend>Kierunek operacji</legend>
+            <div class="v2-seg">
+              <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="bg-emerald-600">KUPNO</button>
+              <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL">SPRZEDAŻ</button>
+            </div>
+          </fieldset>
+
+          <div id="buyInstrumentSection" class="v2-field">
+            <label for="tradeTickerInput">Symbol waloru (ticker)</label>
+            <div class="v2-input-row">
+              <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="v2-input" style="text-transform:uppercase" spellcheck="false">
+              <button type="button" id="verifyBtn" data-action="verify-ticker" class="v2-btn-soft"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span>Sprawdź</button>
+            </div>
+            <div id="v2Chips" class="v2-chips" aria-label="Szybki wybór waloru"></div>
+          </div>
+
+          <div id="sellInstrumentSection" class="v2-field hidden">
+            <label for="userHoldingsSelect">Wybierz ze swojego portfela</label>
+            <select id="userHoldingsSelect" data-action="holding-selected" class="v2-input">
+              <option value="">Wybierz walor do sprzedaży...</option>
+            </select>
+          </div>
+
+          <div id="verifiedInstrumentCard" class="v2-instrument hidden">
+            <div class="v2-instrument-top">
+              <span id="v2InstInitial" class="v2-ini">?</span>
+              <div class="v2-instrument-name">
+                <div id="instFullName">--</div>
+                <small id="instTickerDisplay">--</small>
+              </div>
+              <div class="v2-instrument-price">
+                <b id="instPriceDisplay" class="font-mono">--</b>
+                <small id="instFxDisplay" class="font-mono">--</small>
+              </div>
+            </div>
+            <div id="marketStatusBadge" class="hidden"></div>
+          </div>
+
+          <div class="v2-field">
+            <div class="v2-field-head">
+              <label for="tradeShares">Liczba akcji (szt.)</label>
+              <span id="availableSharesBadge" class="hidden v2-hint">Dostępne: <b id="availableSharesCount">0</b></span>
+            </div>
+            <div class="v2-stepper">
+              <button type="button" data-v2-action="step-down" aria-label="Zmniejsz liczbę akcji"><span class="material-symbols-outlined" aria-hidden="true">remove</span></button>
+              <input type="number" step="1" min="1" id="tradeShares" data-action="update-estimated-cost" required placeholder="0" inputmode="numeric">
+              <button type="button" data-v2-action="step-up" aria-label="Zwiększ liczbę akcji"><span class="material-symbols-outlined" aria-hidden="true">add</span></button>
+            </div>
+
+            <div id="v2BuyQuick" class="v2-quick-wrap">
+              <span class="v2-hint">Kalkulator alokacji — szybkie proporcje gotówki</span>
+              <div class="v2-quick">
+                <button type="button" data-v2-action="buy-percent" data-percent="0.25"><b>25%</b><small data-quick-amount="0.25">—</small></button>
+                <button type="button" data-v2-action="buy-percent" data-percent="0.5"><b>50%</b><small data-quick-amount="0.5">—</small></button>
+                <button type="button" data-v2-action="buy-percent" data-percent="0.75"><b>75%</b><small data-quick-amount="0.75">—</small></button>
+                <button type="button" data-v2-action="buy-percent" data-percent="1"><b>MAX</b><small data-quick-amount="1">—</small></button>
+              </div>
+            </div>
+
+            <div id="quickSharesButtons" class="hidden v2-quick v2-quick-sell">
+              <button type="button" data-action="set-sell-share-percentage" data-percent="0.25"><b>25%</b></button>
+              <button type="button" data-action="set-sell-share-percentage" data-percent="0.50"><b>50%</b></button>
+              <button type="button" data-action="set-sell-share-percentage" data-percent="1"><b>MAX</b><small>pełne akcje</small></button>
+            </div>
+
+            <div id="tradeAmountSection">
+              <label for="tradeAmount" class="v2-sublabel">…albo podaj kwotę zakupu (CK)</label>
+              <input type="number" step="0.01" min="0.01" id="tradeAmount" data-action="update-estimated-cost" placeholder="np. 500,00" class="v2-input">
+              <p id="tradeAmountRemainder" class="hidden v2-hint"></p>
+            </div>
           </div>
         </div>
 
-        <div id="sellInstrumentSection" class="hidden">
-          <label class="block text-xs font-medium text-slate-300 mb-1">Wybierz ze swojego portfela</label>
-          <select id="userHoldingsSelect" data-action="holding-selected" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
-            <option value="">Wybierz walor do sprzedaży...</option>
-          </select>
-        </div>
+        <div class="v2-trade-col">
+          <div class="v2-summary">
+            <div class="v2-line"><span>Szacowana wartość</span><b id="estimatedCost" class="font-mono">0,00 CK</b></div>
+            <div class="v2-line"><span>Prowizja</span><span class="v2-muted">0,00 CK (brak opłat)</span></div>
+            <div class="v2-line v2-line-total"><span id="v2CashAfterLabel">Gotówka po transakcji</span><b id="v2CashAfter" class="font-mono">—</b></div>
+          </div>
 
-        <div id="verifiedInstrumentCard" class="hidden p-3 rounded-xl bg-indigo-950/20 border border-indigo-500/30 text-xs">
-          <div class="flex justify-between items-start">
+          <div id="v2Codex" class="v2-codex" data-state="idle">
+            <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
             <div>
-              <div id="instFullName" class="font-bold text-white text-sm">--</div>
-              <div id="instTickerDisplay" class="text-slate-400 font-mono mt-0.5">--</div>
-            </div>
-            <div class="text-right">
-              <div id="instPriceDisplay" class="font-bold text-indigo-200 font-mono">--</div>
-              <div id="instFxDisplay" class="text-slate-400 text-[10px] font-mono">--</div>
+              <b>Weryfikacja kodeksu — limit 35% na walor</b>
+              <p id="v2CodexText">Wybierz walor i liczbę akcji, aby sprawdzić koncentrację portfela.</p>
             </div>
           </div>
-          <div id="marketStatusBadge" class="hidden mt-2"></div>
-        </div>
 
-        <div>
-          <div class="flex justify-between items-center mb-1">
-            <label class="text-xs font-medium text-slate-300">Liczba akcji (szt.)</label>
-            <span id="availableSharesBadge" class="hidden text-[11px] text-slate-400 font-mono">Dostępne: <b id="availableSharesCount" class="text-indigo-300">0</b></span>
-          </div>
-          <input type="number" step="1" min="1" id="tradeShares" data-action="update-estimated-cost" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
-
-          <div id="tradeAmountSection" class="mt-3">
-            <label for="tradeAmount" class="block text-xs font-medium text-slate-300 mb-1">Kwota zakupu (CK)</label>
-            <input type="number" step="0.01" min="0.01" id="tradeAmount" data-action="update-estimated-cost" placeholder="np. 500,00" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono tabular-nums focus:outline-none">
-            <p id="tradeAmountRemainder" class="hidden mt-1.5 text-[11px] text-slate-400 font-mono tabular-nums"></p>
+          <div class="v2-field">
+            <div class="v2-field-head">
+              <label for="tradeThesis">Teza inwestycyjna <span class="v2-req" aria-hidden="true">*</span></label>
+              <span id="v2ThesisCount" class="v2-hint">0 / min. 15 znaków</span>
+            </div>
+            <textarea id="tradeThesis" rows="3" required placeholder="Dlaczego wykonujesz ten ruch? Twoje uzasadnienie trafi na żywo do tablicy Ringu." class="v2-input"></textarea>
+            <p id="v2ThesisState" class="v2-hint" data-state="idle">Teza jest publiczna i widoczna dla całej ligi.</p>
           </div>
 
-          <div id="quickSharesButtons" class="hidden grid grid-cols-3 gap-2 mt-2">
-            <button type="button" data-action="set-sell-share-percentage" data-percent="0.25" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">25%</button>
-            <button type="button" data-action="set-sell-share-percentage" data-percent="0.50" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">50%</button>
-            <button type="button" data-action="set-sell-share-percentage" data-percent="1" class="py-1 text-[11px] bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 rounded border border-rose-800/40 font-semibold">MAX (pełne akcje)</button>
+          <div id="tradeError" class="hidden v2-error" role="alert"></div>
+
+          <div class="v2-trade-actions">
+            <button type="submit" id="submitTradeBtn" disabled class="v2-submit"><span class="material-symbols-outlined" aria-hidden="true">verified</span><span id="v2SubmitLabel">Złóż zlecenie</span></button>
+            <button type="button" data-action="close-trade" class="v2-link-btn">Anuluj i wróć</button>
           </div>
-        </div>
-
-        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
-          <span class="text-slate-400">Wartość zlecenia (CK):</span>
-          <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0,00 CK</span>
-        </div>
-
-        <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (min. 15 znaków)</label>
-          <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wykonujesz ten ruch?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
-        </div>
-
-        <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
-
-        <div class="flex gap-2 pt-2">
-          <button type="button" data-action="close-trade" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
-          <button type="submit" id="submitTradeBtn" disabled class="w-1/2 bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Złóż zlecenie</button>
+          <p class="v2-note"><span class="material-symbols-outlined" aria-hidden="true">info</span>Zlecenie jest natychmiast wiążące w Biurowej Lidze Spekulacyjnej. Kursy odświeżane są co 15 minut.</p>
         </div>
       </form>
     </div>
@@ -597,5 +685,6 @@
   <script defer src="/assets/js/trading.js"></script>
   <script defer src="/assets/js/app.js"></script>
   <script defer src="/assets/js/events.js"></script>
+  <script defer src="/assets/v2/v2.js"></script>
 </body>
 </html>

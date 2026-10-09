@@ -9,6 +9,7 @@ import { handleOpponentPortfolio } from "../services/p2.js";
 import { handleGenerateNickname, handleProfileUpdate } from "./profile.js";
 import { handleCurrentSession } from "./session.js";
 import { handleTrade } from "./trades.js";
+import { handleMyTransactions } from "./transactions.js";
 
 const routes = new Map([
   ["GET /api/auth/github", handleGitHubLogin],
@@ -23,6 +24,7 @@ const routes = new Map([
   ["GET /api/instruments/search", handleInstrumentSearch],
   ["POST /api/trade", handleTrade],
   ["GET /api/feed", handleFeed],
+  ["GET /api/my-transactions", handleMyTransactions],
   ["GET /api/admin/users", handleAdminUsers],
   ["POST /api/admin/users", handleAdminUsers],
   ["GET /api/admin/audit", handleAuditLogs],

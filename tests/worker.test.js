@@ -1217,3 +1217,44 @@ test("v2 page keeps every element and action the shared scripts depend on", asyn
   // Wszystkie zasoby są ścieżkami root-relative — działają pod /v2 i /v2/.
   assert.doesNotMatch(html, /(?:src|href)="(?!https?:|\/|#|data:)[^"]+"/);
 });
+
+test("my-transactions requires a session and returns the user's own history", async () => {
+  const anonymous = await worker.fetch(
+    new Request("https://example.com/api/my-transactions"),
+    createEnv(),
+    {},
+  );
+  assert.equal(anonymous.status, 401);
+
+  const rows = [{ id: 5, ticker: "PKN.WA", type: "BUY", shares: 2, price: 150, total_value_ck: 300, thesis: "Test thesis here", created_at: "2026-10-09 12:00:00", company_name: "ORLEN S.A.", currency: "PLN" }];
+  const env = createEnv({
+    devAuthBypass: true,
+    demoUser: { id: 17, github_login: "demo_marta", display_name: "Marta", avatar_url: null, current_cash: 100, is_admin: 0 },
+    rows,
+  });
+  const response = await worker.fetch(new Request("https://dev.example/api/my-transactions"), env, {});
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.deepEqual(body.data, rows);
+});
+
+test("v2 extensions only use hooks that exist in the shared scripts", async () => {
+  const [v2, html, ...shared] = await Promise.all([
+    readFile(new URL("../public/assets/v2/v2.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/index-v2.html", import.meta.url), "utf8"),
+    ...["app", "leaderboard", "portfolio", "trading"].map(name =>
+      readFile(new URL(`../public/assets/js/${name}.js`, import.meta.url), "utf8")),
+  ]);
+  const sharedSource = shared.join("\n");
+  // Każda funkcja opakowywana w v2.js musi nadal istnieć we wspólnych skryptach.
+  for (const name of ["fetchUserPortfolio", "renderDashboard", "switchTab", "updateTradeAvailability", "openTradeModal", "closeTradeModal", "setTradeType"]) {
+    assert.match(sharedSource, new RegExp(`function ${name}\\(`), name);
+    assert.match(v2, new RegExp(`window\\.${name} = `), `v2.js should wrap ${name}`);
+  }
+  assert.match(html, /<script defer src="\/assets\/v2\/v2\.js"><\/script>/);
+  // Każdy element, po który sięga v2.js, jest w dokumencie v2.
+  const ids = new Set([...v2.matchAll(/\$\("([A-Za-z0-9]+)"\)/g)].map(match => match[1]));
+  const missing = [...ids].filter(id => !html.includes(`id="${id}"`));
+  assert.deepEqual(missing, []);
+});
