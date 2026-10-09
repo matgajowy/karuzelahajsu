@@ -9,7 +9,10 @@ async function apiRequest(path, options = {}) {
   }
 
   if (!response.ok) {
-    throw new Error(data.message || `Żądanie nie powiodło się (HTTP ${response.status}).`);
+    const error = new Error(data.message || `Żądanie nie powiodło się (HTTP ${response.status}).`);
+    error.code = data.code;
+    error.data = data;
+    throw error;
   }
 
   return data;

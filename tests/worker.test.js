@@ -1017,7 +1017,22 @@ function createTradeEnv(currentCash) {
   return env;
 }
 
+// Wednesday 2026-10-07 18:00 in Warsaw: USA ("TEST") session is open.
 async function submitTestTrade(env, shares, type = "BUY") {
+  const RealDate = Date;
+  const fixed = Date.UTC(2026, 9, 7, 16, 0);
+  globalThis.Date = class extends RealDate {
+    constructor(...args) { super(...(args.length ? args : [fixed])); }
+    static now() { return fixed; }
+  };
+  try {
+    return await sendTestTrade(env, shares, type);
+  } finally {
+    globalThis.Date = RealDate;
+  }
+}
+
+function sendTestTrade(env, shares, type) {
   return worker.fetch(
     new Request("https://dev.example/api/trade", {
       method: "POST",
