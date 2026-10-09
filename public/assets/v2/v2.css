@@ -48,7 +48,7 @@
   --color-indigo-200: #a7f3d0;
 }
 
-html { background: var(--v2-surface); }
+html { background: var(--v2-surface); overflow-x: hidden; }
 
 body.v2 {
   font-family: "Plus Jakarta Sans", "Inter", system-ui, sans-serif;
@@ -148,8 +148,8 @@ body.v2 {
 .v2-icon-btn:hover { background: var(--v2-surface-high); color: var(--v2-on-surface); }
 .v2-brand-compact { display: none; }
 
-.v2-main { margin-left: var(--v2-sidebar-w); padding: calc(var(--v2-topbar-h) + 1.5rem) 1.5rem 0; min-height: 100vh; display: flex; flex-direction: column; }
-.v2-content { flex: 1 1 auto; width: 100%; max-width: 88rem; margin: 0 auto; }
+.v2-main { min-width: 0; margin-left: var(--v2-sidebar-w); padding: calc(var(--v2-topbar-h) + 1.5rem) 1.5rem 0; min-height: 100vh; display: flex; flex-direction: column; }
+.v2-content { flex: 1 1 auto; min-width: 0; width: 100%; max-width: 88rem; margin: 0 auto; }
 .v2-footer { margin: 2rem -1.5rem 0; padding: 1.5rem; border-top: 1px solid var(--v2-surface-high); text-align: center; font-size: .75rem; color: var(--v2-outline); }
 .v2-footer button { background: none; border: 0; color: var(--v2-on-surface-variant); font: inherit; cursor: pointer; }
 .v2-footer button:hover { color: var(--v2-primary); }
@@ -157,7 +157,7 @@ body.v2 {
 /* ---------- Karty i sekcje ---------- */
 .v2-kpis { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
 .v2-card {
-  position: relative; overflow: hidden; background: var(--v2-surface-low); border-radius: .75rem;
+  min-width: 0; position: relative; overflow: hidden; background: var(--v2-surface-low); border-radius: .75rem;
   padding: 1.25rem; display: flex; flex-direction: column; justify-content: space-between; gap: 1rem;
   box-shadow: 0 1px 8px rgb(0 0 0 / .25);
 }
@@ -181,7 +181,7 @@ body.v2 {
 .v2-big { font-size: 2rem; font-weight: 800; letter-spacing: -.03em; line-height: 1.15; }
 
 .v2-arena-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1rem; margin-top: 1rem; align-items: start; }
-.v2-panel { background: var(--v2-surface-low); border-radius: .75rem; overflow: hidden; box-shadow: 0 1px 8px rgb(0 0 0 / .25); }
+.v2-panel { min-width: 0; background: var(--v2-surface-low); border-radius: .75rem; overflow: hidden; box-shadow: 0 1px 8px rgb(0 0 0 / .25); }
 .v2-panel-head { padding: 1rem 1.25rem; display: flex; align-items: center; justify-content: space-between; gap: .75rem; background: var(--v2-surface-container); }
 .v2-panel-title { font-size: 1.05rem; font-weight: 700; letter-spacing: -.01em; margin: 0; display: flex; align-items: center; gap: .5rem; }
 .v2-panel-sub { margin: .15rem 0 0; font-size: .75rem; color: var(--v2-on-surface-variant); }
@@ -211,7 +211,7 @@ body.v2 {
 .v2 #feedContainer > div + div { margin-top: .75rem; }
 .v2 #authContainer > div, .v2 #authContainer > a { border-radius: .75rem; }
 
-@media (min-width: 1280px) {
+@media (min-width: 1536px) {
   .v2-arena-grid { grid-template-columns: minmax(0, 2fr) minmax(22rem, 1fr); }
 }
 
@@ -237,7 +237,7 @@ body.v2 {
   .v2-topbar { left: 0; padding: 0 1rem; }
   .v2-brand-compact { display: flex; align-items: center; gap: .5rem; font-weight: 800; font-size: 1rem; text-decoration: none; color: inherit; }
   .v2-crumb, .v2-pill-rate { display: none; }
-  .v2-main { margin-left: 0; padding: calc(var(--v2-topbar-h) + 3rem) 1rem 5.5rem; }
+  .v2-main { min-width: 0; margin-left: 0; padding: calc(var(--v2-topbar-h) + 3rem) 1rem 5.5rem; }
   .v2-footer { margin: 2rem -1rem 0; }
   .v2-kpis { grid-template-columns: minmax(0, 1fr); }
 }
