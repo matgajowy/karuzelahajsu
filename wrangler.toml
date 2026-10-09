@@ -12,7 +12,7 @@ binding = "AI"
 enabled = true
 
 [triggers]
-crons = ["*/15 6-21 * * 1-5"]
+crons = ["*/15 6-21 * * MON-FRI"]
 
 [assets]
 directory = "./public"
