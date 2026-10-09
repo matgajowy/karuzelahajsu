@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f131d">
+  <title>Karuzela Hajsu 🎠💸 — Biurowa Liga Spekulacyjna</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&amp;display=swap">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <link rel="stylesheet" href="/assets/v2/v2.css">
+</head>
+<body class="v2">
+<div class="v2-shell">
+
+  <!-- ========================================== -->
+  <!-- PASEK BOCZNY (desktop) / DOLNA NAWIGACJA (mobile) -->
+  <!-- ========================================== -->
+  <aside class="v2-sidebar">
+    <div>
+      <a href="/v2" class="v2-brand" data-action="switch-tab" data-tab="arena">
+        <span class="v2-brand-mark" aria-hidden="true">🎠</span>
+        <span>
+          <span class="v2-brand-title">Karuzela Hajsu <span class="v2-version">v2.2</span></span>
+          <span class="v2-brand-sub">Biurowa Liga Spekulacyjna</span>
+        </span>
+      </a>
+
+      <nav class="v2-nav" aria-label="Nawigacja główna">
+        <button id="tabBtnArena" type="button" data-ui="v2" data-active data-action="switch-tab" data-tab="arena" class="v2-nav-item">
+          <span class="material-symbols-outlined" aria-hidden="true">leaderboard</span>
+          <span class="v2-nav-label">Ring Spekulantów</span>
+        </button>
+        <button id="tabBtnPortfolio" type="button" data-ui="v2" data-action="switch-tab" data-tab="portfolio" style="display: none;" class="v2-nav-item">
+          <span class="material-symbols-outlined" aria-hidden="true">pie_chart</span>
+          <span class="v2-nav-label">Mój Portfel</span>
+        </button>
+        <div id="quickTradeBtnContainer" style="display: none;" class="v2-nav-trade">
+          <button type="button" data-action="open-trade" data-trade-type="BUY" class="v2-nav-item">
+            <span class="material-symbols-outlined" aria-hidden="true">candlestick_chart</span>
+            <span class="v2-nav-label">Złóż Zlecenie</span>
+          </button>
+        </div>
+        <button type="button" data-action="open-rules" class="v2-nav-item">
+          <span class="material-symbols-outlined" aria-hidden="true">menu_book</span>
+          <span class="v2-nav-label">Kodeks Spekulanta</span>
+        </button>
+        <button id="tabBtnAdmin" type="button" data-ui="v2" data-action="switch-tab" data-tab="admin" style="display: none;" class="v2-nav-item v2-nav-admin">
+          <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+          <span class="v2-nav-label">Panel Audytu &amp; Whitelist</span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="v2-sidebar-foot">
+      <div id="syncStatusBadge" class="v2-status hidden">
+        <span class="v2-dot" aria-hidden="true"></span>
+        <span id="syncStatusText">Synchronizacja...</span>
+        <button type="button" data-action="quick-refresh" title="Odśwież dane z bazy" aria-label="Odśwież dane z bazy">
+          <i data-lucide="refresh-cw" id="quickRefreshIcon" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+      <div class="v2-foot-note">1 CK = 1.00 PLN • Cron: Cloudflare Workers (*/15 min)</div>
+    </div>
+  </aside>
+
+  <!-- ========================================== -->
+  <!-- GÓRNA BELKA                                -->
+  <!-- ========================================== -->
+  <header class="v2-topbar">
+    <div class="v2-topbar-left">
+      <a href="/v2" class="v2-brand-compact" data-action="switch-tab" data-tab="arena"><span aria-hidden="true">🎠</span> Karuzela Hajsu</a>
+      <div class="v2-crumb"><span class="material-symbols-outlined" style="font-size:1rem" aria-hidden="true">home</span><span>/</span><strong>Arena Giełdowa</strong></div>
+      <span class="v2-pill v2-pill-rate" title="Cyrk Koin (CK) — oficjalna waluta ligi: 1 CK = 1 PLN">
+        <span class="material-symbols-outlined" style="font-size:.9rem" aria-hidden="true">currency_exchange</span>1 CK = 1.00 PLN
+      </span>
+    </div>
+    <div class="v2-topbar-right">
+      <button type="button" data-action="open-rules" class="v2-icon-btn" title="Zasady gry">
+        <span class="material-symbols-outlined" aria-hidden="true">menu_book</span><span class="hidden md:inline">Zasady</span>
+      </button>
+      <div id="authContainer">
+        <a href="/api/auth/github" class="v2-cta" style="min-height:2.5rem">
+          <span class="material-symbols-outlined" aria-hidden="true">login</span><span>Zaloguj z GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- TREŚĆ                                      -->
+  <!-- ========================================== -->
+  <main class="v2-main">
+   <div class="v2-content">
+
+    <!-- WIDOK 1: RING SPEKULANTÓW -->
+    <div id="viewArena">
+      <section class="v2-kpis" aria-label="Wskaźniki kluczowe ringu">
+
+        <div class="v2-card">
+          <div class="v2-card-glow"></div>
+          <div>
+            <div class="v2-card-head">
+              <span class="v2-badge-leader"><span class="material-symbols-outlined" style="font-size:.9rem" aria-hidden="true">military_tech</span>Lider Ringu</span>
+              <span class="material-symbols-outlined" style="color:var(--v2-secondary);font-size:1.6rem" aria-hidden="true">workspace_premium</span>
+            </div>
+            <div class="v2-leader" style="margin-top:.9rem">
+              <img id="kpiLeaderAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=leader" alt="Lider">
+              <div style="min-width:0">
+                <div id="leaderName" class="v2-leader-name">Ładowanie...</div>
+                <div id="leaderValue" class="v2-leader-value font-mono">-- CK</div>
+              </div>
+            </div>
+            <div id="leaderReturn" class="v2-leader-return font-mono" style="margin-top:.6rem">--</div>
+          </div>
+          <div class="v2-card-note">Prowadzi w klasyfikacji generalnej ligi</div>
+        </div>
+
+        <div class="v2-card">
+          <div>
+            <div class="v2-card-head">
+              <span class="v2-label">Benchmarki Rynkowe</span>
+              <span class="v2-label" style="color:var(--v2-primary)">Indeksy</span>
+            </div>
+            <div class="v2-bench-grid">
+              <div class="v2-bench"><small>🇺🇸 S&amp;P 500</small><b id="benchSp500Val" class="font-mono">--</b></div>
+              <div class="v2-bench"><small>🇵🇱 WIG 20</small><b id="benchWig20Val" class="font-mono">--</b></div>
+            </div>
+          </div>
+          <div class="v2-card-note">Punkt odniesienia dla portfeli</div>
+        </div>
+
+        <div class="v2-card">
+          <div>
+            <div class="v2-card-head">
+              <span class="v2-label">Średnia Drużyny</span>
+              <span class="material-symbols-outlined" style="color:var(--v2-outline)" aria-hidden="true">groups</span>
+            </div>
+            <div style="margin-top:.5rem">
+              <div id="avgReturn" class="v2-big font-mono">--</div>
+              <div id="activeParticipantsCount" style="font-size:.75rem;color:var(--v2-on-surface-variant);margin-top:.25rem">Sprawdzanie wyników...</div>
+            </div>
+          </div>
+          <div id="beatTheMarketNote" class="v2-card-note" style="color:var(--v2-primary);font-weight:600">Rywalizacja trwa</div>
+        </div>
+
+      </section>
+
+      <div class="v2-arena-grid">
+        <section class="v2-panel" aria-labelledby="rankingTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h2 id="rankingTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-secondary)" aria-hidden="true">emoji_events</span>Oficjalny Ranking Inwestycyjny</h2>
+              <p class="v2-panel-sub">Wycena portfeli na żywo z uwzględnieniem kursów giełdowych</p>
+            </div>
+            <span id="dataTimestamp" class="v2-label" style="text-transform:none;letter-spacing:0">Ładowanie danych...</span>
+          </div>
+          <div class="v2-table-wrap">
+            <table class="w-full text-left text-sm text-slate-300">
+              <thead class="text-[11px] uppercase bg-slate-950/70 text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
+                <tr>
+                  <th scope="col" class="py-3 px-4 w-14 text-center">#</th>
+                  <th scope="col" class="py-3 px-4">Uczestnik</th>
+                  <th scope="col" class="py-3 px-4 text-right">Wycena portfela (CK)</th>
+                  <th scope="col" class="py-3 px-4 text-right">Gotówka (CK)</th>
+                  <th scope="col" class="py-3 px-4 text-right">Wynik (CK)</th>
+                  <th scope="col" class="py-3 px-4 text-right">Stopa zwrotu</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody" class="divide-y divide-slate-800/60 font-medium">
+                <tr><td colspan="6" class="py-12 text-center text-slate-400">Pobieranie wyników ligi...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="v2-panel" aria-labelledby="feedTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h2 id="feedTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">forum</span>Ostatnie Ruchy &amp; Tezy</h2>
+              <p class="v2-panel-sub">Podgląd strategii i uzasadnień zespołu</p>
+            </div>
+            <span class="v2-label" style="color:var(--v2-primary)">Na żywo</span>
+          </div>
+          <div id="feedContainer" class="v2-panel-body">
+            <div class="text-center text-slate-400 text-xs py-8">Ładowanie ostatnich zleceń...</div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- WIDOK 2: MÓJ PORTFEL -->
+    <div id="viewPortfolio" style="display: none;" class="v2-stack">
+
+      <section class="v2-panel">
+        <div class="v2-panel-body" style="padding:1.25rem">
+          <div class="v2-account">
+            <div class="v2-account-id">
+              <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar">
+              <div style="min-width:0">
+                <div style="display:flex;align-items:center;gap:.5rem;flex-wrap:wrap">
+                  <span class="v2-label" style="color:var(--v2-primary)">Rachunek Inwestycyjny</span>
+                  <button type="button" data-action="open-profile" class="v2-icon-btn" style="height:1.75rem;padding:0 .6rem;font-size:.7rem">✏️ Edytuj profil</button>
+                </div>
+                <h2 id="userNameDisplay" style="font-size:1.6rem;font-weight:800;letter-spacing:-.02em;margin:.2rem 0 0">--</h2>
+                <p style="margin:0;font-size:.75rem;color:var(--v2-on-surface-variant)">Limit dywersyfikacji: max 35% na pojedynczą spółkę</p>
+              </div>
+            </div>
+            <div class="v2-account-stats">
+              <div class="v2-stat"><small>Wycena całkowita portfela</small><b id="portfolioTotalValue" class="font-mono" style="color:var(--v2-on-surface)">0,00 CK</b></div>
+              <div class="v2-stat"><small>Dostępna Gotówka (CK):</small><b id="userCashDisplay" class="font-mono" style="color:var(--v2-secondary)">0,00 CK</b></div>
+              <button type="button" data-action="open-trade" data-trade-type="BUY" class="v2-cta">
+                <span class="material-symbols-outlined" aria-hidden="true">add</span>Nowe Zlecenie
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="v2-panel" aria-labelledby="positionsTitle">
+        <div class="v2-panel-head">
+          <div>
+            <h3 id="positionsTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">pie_chart</span>Twoje Otwarte Pozycje</h3>
+            <p class="v2-panel-sub">Kursy w walucie waloru, wycena w CK</p>
+          </div>
+        </div>
+        <div class="v2-panel-body">
+          <div class="v2-table-wrap">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 uppercase border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5">Walor</th>
+                  <th class="py-2.5 text-right">Liczba akcji</th>
+                  <th class="py-2.5 text-right">Śr. zakup (waluta waloru)</th>
+                  <th class="py-2.5 text-right">Kurs bieżący (waluta waloru)</th>
+                  <th class="py-2.5 text-right">Wycena (CK)</th>
+                  <th class="py-2.5 text-right">Wynik</th>
+                  <th class="py-2.5 text-center">Szybka Akcja</th>
+                </tr>
+              </thead>
+              <tbody id="portfolioTableBody" class="divide-y divide-slate-800/40 font-mono">
+                <tr><td colspan="7" class="py-6 text-center text-slate-400 font-sans">Brak otwartych pozycji</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- WIDOK 3: PANEL AUDYTU & WHITELIST (ADMIN)  -->
+    <!-- ========================================== -->
+    <div id="viewAdmin" style="display: none;" class="space-y-6">
+
+      <section class="bg-rose-950/20 border border-rose-500/40 rounded-2xl p-6 shadow-xl space-y-3">
+        <div>
+          <h3 class="text-base font-bold text-rose-300 flex items-center gap-2">
+            <i data-lucide="triangle-alert" class="w-4 h-4"></i> Danger Zone — Benchmarki
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Reset ustawia wartość początkową obu benchmarków na 100 000 CK. Operacja jest nieodwracalna.</p>
+        </div>
+        <button type="button" data-action="open-benchmark-reset" class="bg-rose-700 hover:bg-rose-600 text-white border border-rose-500/50 text-xs font-bold px-4 py-2 rounded-lg transition">
+          ⚠️ Zresetuj bazę Benchmarków (100k CK)
+        </button>
+      </section>
+
+      <!-- SEKCJA: ZARZĄDZANIE BIAŁĄ LISTĄ (WHITELIST) -->
+      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="user-plus" class="w-4 h-4 text-indigo-400"></i> Dodaj Uczestnika do Gry (Biała Lista)
+            </h3>
+            <p class="text-xs text-slate-400">Tylko dodani użytkownicy będą mogli zalogować się kontem GitHub.</p>
+          </div>
+        </div>
+
+        <form id="addUserForm" data-action="add-user" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">GitHub Login (dokładny nick)</label>
+            <input type="text" id="newGhLogin" placeholder="np. jankowalski" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Wyświetlana nazwa / Ksywka</label>
+            <input type="text" id="newDisplayName" placeholder="np. Janek (Książę GPW)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div class="flex items-center gap-2 py-2">
+            <input type="checkbox" id="newIsAdmin" class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0">
+            <label for="newIsAdmin" class="text-xs text-slate-300 cursor-pointer">Uprawnienia Admina</label>
+          </div>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
+            + Wpuść na Karuzelę
+          </button>
+        </form>
+
+        <div id="addUserMsg" class="hidden text-xs p-2.5 rounded-lg"></div>
+
+        <!-- Tabela zarejestrowanych osób -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80">
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Obecna Biała Lista:</h4>
+          <div class="overflow-x-auto max-h-48">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 border-b border-slate-800 uppercase">
+                <tr>
+                  <th class="py-2">Gracz</th>
+                  <th class="py-2">GitHub Login</th>
+                  <th class="py-2 text-right">Gotówka (CK)</th>
+                  <th class="py-2 text-center">Rola</th>
+                </tr>
+              </thead>
+              <tbody id="whitelistTableBody" class="divide-y divide-slate-800/40 font-mono">
+                <tr><td colspan="4" class="py-4 text-center text-slate-500">Ładowanie uczestników...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEKCJA: DZIENNIK AUDYTU -->
+      <div class="bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+          <div>
+            <h2 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i> Dziennik Audytu Bezpieczeństwa
+            </h2>
+            <p class="text-xs text-slate-400">Rejestr zdarzeń i adresów IP</p>
+          </div>
+          <div class="flex gap-2">
+            <button data-action="manual-sync" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-1.5 rounded-lg transition">
+              Wymuś synchronizację kursów
+            </button>
+            <button data-action="fetch-audit" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg transition">
+              Odśwież
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto max-h-[400px]">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="text-slate-400 uppercase bg-slate-950/40 border-b border-slate-800 sticky top-0">
+              <tr>
+                <th class="py-2.5 px-4">Czas</th>
+                <th class="py-2.5 px-4">Użytkownik</th>
+                <th class="py-2.5 px-4">Akcja</th>
+                <th class="py-2.5 px-4">Status</th>
+                <th class="py-2.5 px-4">IP</th>
+                <th class="py-2.5 px-4">Payload</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody" class="divide-y divide-slate-800/60 font-mono">
+              <tr><td colspan="6" class="py-6 text-center text-slate-400">Brak logów audytowych</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+   </div>
+
+   <footer class="v2-footer">
+     <p style="margin:0 0 .35rem;font-weight:600;color:var(--v2-on-surface-variant)">Karuzela Hajsu • Biurowa Liga Spekulacyjna</p>
+     <p style="margin:0 auto;max-width:36rem;line-height:1.5">Żadna z informacji na tej platformie nie stanowi rekomendacji finansowej. Wszystkie transakcje są fikcyjne, ale ból po przegraniu z benchmarkiem S&amp;P 500 — w 100% autentyczny.</p>
+     <p style="margin:.75rem 0 0"><button type="button" data-action="open-rules">📜 Kodeks Spekulanta</button></p>
+   </footer>
+  </main>
+
+</div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: EDYTOR PROFILU & AWATARA            -->
+  <!-- ========================================== -->
+  <div id="profileModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🎭</span> Twoje Biurowe Alter-Ego
+        </h3>
+        <button data-action="close-profile" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        <!-- Podgląd Awatara -->
+        <div class="flex flex-col items-center justify-center py-2">
+          <img id="editAvatarPreview" src="" alt="Podgląd" class="w-20 h-20 rounded-full border-2 border-indigo-500 bg-slate-800 object-cover shadow-lg">
+          <span class="text-[11px] text-slate-400 mt-2">Podgląd Twojej tożsamości na Ringu</span>
+        </div>
+
+        <!-- Losowanie stylu awatara -->
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" data-action="randomize-avatar" data-avatar="bottts" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            🤖 Losuj Robota
+          </button>
+          <button type="button" data-action="randomize-avatar" data-avatar="pixel-art" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            👾 Losuj Pixel-Art
+          </button>
+          <button type="button" data-action="randomize-avatar" data-avatar="fun-emoji" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            😎 Losuj Emotkę
+          </button>
+          <button type="button" data-action="reset-avatar" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg border border-slate-700 transition">
+            🐙 Awatar z GitHuba
+          </button>
+        </div>
+
+        <!-- Ksywka i Generator -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Wyświetlana Ksywka</label>
+            <button id="generateNickBtn" type="button" data-action="generate-nick" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">
+              🎲 Wylosuj ksywkę
+            </button>
+          </div>
+          <input type="text" id="editDisplayNameInput" maxlength="30" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div id="profileError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-profile" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+          <button type="button" data-action="save-profile" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Zapisz Zmiany</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: KODEKS SPEKULANTA                   -->
+  <!-- ========================================== -->
+  <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>📜</span> Kodeks Spekulanta — Zasady Gry
+        </h3>
+        <button data-action="close-rules" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-3.5 text-xs text-slate-300 leading-relaxed">
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-white block mb-0.5">💵 1. Kapitał Startowy: 100 000 CK</span>
+          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. 1 CK ma stały parytet 1:1 z PLN, a notowania giełdowe przeliczamy na CK.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-amber-300 block mb-0.5">⚖️ 2. Zasada Dywersyfikacji (Max 35%)</span>
+          Żaden walor nie może przekraczać 35% łącznej wyceny Twojego portfela w chwili zakupu.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-indigo-300 block mb-0.5">🗣️ 3. Teza Inwestycyjna (min. 15 znaków)</span>
+          Każda transakcja wymaga publicznego uzasadnienia. Trafia ono do wspólnego feedu zespołu.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW & USA</span>
+          Akceptujemy symbole z USA (np. <code class="text-indigo-300">NVDA, AAPL</code>) oraz z GPW z końcówką <code class="text-indigo-300">.WA</code> (np. <code class="text-indigo-300">CDR.WA</code>).
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-rose-300 block mb-0.5">🚫 5. Brak Dźwigni i Pozycji Krótkich</span>
+          Brak lewara, brak gry na spadek. Kupujesz wyłącznie to, na co masz pokrycie w gotówce.
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <button data-action="close-rules" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">
+          Zrozumiałem, wchodzę na parkiet!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: FORMULARZ ZLECENIA                  -->
+  <!-- ========================================== -->
+  <div id="tradeModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <i data-lucide="trending-up" class="w-4 h-4 text-indigo-400"></i> Złóż Zlecenie Giełdowe
+        </h3>
+        <button data-action="close-trade" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="tradeForm" data-action="submit-trade" class="mt-4 space-y-4">
+        <div class="bg-indigo-950/50 p-3 rounded-xl border border-indigo-500/30 flex justify-between items-center">
+          <span class="text-xs font-medium text-slate-300">Dostępne środki:</span>
+          <span id="tradeAvailableCash" class="font-bold text-emerald-300 font-mono text-sm">0,00 CK</span>
+        </div>
+        <div class="grid grid-cols-2 gap-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+          <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="py-2 text-xs font-bold rounded-lg bg-emerald-600 text-white transition">KUPNO</button>
+          <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL" class="py-2 text-xs font-bold rounded-lg text-slate-400 hover:text-white transition">SPRZEDAŻ</button>
+        </div>
+
+        <div id="buyInstrumentSection">
+          <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
+          <div class="flex gap-2">
+            <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
+            <button type="button" id="verifyBtn" data-action="verify-ticker" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+              Sprawdź
+            </button>
+          </div>
+        </div>
+
+        <div id="sellInstrumentSection" class="hidden">
+          <label class="block text-xs font-medium text-slate-300 mb-1">Wybierz ze swojego portfela</label>
+          <select id="userHoldingsSelect" data-action="holding-selected" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 focus:outline-none">
+            <option value="">Wybierz walor do sprzedaży...</option>
+          </select>
+        </div>
+
+        <div id="verifiedInstrumentCard" class="hidden p-3 rounded-xl bg-indigo-950/20 border border-indigo-500/30 text-xs">
+          <div class="flex justify-between items-start">
+            <div>
+              <div id="instFullName" class="font-bold text-white text-sm">--</div>
+              <div id="instTickerDisplay" class="text-slate-400 font-mono mt-0.5">--</div>
+            </div>
+            <div class="text-right">
+              <div id="instPriceDisplay" class="font-bold text-indigo-200 font-mono">--</div>
+              <div id="instFxDisplay" class="text-slate-400 text-[10px] font-mono">--</div>
+            </div>
+          </div>
+          <div id="marketStatusBadge" class="hidden mt-2"></div>
+        </div>
+
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Liczba akcji (szt.)</label>
+            <span id="availableSharesBadge" class="hidden text-[11px] text-slate-400 font-mono">Dostępne: <b id="availableSharesCount" class="text-indigo-300">0</b></span>
+          </div>
+          <input type="number" step="1" min="1" id="tradeShares" data-action="update-estimated-cost" required placeholder="np. 10" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:outline-none">
+
+          <div id="tradeAmountSection" class="mt-3">
+            <label for="tradeAmount" class="block text-xs font-medium text-slate-300 mb-1">Kwota zakupu (CK)</label>
+            <input type="number" step="0.01" min="0.01" id="tradeAmount" data-action="update-estimated-cost" placeholder="np. 500,00" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono tabular-nums focus:outline-none">
+            <p id="tradeAmountRemainder" class="hidden mt-1.5 text-[11px] text-slate-400 font-mono tabular-nums"></p>
+          </div>
+
+          <div id="quickSharesButtons" class="hidden grid grid-cols-3 gap-2 mt-2">
+            <button type="button" data-action="set-sell-share-percentage" data-percent="0.25" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">25%</button>
+            <button type="button" data-action="set-sell-share-percentage" data-percent="0.50" class="py-1 text-[11px] bg-slate-800 hover:bg-slate-750 text-slate-300 rounded border border-slate-700">50%</button>
+            <button type="button" data-action="set-sell-share-percentage" data-percent="1" class="py-1 text-[11px] bg-rose-950/40 hover:bg-rose-900/40 text-rose-300 rounded border border-rose-800/40 font-semibold">MAX (pełne akcje)</button>
+          </div>
+        </div>
+
+        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
+          <span class="text-slate-400">Wartość zlecenia (CK):</span>
+          <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0,00 CK</span>
+        </div>
+
+        <div>
+          <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (min. 15 znaków)</label>
+          <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wykonujesz ten ruch?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
+        </div>
+
+        <div id="tradeError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-trade" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+          <button type="submit" id="submitTradeBtn" disabled class="w-1/2 bg-indigo-600 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Złóż zlecenie</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="benchmarkResetModal" class="fixed inset-0 bg-black/70 z-[60] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="benchmarkResetTitle">
+    <div class="bg-slate-900 border border-rose-500/40 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+      <h2 id="benchmarkResetTitle" class="text-lg font-bold text-rose-300">Potwierdź reset benchmarków</h2>
+      <p class="mt-3 text-sm text-slate-300">Ta operacja wyzeruje gotówkę oraz ustawi pozycje S&amp;P 500 i WIG20 na wartość 100 000 CK według bieżących kursów. Nie można jej cofnąć.</p>
+      <label for="benchmarkResetPhrase" class="block text-xs font-medium text-slate-300 mt-4 mb-1">Wpisz dokładnie: <code class="text-rose-300">RESET-BENCHMARKS</code></label>
+      <input id="benchmarkResetPhrase" type="text" autocomplete="off" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-rose-500">
+      <div class="flex gap-2 mt-5">
+        <button type="button" data-action="close-benchmark-reset" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+        <button id="confirmBenchmarkResetBtn" type="button" data-action="confirm-benchmark-reset" disabled class="w-1/2 bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-rose-600 text-white py-2.5 rounded-xl text-xs font-bold transition">Wykonaj reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SKRYPTY APLIKACJI (wspólne z głównym UI) -->
+  <script defer src="/assets/js/state.js"></script>
+  <script defer src="/assets/js/api.js"></script>
+  <script defer src="/assets/js/utils.js"></script>
+  <script defer src="/assets/js/leaderboard.js"></script>
+  <script defer src="/assets/js/portfolio.js"></script>
+  <script defer src="/assets/js/profile.js"></script>
+  <script defer src="/assets/js/admin.js"></script>
+  <script defer src="/assets/js/trading.js"></script>
+  <script defer src="/assets/js/app.js"></script>
+  <script defer src="/assets/js/events.js"></script>
+</body>
+</html>
