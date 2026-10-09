@@ -8,6 +8,9 @@ GITHUB_CLIENT_ID = "Ov23liBBJtlHrJ0Ey1pf"
 [ai]
 binding = "AI"
 
+[observability]
+enabled = true
+
 [triggers]
 crons = ["*/15 6-21 * * 1-5"]
 
