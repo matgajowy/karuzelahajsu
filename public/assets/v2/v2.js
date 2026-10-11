@@ -658,6 +658,21 @@
     return result;
   };
 
+  // Profil: v2 nie ma własnego wyboru motywu, więc zapis ma zachować motyw użytkownika
+  // (inaczej saveProfile() nadpisałby go domyślną wartością).
+  const originalOpenProfile = openProfileModal;
+  window.openProfileModal = function openProfileModalV2(...args) {
+    const result = originalOpenProfile.apply(this, args);
+    const keep = $("v2ThemeKeep");
+    if (keep) {
+      let stored = "";
+      try { stored = localStorage.getItem("kh_theme") || ""; } catch (error) { stored = ""; }
+      keep.value = (currentUser && currentUser.theme) || stored || "v1";
+      keep.checked = true;
+    }
+    return result;
+  };
+
   const originalOpenTrade = openTradeModal;
   window.openTradeModal = function openTradeModalV2(type) {
     const result = originalOpenTrade.call(this, type);

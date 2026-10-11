@@ -1343,10 +1343,14 @@ test("v2 extensions only use hooks that exist in the shared scripts", async () =
       readFile(new URL(`../public/assets/js/${name}.js`, import.meta.url), "utf8")),
   ]);
   const sharedSource = shared.join("\n");
+  const profileSource = await readFile(new URL("../public/assets/js/profile.js", import.meta.url), "utf8");
+  assert.match(profileSource, /function openProfileModal\(/);
+  assert.match(html, /name="uiThemeOption" id="v2ThemeKeep"/);
   for (const name of ["fetchUserPortfolio", "renderDashboard", "fetchAllData", "fetchFeed", "switchTab", "updateTradeAvailability", "openTradeModal", "closeTradeModal", "setTradeType"]) {
     assert.match(sharedSource, new RegExp(`function ${name}\\(`), name);
     assert.match(v2, new RegExp(`window\\.${name} = `), `v2.js should wrap ${name}`);
   }
+  assert.match(v2, /window\.openProfileModal = /);
   assert.match(html, /<script defer src="\/assets\/v2\/v2\.js"><\/script>/);
   const ids = new Set([...v2.matchAll(/\$\("([A-Za-z0-9]+)"\)/g)].map(match => match[1]));
   assert.deepEqual([...ids].filter(id => !html.includes(`id="${id}"`)), []);
