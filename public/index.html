@@ -5,15 +5,28 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Karuzela Hajsu 🎠💸 — Biurowa Liga Spekulacyjna</title>
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+
+  <!-- Zapobieganie FOUC: natychmiastowe ustawienie atrybutu i motywu -->
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('kh_theme') || 'v2';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+    })();
+  </script>
+
   <script src="https://unpkg.com/lucide@latest"></script>
-  <link rel="stylesheet" href="/assets/css/app.css">
+  <!-- Style bazowe (reset, Tailwind app.css, toasty, autocomplete) -->
+  <link rel="stylesheet" href="/assets/css/base.css">
+
+  <!-- Dynamiczny arkusz motywu (CSS-First) -->
+  <link id="activeThemeStylesheet" rel="stylesheet" href="/assets/css/theme-v2.css">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
   <!-- ========================================== -->
   <!-- GÓRNY PASEK NAWIGACJI                      -->
   <!-- ========================================== -->
-  <header class="border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
+  <header class="app-nav layout-topbar border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
 
       <!-- Logo i Branding -->
@@ -111,7 +124,7 @@
           <i data-lucide="wallet" class="w-4 h-4"></i> Mój Portfel
         </button>
         <button id="tabBtnAdmin" data-action="switch-tab" data-tab="admin" style="display: none;" class="py-3 px-4 text-xs font-bold border-b-2 border-transparent text-amber-400 hover:text-amber-300 flex items-center gap-2 transition">
-          <i data-lucide="shield-check" class="w-4 h-4"></i> Panel Audytu & Whitelist
+          <i data-lucide="shield-check" class="w-4 h-4"></i> Panel Audytu &amp; Whitelist
         </button>
       </div>
 
@@ -126,7 +139,7 @@
   </nav>
 
   <!-- GŁÓWNA TREŚĆ STRONY -->
-  <main class="max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
+  <main class="app-container max-w-6xl mx-auto px-4 py-8 flex-grow w-full">
 
     <!-- ========================================== -->
     <!-- WIDOK 1: RING SPEKULANTÓW                 -->
@@ -170,7 +183,7 @@
 
             <div class="grid grid-cols-2 gap-3 mt-3">
               <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
-                <div class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">🇺🇸 S&P 500</div>
+                <div class="text-[11px] text-slate-400 flex items-center gap-1 font-medium">🇺🇸 S&amp;P 500</div>
                 <div id="benchSp500Val" class="text-base font-bold text-white font-mono mt-0.5">--</div>
               </div>
               <div class="p-2.5 bg-slate-950/60 rounded-xl border border-slate-800">
@@ -202,6 +215,17 @@
           </div>
         </div>
 
+      </div>
+
+      <!-- ALOKACJA LIGI (CSS-First Widget) -->
+      <div class="feature-allocation bg-slate-900 border border-slate-800 rounded-2xl p-5 shadow-xl">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 mb-3">
+          <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <span>🌐</span> Zbiorcza Alokacja Ligi
+          </h3>
+          <div id="leagueAllocationLabels" class="text-xs font-mono text-slate-400">Ładowanie alokacji…</div>
+        </div>
+        <div id="leagueAllocationBar" class="feature-allocation-bar"></div>
       </div>
 
       <!-- TABELA RANKINGU -->
@@ -237,20 +261,27 @@
         </div>
       </div>
 
-      <!-- FEED: OSTATNIE TRANSAKCJE -->
+      <!-- FEED: HYBRYDOWY FEED Z SZYDERCZYM STAND-UPEM AI -->
       <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
         <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-900/70">
           <div>
             <h2 class="text-base font-bold text-white flex items-center gap-2">
-              <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Ruchy & Tezy Inwestycyjne
+              <i data-lucide="activity" class="w-4 h-4 text-indigo-400"></i> Ostatnie Ruchy, Tezy &amp; Stand-up
             </h2>
-            <p class="text-xs text-slate-400 mt-0.5">Podgląd strategii i uzasadnień zespołu</p>
+            <p class="text-xs text-slate-400 mt-0.5">Podgląd strategii, roastów AI i komentarzy makro</p>
           </div>
-          <span class="text-xs text-slate-400">Na żywo</span>
+          <span class="text-xs text-slate-400 font-mono">Na żywo</span>
+        </div>
+
+        <!-- Pigułki filtrów feedu -->
+        <div class="flex items-center gap-2 px-6 py-3 border-b border-slate-800/60 bg-slate-950/40">
+          <button type="button" data-action="filter-feed" data-filter="all" class="feed-filter-btn active">Wszystko</button>
+          <button type="button" data-action="filter-feed" data-filter="trades" class="feed-filter-btn">🥊 Ruchy graczy</button>
+          <button type="button" data-action="filter-feed" data-filter="news" class="feed-filter-btn">📰 Stand-up &amp; Rynek</button>
         </div>
 
         <div id="feedContainer" class="p-6 space-y-3">
-          <div class="text-center text-slate-400 text-xs py-8">Ładowanie ostatnich zleceń...</div>
+          <div class="text-center text-slate-400 text-xs py-8">Ładowanie feedu ligowego...</div>
         </div>
       </div>
 
@@ -313,6 +344,19 @@
               </tbody>
             </table>
           </div>
+        </div>
+      </div>
+
+      <!-- DZIENNIK TEZ TRANSAKCYJNYCH (CSS-First Widget) -->
+      <div class="feature-journal bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl space-y-3">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+          <h3 class="text-sm font-bold text-white flex items-center gap-2">
+            <span>📖</span> Dziennik Twoich Transakcji &amp; Tez
+          </h3>
+          <span class="text-[11px] text-slate-400 font-mono">Historia decyzji</span>
+        </div>
+        <div id="userJournalList" class="space-y-2.5">
+          <p class="text-slate-400 text-xs py-4 text-center">Ładowanie dziennika...</p>
         </div>
       </div>
 
@@ -429,13 +473,13 @@
   </main>
 
   <!-- ========================================== -->
-  <!-- MODAL: EDYTOR PROFILU & AWATARA            -->
+  <!-- MODAL: EDYTOR PROFILU & USTAWIENIA         -->
   <!-- ========================================== -->
   <div id="profileModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
-    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative max-h-[90vh] overflow-y-auto">
       <div class="flex justify-between items-center pb-3 border-b border-slate-800">
         <h3 class="text-base font-bold text-white flex items-center gap-2">
-          <span>🎭</span> Twoje Biurowe Alter-Ego
+          <span>🎭</span> Ustawienia &amp; Alter-Ego
         </h3>
         <button data-action="close-profile" class="text-slate-400 hover:text-white transition">
           <i data-lucide="x" class="w-5 h-5"></i>
@@ -443,8 +487,20 @@
       </div>
 
       <div class="mt-4 space-y-4">
+        <!-- Tożsamość Użytkownika -->
+        <div class="p-3 bg-slate-950/70 border border-slate-800 rounded-xl flex items-center justify-between text-xs">
+          <div>
+            <span class="text-slate-400 block text-[10px] uppercase font-semibold">GitHub Login</span>
+            <span id="profileGhLogin" class="font-mono text-slate-200 font-bold">@--</span>
+          </div>
+          <div class="text-right">
+            <span class="text-slate-400 block text-[10px] uppercase font-semibold">Wycena portfela</span>
+            <span id="profileCurrentValuation" class="font-mono text-emerald-400 font-bold">-- CK</span>
+          </div>
+        </div>
+
         <!-- Podgląd Awatara -->
-        <div class="flex flex-col items-center justify-center py-2">
+        <div class="flex flex-col items-center justify-center py-1">
           <img id="editAvatarPreview" src="" alt="Podgląd" class="w-20 h-20 rounded-full border-2 border-indigo-500 bg-slate-800 object-cover shadow-lg">
           <span class="text-[11px] text-slate-400 mt-2">Podgląd Twojej tożsamości na Ringu</span>
         </div>
@@ -476,11 +532,39 @@
           <input type="text" id="editDisplayNameInput" maxlength="30" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
         </div>
 
+        <!-- Selektor Motywu UI (Theme Switcher) -->
+        <div class="border-t border-slate-800 pt-3">
+          <label class="text-xs font-medium text-slate-300 block mb-2">🎨 Wybór Motywu Wizualnego</label>
+          <div class="grid grid-cols-3 gap-2">
+            <label class="flex flex-col items-center justify-center p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-indigo-500 cursor-pointer text-center text-xs transition">
+              <input type="radio" name="uiThemeOption" value="v1" class="sr-only">
+              <span class="font-bold text-slate-200">v1</span>
+              <span class="text-[10px] text-slate-400">Klasyczny</span>
+            </label>
+            <label class="flex flex-col items-center justify-center p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-emerald-500 cursor-pointer text-center text-xs transition">
+              <input type="radio" name="uiThemeOption" value="v2" class="sr-only">
+              <span class="font-bold text-emerald-400">v2</span>
+              <span class="text-[10px] text-slate-400">Stitch Ring</span>
+            </label>
+            <label class="flex flex-col items-center justify-center p-2.5 rounded-xl border border-slate-800 bg-slate-950/60 hover:border-pink-500 cursor-pointer text-center text-xs transition">
+              <input type="radio" name="uiThemeOption" value="v3" class="sr-only">
+              <span class="font-bold text-pink-400">v3</span>
+              <span class="text-[10px] text-slate-400">Cyberpunk</span>
+            </label>
+          </div>
+        </div>
+
         <div id="profileError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
 
         <div class="flex gap-2 pt-2">
           <button type="button" data-action="close-profile" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
           <button type="button" data-action="save-profile" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Zapisz Zmiany</button>
+        </div>
+
+        <div class="border-t border-slate-800 pt-2">
+          <button type="button" data-action="logout" class="w-full py-2 text-xs text-rose-400 hover:text-rose-300 hover:bg-rose-950/30 rounded-lg transition border border-rose-900/40">
+            🚪 Wyloguj z sesji
+          </button>
         </div>
       </div>
     </div>
@@ -517,7 +601,7 @@
         </div>
 
         <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
-          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW & USA</span>
+          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW &amp; USA</span>
           Akceptujemy symbole z USA (np. <code class="text-indigo-300">NVDA, AAPL</code>) oraz z GPW z końcówką <code class="text-indigo-300">.WA</code> (np. <code class="text-indigo-300">CDR.WA</code>).
         </div>
 
@@ -561,11 +645,25 @@
 
         <div id="buyInstrumentSection">
           <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
-          <div class="flex gap-2">
-            <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
-            <button type="button" id="verifyBtn" data-action="verify-ticker" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
-              Sprawdź
-            </button>
+          <div class="ticker-autocomplete-container">
+            <div class="flex gap-2">
+              <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" autocomplete="off" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
+              <button type="button" id="verifyBtn" data-action="verify-ticker" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+                Sprawdź
+              </button>
+            </div>
+            <!-- Dropdown Autocomplete pod polem input -->
+            <div id="tickerAutocompleteDropdown" class="ticker-autocomplete-dropdown hidden"></div>
+          </div>
+
+          <!-- Szybki wybór popularnych spółek (Chipy) -->
+          <div class="flex flex-wrap gap-1.5 mt-2">
+            <button type="button" data-action="select-chip-ticker" data-ticker="NVDA" class="trade-ticker-chip">NVDA</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="AAPL" class="trade-ticker-chip">AAPL</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="MSFT" class="trade-ticker-chip">MSFT</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="CDR.WA" class="trade-ticker-chip">CDR.WA</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="PKO.WA" class="trade-ticker-chip">PKO.WA</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="DNP.WA" class="trade-ticker-chip">DNP.WA</button>
           </div>
         </div>
 
@@ -615,8 +713,16 @@
           <span id="estimatedCost" class="font-bold text-white font-mono text-sm">0,00 CK</span>
         </div>
 
+        <div class="bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs flex justify-between items-center">
+          <span class="text-slate-400">Gotówka po zleceniu:</span>
+          <span id="tradeCashAfter" class="font-bold text-slate-200 font-mono text-sm">--</span>
+        </div>
+
         <div>
-          <label class="block text-xs font-medium text-slate-300 mb-1">Teza Inwestycyjna (min. 15 znaków)</label>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Teza Inwestycyjna (min. 15 znaków)</label>
+            <span id="tradeThesisCount" class="text-[11px] text-slate-400 font-mono">0 / min. 15 znaków</span>
+          </div>
           <textarea id="tradeThesis" rows="2" required placeholder="Dlaczego wykonujesz ten ruch?" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-slate-100 focus:outline-none"></textarea>
         </div>
 
@@ -643,6 +749,9 @@
     </div>
   </div>
 
+  <!-- Kontener na powiadomienia Toast -->
+  <div id="appToasts" class="app-toasts" aria-live="polite"></div>
+
   <!-- ========================================== -->
   <!-- STOPKA                                     -->
   <!-- ========================================== -->
@@ -651,7 +760,7 @@
       <p class="font-medium text-slate-400">Karuzela Hajsu • Biurowa Liga Spekulacyjna</p>
       <p class="text-slate-500 max-w-xl mx-auto text-[11px] leading-relaxed">
         Żadna z informacji na tej platformie nie stanowi rekomendacji finansowej. Wszystkie transakcje są fikcyjne,
-        ale ból po przegraniu z benchmarkiem S&P 500 — w 100% autentyczny.
+        ale ból po przegraniu z benchmarkiem S&amp;P 500 — w 100% autentyczny.
       </p>
       <div class="flex justify-center items-center gap-3 pt-2 text-[11px] text-slate-400">
         <button data-action="open-rules" class="hover:text-indigo-400 transition">📜 Kodeks Spekulanta</button>
@@ -668,11 +777,11 @@
   <script defer src="/assets/js/api.js"></script>
   <script defer src="/assets/js/utils.js"></script>
   <script defer src="/assets/js/leaderboard.js"></script>
-<script defer src="/assets/js/portfolio.js"></script>
-<script defer src="/assets/js/profile.js"></script>
-<script defer src="/assets/js/admin.js"></script>
-<script defer src="/assets/js/trading.js"></script>
-<script defer src="/assets/js/app.js"></script>
-<script defer src="/assets/js/events.js"></script>
+  <script defer src="/assets/js/portfolio.js"></script>
+  <script defer src="/assets/js/profile.js"></script>
+  <script defer src="/assets/js/admin.js"></script>
+  <script defer src="/assets/js/trading.js"></script>
+  <script defer src="/assets/js/app.js"></script>
+  <script defer src="/assets/js/events.js"></script>
 </body>
 </html>

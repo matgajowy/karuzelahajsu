@@ -1,9 +1,29 @@
+    let tempAvatarUrl = "";
+
     function openProfileModal() {
       if (!currentUser) return;
       document.getElementById("profileError").classList.add("hidden");
       document.getElementById("editDisplayNameInput").value = currentUser.display_name;
       tempAvatarUrl = currentUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentUser.display_name)}`;
       document.getElementById("editAvatarPreview").src = tempAvatarUrl;
+
+      // Tożsamość użytkownika
+      const ghLoginEl = document.getElementById("profileGhLogin");
+      if (ghLoginEl) ghLoginEl.innerText = `@${currentUser.github_login || "nieznany"}`;
+
+      const valEl = document.getElementById("profileCurrentValuation");
+      if (valEl) {
+        const cash = Number(currentUser.current_cash || 0);
+        const stocks = (userHoldings || []).reduce((sum, h) => sum + Number(h.current_value_ck || h.current_value_pln || 0), 0);
+        valEl.innerHTML = formatCK(cash + stocks);
+      }
+
+      // Motyw
+      const currentTheme = currentUser.theme || localStorage.getItem("kh_theme") || "v2";
+      document.querySelectorAll("input[name='uiThemeOption']").forEach(radio => {
+        radio.checked = radio.value === currentTheme;
+      });
+
       document.getElementById("profileModal").classList.remove("hidden");
     }
 
@@ -19,7 +39,7 @@
       button.disabled = true;
       button.innerHTML = '<i data-lucide="loader-circle" class="w-3 h-3 inline animate-spin"></i> Losuję…';
       errDiv.classList.add("hidden");
-      lucide.createIcons();
+      if (typeof lucide !== "undefined" && lucide.createIcons) lucide.createIcons();
       try {
         const result = await apiRequest("/api/profile/generate-nickname", {
           method: "POST",
@@ -36,7 +56,7 @@
       } finally {
         button.disabled = false;
         button.innerHTML = originalContent;
-        lucide.createIcons();
+        if (typeof lucide !== "undefined" && lucide.createIcons) lucide.createIcons();
       }
     }
 
@@ -53,6 +73,13 @@
       }
     }
 
+    function onThemeRadioChange(e) {
+      const newTheme = e.target.value;
+      if (typeof setTheme === "function") {
+        setTheme(newTheme);
+      }
+    }
+
     async function saveProfile() {
       const errDiv = document.getElementById("profileError");
       errDiv.classList.add("hidden");
@@ -64,14 +91,22 @@
         return;
       }
 
+      const selectedTheme = document.querySelector("input[name='uiThemeOption']:checked")?.value || "v2";
+
       try {
         const data = await apiRequest('/api/profile', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ display_name: newName, avatar_url: tempAvatarUrl })
+          body: JSON.stringify({
+            display_name: newName,
+            avatar_url: tempAvatarUrl,
+            theme: selectedTheme
+          })
         });
 
         if (data.status === "success") {
+          if (currentUser) currentUser.theme = selectedTheme;
+          setTheme(selectedTheme);
           closeProfileModal();
           await checkAuth();
           await fetchAllData();
@@ -85,7 +120,3 @@
         errDiv.classList.remove("hidden");
       }
     }
-
-    // ==========================================
-    // PANEL ADMINA: WHITELIST
-    // ==========================================

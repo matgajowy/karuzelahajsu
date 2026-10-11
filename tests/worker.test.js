@@ -1129,3 +1129,136 @@ test("sale percentage presets round down to whole shares", async () => {
 
   assert.deepEqual(JSON.parse(result), { quarter: "2", half: "5", max: "4", disabled: false });
 });
+
+test("CSS-first theming: index.html defines anti-FOUC script, themes exist, and legacy v2 duplicate files are removed", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /localStorage\.getItem\(['"]kh_theme['"]\)/);
+  assert.match(html, /data-theme/);
+  assert.match(html, /theme-v2\.css/);
+  assert.match(html, /id="appToasts"/);
+  assert.match(html, /class="[^"]*feature-allocation/);
+  assert.match(html, /class="[^"]*feature-journal/);
+  assert.match(html, /id="tickerAutocompleteDropdown"/);
+
+  const themeV1 = await readFile(new URL("../public/assets/css/theme-v1.css", import.meta.url), "utf8");
+  const themeV2 = await readFile(new URL("../public/assets/css/theme-v2.css", import.meta.url), "utf8");
+  const themeV3 = await readFile(new URL("../public/assets/css/theme-v3.css", import.meta.url), "utf8");
+  assert.match(themeV1, /display:\s*none\s*!important/);
+  assert.match(themeV2, /feature-allocation/);
+  assert.match(themeV3, /cyberpunk|neon/i);
+
+  // Weryfikacja braku legacy plików i routingu
+  let indexV2Found = false;
+  try {
+    await readFile(new URL("../public/index-v2.html", import.meta.url));
+    indexV2Found = true;
+  } catch {}
+  assert.equal(indexV2Found, false, "public/index-v2.html should not exist");
+
+  let v2JsFound = false;
+  try {
+    await readFile(new URL("../public/assets/js/v2.js", import.meta.url));
+    v2JsFound = true;
+  } catch {}
+  assert.equal(v2JsFound, false, "public/assets/js/v2.js should not exist");
+});
+
+test("profile theme endpoint updates user theme with validation", async () => {
+  const env = createEnv({ user: { id: 10, is_admin: 0 } });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/profile/theme", {
+      method: "POST",
+      headers: { Cookie: "session_token=test-session", "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: "v3" }),
+    }),
+    env,
+    {},
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.theme, "v3");
+  assert.ok(env.writes.some(({ sql, values }) =>
+    sql.includes("UPDATE users SET theme") && values[0] === "v3" && values[1] === 10
+  ));
+});
+
+test("league allocation endpoint aggregates non-benchmark assets and cash", async () => {
+  const env = {
+    DB: {
+      prepare(sql) {
+        return {
+          first: async () => {
+            if (sql.includes("SUM(current_cash)")) return { cash_ck: 50000 };
+            return { gpw_ck: 30000, usa_ck: 20000 };
+          },
+        };
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/league-allocation"),
+    env,
+    {},
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.data.gpw_ck, 30000);
+  assert.equal(body.data.usa_ck, 20000);
+  assert.equal(body.data.cash_ck, 50000);
+});
+
+test("my-transactions endpoint returns authenticated user history", async () => {
+  const fakeTransactions = [
+    { id: 1, ticker: "NVDA", type: "BUY", shares: 5, price: 100, thesis: "Test thesis for testing.", ai_roast: "Ciekawe." }
+  ];
+  const env = createEnv({
+    user: { id: 3, is_admin: 0 },
+    rows: fakeTransactions,
+  });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/my-transactions", {
+      headers: { Cookie: "session_token=test-session" },
+    }),
+    env,
+    {},
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.data[0].ticker, "NVDA");
+  assert.equal(body.data[0].ai_roast, "Ciekawe.");
+});
+
+test("instruments autocomplete returns suggestions with market status", async () => {
+  const env = {
+    DB: {
+      prepare(sql) {
+        return {
+          bind() {
+            return {
+              all: async () => ({
+                results: [
+                  { ticker: "NVDA", name: "NVIDIA Corp", price: 120, currency: "USD", fx_to_pln: 4.0 }
+                ]
+              }),
+            };
+          },
+        };
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/instruments/search?q=NV&autocomplete=1"),
+    env,
+    {},
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.data[0].ticker, "NVDA");
+  assert.equal(body.data[0].market, "USA");
+  assert.ok(body.data[0].market_status);
+});
+

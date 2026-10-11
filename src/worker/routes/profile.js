@@ -33,38 +33,56 @@ export async function handleGenerateNickname({ request, env }) {
     return jsonResponse({ status: "error", message: "Wymagane logowanie." }, 401);
   }
 
-  if (!env.AI || typeof env.AI.run !== "function") {
-    console.error("Workers AI binding is unavailable; using nickname fallback.");
-    return jsonResponse({
-      status: "success",
-      data: { nickname: fallbackNicknames[Math.floor(Math.random() * fallbackNicknames.length)], fallback: true },
-    });
+  // 1. Spróbuj Workers AI jeśli skonfigurowane
+  if (env.AI && typeof env.AI.run === "function") {
+    let timeoutId;
+    try {
+      const result = await Promise.race([
+        env.AI.run("@cf/meta/llama-3.1-8b-instruct-fp8", {
+          messages: [{ role: "user", content: nicknamePrompt }],
+          max_tokens: 40,
+        }),
+        new Promise((_, reject) => {
+          timeoutId = setTimeout(() => reject(new Error("Workers AI nickname request timed out.")), 5000);
+        }),
+      ]);
+      const response = typeof result === "string" ? result : result?.response;
+      const nickname = validateGeneratedNickname(response);
+      if (nickname) return jsonResponse({ status: "success", data: { nickname, fallback: false } });
+    } catch (error) {
+      console.error("Workers AI nickname generation failed; trying fallback.", error);
+    } finally {
+      clearTimeout(timeoutId);
+    }
   }
 
-  let timeoutId;
+  // 2. Fallback
+  return jsonResponse({
+    status: "success",
+    data: { nickname: fallbackNicknames[Math.floor(Math.random() * fallbackNicknames.length)], fallback: true },
+  });
+}
+
+export async function handleProfileTheme(context) {
+  const { request, env, clientIp } = context;
+  const user = await getSessionUser(request, env);
+  if (!user) return jsonResponse({ status: "error", message: "Wymagane logowanie" }, 401);
+
+  let body;
   try {
-    const result = await Promise.race([
-      env.AI.run("@cf/meta/llama-3.1-8b-instruct-fp8", {
-        messages: [{ role: "user", content: nicknamePrompt }],
-        max_tokens: 40,
-      }),
-      new Promise((_, reject) => {
-        timeoutId = setTimeout(() => reject(new Error("Workers AI nickname request timed out.")), 5000);
-      }),
-    ]);
-    const response = typeof result === "string" ? result : result?.response;
-    const nickname = validateGeneratedNickname(response);
-    if (!nickname) throw new Error("Workers AI returned an invalid nickname.");
-    return jsonResponse({ status: "success", data: { nickname, fallback: false } });
-  } catch (error) {
-    console.error("Workers AI nickname generation failed; using fallback.", error);
-    return jsonResponse({
-      status: "success",
-      data: { nickname: fallbackNicknames[Math.floor(Math.random() * fallbackNicknames.length)], fallback: true },
-    });
-  } finally {
-    clearTimeout(timeoutId);
+    body = await request.json();
+  } catch {
+    return jsonResponse({ status: "error", message: "Nieprawidłowe dane." }, 400);
   }
+
+  const theme = String(body?.theme || "").trim();
+  if (!["v1", "v2", "v3"].includes(theme)) {
+    return jsonResponse({ status: "error", message: "Dozwolone motywy to v1, v2, v3." }, 400);
+  }
+
+  await env.DB.prepare("UPDATE users SET theme = ? WHERE id = ?").bind(theme, user.id).run();
+  await logAudit(env, user.id, "PROFILE_THEME_UPDATED", { theme }, clientIp, "SUCCESS");
+  return jsonResponse({ status: "success", message: "Motyw zaktualizowany.", theme });
 }
 
 export async function handleProfileUpdate(context) {
@@ -101,10 +119,18 @@ export async function handleProfileUpdate(context) {
     return jsonResponse({ status: "error", message: "Adres awatara musi używać HTTPS." }, 400);
   }
 
-  await env.DB.prepare(
-    "UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?"
-  ).bind(displayName, avatarUrl, user.id).run();
+  const theme = typeof body.theme === "string" && ["v1", "v2", "v3"].includes(body.theme) ? body.theme : null;
 
-  await logAudit(env, user.id, "PROFILE_UPDATED", { display_name: displayName }, clientIp, "SUCCESS");
+  if (theme) {
+    await env.DB.prepare(
+      "UPDATE users SET display_name = ?, avatar_url = ?, theme = ? WHERE id = ?"
+    ).bind(displayName, avatarUrl, theme, user.id).run();
+  } else {
+    await env.DB.prepare(
+      "UPDATE users SET display_name = ?, avatar_url = ? WHERE id = ?"
+    ).bind(displayName, avatarUrl, user.id).run();
+  }
+
+  await logAudit(env, user.id, "PROFILE_UPDATED", { display_name: displayName, theme }, clientIp, "SUCCESS");
   return jsonResponse({ status: "success", message: "Profil zaktualizowany." });
 }

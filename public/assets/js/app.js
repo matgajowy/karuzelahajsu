@@ -1,5 +1,5 @@
     document.addEventListener("DOMContentLoaded", () => {
-      lucide.createIcons();
+      if (typeof lucide !== "undefined" && lucide.createIcons) lucide.createIcons();
       checkAuth();
       fetchAllData();
     });
@@ -40,7 +40,7 @@
         fetchAuditLogs();
         fetchAdminUsers();
       }
-      lucide.createIcons();
+      if (typeof lucide !== "undefined" && lucide.createIcons) lucide.createIcons();
     }
 
     async function checkAuth() {
@@ -50,6 +50,9 @@
 
         if (data.authenticated) {
           currentUser = data.user;
+          if (currentUser.theme && typeof setTheme === "function") {
+            setTheme(currentUser.theme);
+          }
           const userAvatar = currentUser.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(currentUser.display_name)}`;
           const authControls = data.auth_mode === "dev-bypass"
             ? '<span class="text-[10px] uppercase tracking-wide text-amber-300 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">DEV DEMO</span>'
@@ -59,8 +62,10 @@
 
           authContainer.innerHTML = `
             <div class="flex items-center gap-2 bg-slate-900 border border-slate-800 py-1 px-2 rounded-xl text-xs">
-              <img src="${escapeHtml(userAvatar)}" alt="${escapeHtml(currentUser.display_name)}" class="w-6 h-6 rounded-full bg-slate-800 object-cover border border-indigo-500/30">
-              <span class="text-white font-semibold hidden md:inline">${escapeHtml(currentUser.display_name)}</span>
+              <button type="button" data-action="open-profile" class="flex items-center gap-2 hover:opacity-80 transition cursor-pointer" title="Ustawienia profilu">
+                <img src="${escapeHtml(userAvatar)}" alt="${escapeHtml(currentUser.display_name)}" class="w-6 h-6 rounded-full bg-slate-800 object-cover border border-indigo-500/30">
+                <span class="text-white font-semibold hidden md:inline">${escapeHtml(currentUser.display_name)}</span>
+              </button>
               ${authControls}
             </div>
           `;
@@ -88,7 +93,7 @@
           document.getElementById("tabBtnAdmin").style.display = 'none';
           switchTab('arena');
         }
-        lucide.createIcons();
+        if (typeof lucide !== "undefined" && lucide.createIcons) lucide.createIcons();
       } catch (e) {
         console.error("Auth check failed:", e);
       }
@@ -119,7 +124,6 @@
         console.error("Leaderboard error:", e);
       }
     }
-
 
     async function handleLogout() {
       await apiRequest('/api/logout', { method: 'POST' });
