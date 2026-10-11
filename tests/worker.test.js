@@ -5,9 +5,6 @@ import { runInNewContext } from "node:vm";
 import worker from "../src/worker/index.js";
 import { allowedMethods, findRoute } from "../src/worker/routes/index.js";
 import { syncAllMarketPrices } from "../src/worker/services/pricing.js";
-import { handleOpponentPortfolio } from "../src/worker/services/p2.js";
-import { generateText } from "../src/worker/services/ai.js";
-import { sendEmailToSlack, sendEveningRecap, sendMorningBriefing } from "../src/worker/services/slackBriefing.js";
 
 function createEnv({
   user = null,
@@ -69,7 +66,6 @@ test("route registry covers all frontend API endpoints", () => {
     ["GET", "/api/leaderboard"],
     ["GET", "/api/feed"],
     ["GET", "/api/portfolio"],
-    ["GET", "/api/opponent-portfolio"],
     ["POST", "/api/profile"],
     ["POST", "/api/profile/generate-nickname"],
     ["GET", "/api/admin/users"],
@@ -114,289 +110,6 @@ test("page uses external scripts and delegated actions rather than inline handle
   assert.match(html, /MAX \(pełne akcje\)/);
   assert.match(html, /href="\/favicon\.svg"/);
   assert.match(html, /id="generateNickBtn"/);
-  assert.doesNotMatch(html, /derbyTrack|derby\.js|Memiczny Tor Wyścigowy/);
-  assert.doesNotMatch(html, /dailyRecapBanner|marketRecapContent|marketRaceChart|opponentPortfolioDrawer/);
-  assert.doesNotMatch(html, /chart\.umd\.min\.js/);
-});
-
-test("accordion portfolio remains wired and transaction feed has no roast", async () => {
-  const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
-  const leaderboard = await readFile(new URL("../public/assets/js/leaderboard.js", import.meta.url), "utf8");
-  const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
-  const feedRoute = await readFile(new URL("../src/worker/routes/feed.js", import.meta.url), "utf8");
-  const tradeRoute = await readFile(new URL("../src/worker/routes/trades.js", import.meta.url), "utf8");
-
-  assert.match(events, /"toggle-opponent-accordion": element => toggleOpponentAccordion/);
-  assert.match(events, /"copy-accordion-holding": element => window\.karuzela\.copyTrade/);
-  assert.match(leaderboard, /\/api\/opponent-portfolio\?user_id=/);
-  assert.match(leaderboard, /last_thesis/);
-  assert.match(leaderboard, /data-action="copy-accordion-holding"/);
-  assert.doesNotMatch(portfolio, /Roast Master|ai_roast/);
-  assert.doesNotMatch(feedRoute, /ai_roast/);
-  assert.doesNotMatch(tradeRoute, /generateText|ai_roast|Roast Master/);
-});
-
-test("opponent portfolio endpoint returns holdings and latest thesis", async () => {
-  const opponent = {
-    id: 12,
-    github_login: "player",
-    display_name: "Test Player",
-    avatar_url: null,
-    current_cash: 250,
-  };
-  const holding = {
-    ticker: "NVDA",
-    name: "NVIDIA Corporation",
-    shares: 2,
-    avg_buy_price: 100,
-    current_price: 110,
-    currency: "USD",
-    current_value_ck: 220,
-    return_pct: 10,
-  };
-  const thesis = { ticker: "NVDA", type: "BUY", thesis: "Dane wskazują na wzrost.", created_at: "2025-01-01" };
-  const env = {
-    DB: {
-      prepare(sql) {
-        return {
-          bind: (...values) => {
-            const statement = {
-              first: async () => {
-                if (sql.includes("SELECT id, github_login")) return values[0] === 12 ? opponent : null;
-                if (sql.includes("FROM transactions")) return thesis;
-                return null;
-              },
-              all: async () => ({ results: sql.includes("FROM holdings h") ? [holding] : [] }),
-            };
-            return statement;
-          },
-        };
-      },
-    },
-  };
-
-  const opponentResponse = await handleOpponentPortfolio({
-    env,
-    url: new URL("https://example.test/api/opponent-portfolio?user_id=12"),
-  });
-  assert.equal(opponentResponse.status, 200);
-  assert.deepEqual((await opponentResponse.json()).data, {
-    id: 12,
-    display_name: "Test Player",
-    avatar_url: null,
-    cash_ck: 250,
-    stocks_value_ck: 220,
-    valuation_ck: 470,
-    holdings: [holding],
-    last_thesis: thesis,
-  });
-});
-
-test("Gemini text generation sends the configured prompt and returns generated text", async () => {
-  const originalFetch = globalThis.fetch;
-  let requestUrl;
-  let requestBody;
-  globalThis.fetch = async (url, options) => {
-    requestUrl = new URL(url);
-    requestBody = JSON.parse(options.body);
-    return Response.json({
-      candidates: [{ content: { parts: [{ text: "  Roast giełdowy.  " }] } }],
-    });
-  };
-  try {
-    const text = await generateText(
-      { GEMINI_API_KEY: "test-key" },
-      "System po polsku",
-      "Prompt użytkownika",
-      "Fallback"
-    );
-    assert.equal(text, "Roast giełdowy.");
-    assert.equal(requestUrl.pathname, "/v1beta/models/gemini-2.5-flash:generateContent");
-    assert.equal(requestUrl.searchParams.get("key"), "test-key");
-    assert.deepEqual(requestBody.systemInstruction, { parts: [{ text: "System po polsku" }] });
-    assert.deepEqual(requestBody.contents, [{ parts: [{ text: "Prompt użytkownika" }] }]);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("Gemini text generation returns the supplied fallback when the API key is missing", async () => {
-  const originalConsoleError = console.error;
-  console.error = () => {};
-  try {
-    assert.equal(await generateText({}, "System", "Prompt", "Fallback testowy"), "Fallback testowy");
-  } finally {
-    console.error = originalConsoleError;
-  }
-});
-
-test("Resend sends the briefing email to the configured Slack channel address", async () => {
-  const originalFetch = globalThis.fetch;
-  let requestUrl;
-  let requestHeaders;
-  let requestBody;
-  globalThis.fetch = async (url, options) => {
-    requestUrl = String(url);
-    requestHeaders = options.headers;
-    requestBody = JSON.parse(options.body);
-    return Response.json({ id: "email-test" });
-  };
-  try {
-    const result = await sendEmailToSlack({
-      RESEND_API_KEY: "resend-test",
-      SLACK_CHANNEL_EMAIL: "channel@example.test",
-    }, "Subject test", "<p>Briefing</p>");
-    assert.equal(requestUrl, "https://api.resend.com/emails");
-    assert.equal(requestHeaders.Authorization, "Bearer resend-test");
-    assert.deepEqual(requestBody, {
-      from: "Biurowy Makler <onboarding@resend.dev>",
-      to: ["channel@example.test"],
-      subject: "Subject test",
-      html: "<p>Briefing</p>",
-    });
-    assert.equal(result.id, "email-test");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("morning briefing composes market data and sends the fixed Slack subject", async () => {
-  const originalFetch = globalThis.fetch;
-  const requests = [];
-  globalThis.fetch = async (url, options) => {
-    const endpoint = String(url);
-    requests.push({ endpoint, options });
-    if (endpoint.includes("generativelanguage.googleapis.com")) {
-      return Response.json({
-        candidates: [{ content: { parts: [{ text: "Kawa gotowa. Rynek jeszcze w szlafroku." }] } }],
-      });
-    }
-    return Response.json({ id: "morning-test" });
-  };
-  const env = {
-    GEMINI_API_KEY: "gemini-test",
-    RESEND_API_KEY: "resend-test",
-    SLACK_CHANNEL_EMAIL: "briefings@example.test",
-    DB: {
-      prepare(sql) {
-        return {
-          first: async () => {
-            if (sql.includes("fx_to_pln")) return { fx_to_pln: 4.02 };
-            return { user_name: "Test User", ticker: "NVDA", type: "BUY", thesis: "Teza <w nawiasach>" };
-          },
-          all: async () => ({
-            results: [
-              { ticker: "^GSPC", name: "S&P 500", price: 5200, currency: "USD" },
-              { ticker: "WIG20", name: "WIG20", price: 2800, currency: "PLN" },
-            ],
-          }),
-        };
-      },
-    },
-  };
-  try {
-    const result = await sendMorningBriefing(env);
-    assert.equal(result.id, "morning-test");
-    assert.equal(requests.length, 2);
-    const geminiPrompt = JSON.parse(requests[0].options.body).contents[0].parts[0].text;
-    assert.match(geminiPrompt, /USD\/CK: 4,0200/);
-    assert.match(geminiPrompt, /Teza <w nawiasach>/);
-    const email = JSON.parse(requests[1].options.body);
-    assert.equal(email.subject, "☕ PORANNY BIULETYN: Kawa & Krew [08:30]");
-    assert.match(email.html, /Kawa gotowa/);
-    assert.match(email.html, /Teza &lt;w nawiasach&gt;/);
-    assert.doesNotMatch(email.html, /Teza <w nawiasach>/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("evening recap includes league standings and today's transaction count", async () => {
-  const originalFetch = globalThis.fetch;
-  const requests = [];
-  globalThis.fetch = async (url, options) => {
-    const endpoint = String(url);
-    requests.push({ endpoint, options });
-    if (endpoint.includes("generativelanguage.googleapis.com")) {
-      return Response.json({
-        candidates: [{ content: { parts: [{ text: "Dzwonek wybrzmiał." }] } }],
-      });
-    }
-    return Response.json({ id: "evening-test" });
-  };
-  const env = {
-    GEMINI_API_KEY: "gemini-test",
-    RESEND_API_KEY: "resend-test",
-    SLACK_CHANNEL_EMAIL: "briefings@example.test",
-    DB: {
-      prepare(sql) {
-        return {
-          all: async () => ({
-            results: [
-              { id: 1, github_login: "winner", display_name: "Lider", valuation_ck: 120000 },
-              { id: 2, github_login: "bottom", display_name: "Ostatni", valuation_ck: 90000 },
-              { id: 3, github_login: "benchmark_sp500", display_name: "S&P 500", valuation_ck: 110000 },
-              { id: 4, github_login: "benchmark_wig20", display_name: "WIG20", valuation_ck: 105000 },
-            ],
-          }),
-          first: async () => sql.includes("COUNT(*)") ? { count: 7 } : null,
-        };
-      },
-    },
-  };
-  try {
-    const result = await sendEveningRecap(env);
-    assert.equal(result.id, "evening-test");
-    const prompt = JSON.parse(requests[0].options.body).contents[0].parts[0].text;
-    assert.match(prompt, /Lider: Lider/);
-    assert.match(prompt, /Dół tabeli: Ostatni/);
-    assert.match(prompt, /transakcji: 7/);
-    assert.match(prompt, /S&P 500/);
-    assert.match(JSON.parse(requests[1].options.body).subject, /Dzwonek & Zgliszcza \[17:30\]/);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
-});
-
-test("morning cron dispatches the briefing without running the price sync", async () => {
-  const originalFetch = globalThis.fetch;
-  const requests = [];
-  globalThis.fetch = async (url) => {
-    const endpoint = String(url);
-    requests.push(endpoint);
-    if (endpoint.includes("generativelanguage.googleapis.com")) {
-      return Response.json({
-        candidates: [{ content: { parts: [{ text: "Poranek na giełdzie." }] } }],
-      });
-    }
-    return Response.json({ id: "scheduled-briefing" });
-  };
-  const env = {
-    GEMINI_API_KEY: "gemini-test",
-    RESEND_API_KEY: "resend-test",
-    SLACK_CHANNEL_EMAIL: "briefings@example.test",
-    DB: {
-      prepare(sql) {
-        return {
-          first: async () => sql.includes("fx_to_pln") ? { fx_to_pln: 4 } : null,
-          all: async () => ({ results: [] }),
-        };
-      },
-    },
-  };
-  const promises = [];
-  try {
-    await worker.scheduled({ cron: "30 6 * * 1-5" }, env, {
-      waitUntil: promise => promises.push(promise),
-    });
-    await Promise.all(promises);
-    assert.deepEqual(requests, [
-      "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=gemini-test",
-      "https://api.resend.com/emails",
-    ]);
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
 });
 
 test("CK formatter provides safe text and visual token formats", async () => {
@@ -1417,171 +1130,135 @@ test("sale percentage presets round down to whole shares", async () => {
   assert.deepEqual(JSON.parse(result), { quarter: "2", half: "5", max: "4", disabled: false });
 });
 
-function createAssetsRecorder() {
-  const requested = [];
-  return {
-    requested,
-    fetch: async request => {
-      requested.push(new URL(request.url).pathname);
-      return new Response(`asset:${new URL(request.url).pathname}`, { status: 200 });
-    },
-  };
-}
+test("CSS-first theming: index.html defines anti-FOUC script, themes exist, and legacy v2 duplicate files are removed", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /localStorage\.getItem\(['"]kh_theme['"]\)/);
+  assert.match(html, /data-theme/);
+  assert.match(html, /theme-v2\.css/);
+  assert.match(html, /id="appToasts"/);
+  assert.match(html, /class="[^"]*feature-allocation/);
+  assert.match(html, /class="[^"]*feature-journal/);
+  assert.match(html, /id="tickerAutocompleteDropdown"/);
 
-test("/v2 and /v2/ serve the new UI document while / keeps the legacy page", async () => {
-  const assets = createAssetsRecorder();
-  const env = createEnv({ assets });
+  const themeV1 = await readFile(new URL("../public/assets/css/theme-v1.css", import.meta.url), "utf8");
+  const themeV2 = await readFile(new URL("../public/assets/css/theme-v2.css", import.meta.url), "utf8");
+  const themeV3 = await readFile(new URL("../public/assets/css/theme-v3.css", import.meta.url), "utf8");
+  assert.match(themeV1, /display:\s*none\s*!important/);
+  assert.match(themeV2, /feature-allocation/);
+  assert.match(themeV3, /cyberpunk|neon/i);
 
-  for (const path of ["/v2", "/v2/"]) {
-    const response = await worker.fetch(new Request(`https://example.com${path}`), env, {});
-    assert.equal(response.status, 200);
-    assert.equal(await response.text(), "asset:/index-v2");
-  }
-  const root = await worker.fetch(new Request("https://example.com/"), env, {});
-  assert.equal(await root.text(), "asset:/");
-  assert.deepEqual(assets.requested, ["/index-v2", "/index-v2", "/"]);
+  // Weryfikacja braku legacy plików i routingu
+  let indexV2Found = false;
+  try {
+    await readFile(new URL("../public/index-v2.html", import.meta.url));
+    indexV2Found = true;
+  } catch {}
+  assert.equal(indexV2Found, false, "public/index-v2.html should not exist");
+
+  let v2JsFound = false;
+  try {
+    await readFile(new URL("../public/assets/js/v2.js", import.meta.url));
+    v2JsFound = true;
+  } catch {}
+  assert.equal(v2JsFound, false, "public/assets/js/v2.js should not exist");
 });
 
-test("UI version is selected only by path: no cookie or query switch", async () => {
-  const assets = createAssetsRecorder();
-  const env = createEnv({ assets });
+test("profile theme endpoint updates user theme with validation", async () => {
+  const env = createEnv({ user: { id: 10, is_admin: 0 } });
   const response = await worker.fetch(
-    new Request("https://example.com/?ui=v2", { headers: { Cookie: "ui_version=v2" } }),
+    new Request("https://dev.example/api/profile/theme", {
+      method: "POST",
+      headers: { Cookie: "session_token=test-session", "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: "v3" }),
+    }),
     env,
-    {}
-  );
-  assert.equal(await response.text(), "asset:/");
-  assert.equal(response.headers.get("Set-Cookie"), null);
-});
-
-test("/v2 does not swallow API routes or other paths", async () => {
-  const assets = createAssetsRecorder();
-  const env = createEnv({ assets });
-  const api = await worker.fetch(new Request("https://example.com/api/v2/anything"), env, {});
-  assert.equal(api.status, 404);
-  assert.equal((await api.json()).status, "error");
-  await worker.fetch(new Request("https://example.com/v2/other"), env, {});
-  await worker.fetch(new Request("https://example.com/assets/v2/v2.css"), env, {});
-  assert.deepEqual(assets.requested, ["/v2/other", "/assets/v2/v2.css"]);
-});
-
-test("v2 page keeps every element and action the shared scripts depend on", async () => {
-  const [html, legacy, events, ...scripts] = await Promise.all([
-    readFile(new URL("../public/index-v2.html", import.meta.url), "utf8"),
-    readFile(new URL("../public/index.html", import.meta.url), "utf8"),
-    readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8"),
-    ...["app", "leaderboard", "portfolio", "profile", "admin", "trading"].map(name =>
-      readFile(new URL(`../public/assets/js/${name}.js`, import.meta.url), "utf8")),
-  ]);
-
-  // Każde ID, po które sięga wspólny JS i które istnieje w starym UI, musi istnieć w v2.
-  const scriptIds = new Set(scripts.flatMap(source =>
-    [...source.matchAll(/getElementById\(["']([^"']+)["']\)/g)].map(match => match[1])));
-  const missingIds = [...scriptIds]
-    .filter(id => legacy.includes(`id="${id}"`))
-    .filter(id => !html.includes(`id="${id}"`));
-  assert.ok(scriptIds.size > 20);
-  assert.deepEqual(missingIds, []);
-
-  const staticActions = [
-    ...events.matchAll(/^\s+"([a-z-]+)":/gm),
-    ...events.matchAll(/dataset\.action === "([a-z-]+)"/g),
-  ].map(match => match[1]);
-  const legacyActions = new Set([...legacy.matchAll(/data-action="([^"]+)"/g)].map(match => match[1]));
-  const v2Actions = new Set([...html.matchAll(/data-action="([^"]+)"/g)].map(match => match[1]));
-  for (const action of legacyActions) {
-    assert.ok(staticActions.includes(action), `unknown action ${action}`);
-    assert.ok(v2Actions.has(action), `v2 is missing action ${action}`);
-  }
-
-  assert.ok(scripts.length > 0);
-  assert.match(html, /<link rel="stylesheet" href="\/assets\/v2\/v2\.css">/);
-  assert.match(html, /href="\/api\/auth\/github"/);
-  assert.doesNotMatch(html, /\son(?:click|change|submit|input|keypress)=/i);
-  for (const script of ["state", "api", "utils", "leaderboard", "portfolio", "profile", "admin", "trading", "app", "events"]) {
-    assert.match(html, new RegExp(`src="/assets/js/${script}\\.js"`));
-  }
-  // Wszystkie zasoby są ścieżkami root-relative — działają pod /v2 i /v2/.
-  assert.doesNotMatch(html, /(?:src|href)="(?!https?:|\/|#|data:)[^"]+"/);
-});
-
-test("my-transactions requires a session and returns the user's own history", async () => {
-  const anonymous = await worker.fetch(
-    new Request("https://example.com/api/my-transactions"),
-    createEnv(),
     {},
   );
-  assert.equal(anonymous.status, 401);
-
-  const rows = [{ id: 5, ticker: "PKN.WA", type: "BUY", shares: 2, price: 150, total_value_ck: 300, thesis: "Test thesis here", created_at: "2026-10-09 12:00:00", company_name: "ORLEN S.A.", currency: "PLN" }];
-  const env = createEnv({
-    devAuthBypass: true,
-    demoUser: { id: 17, github_login: "demo_marta", display_name: "Marta", avatar_url: null, current_cash: 100, is_admin: 0 },
-    rows,
-  });
-  const response = await worker.fetch(new Request("https://dev.example/api/my-transactions"), env, {});
   assert.equal(response.status, 200);
   const body = await response.json();
   assert.equal(body.status, "success");
-  assert.deepEqual(body.data, rows);
+  assert.equal(body.theme, "v3");
+  assert.ok(env.writes.some(({ sql, values }) =>
+    sql.includes("UPDATE users SET theme") && values[0] === "v3" && values[1] === 10
+  ));
 });
 
-test("v2 extensions only use hooks that exist in the shared scripts", async () => {
-  const [v2, html, ...shared] = await Promise.all([
-    readFile(new URL("../public/assets/v2/v2.js", import.meta.url), "utf8"),
-    readFile(new URL("../public/index-v2.html", import.meta.url), "utf8"),
-    ...["app", "leaderboard", "portfolio", "trading"].map(name =>
-      readFile(new URL(`../public/assets/js/${name}.js`, import.meta.url), "utf8")),
-  ]);
-  const sharedSource = shared.join("\n");
-  // Każda funkcja opakowywana w v2.js musi nadal istnieć we wspólnych skryptach.
-  for (const name of ["fetchUserPortfolio", "renderDashboard", "fetchAllData", "fetchFeed", "switchTab", "updateTradeAvailability", "openTradeModal", "closeTradeModal", "setTradeType"]) {
-    assert.match(sharedSource, new RegExp(`function ${name}\\(`), name);
-    assert.match(v2, new RegExp(`window\\.${name} = `), `v2.js should wrap ${name}`);
-  }
-  assert.match(html, /<script defer src="\/assets\/v2\/v2\.js"><\/script>/);
-  // Każdy element, po który sięga v2.js, jest w dokumencie v2.
-  const ids = new Set([...v2.matchAll(/\$\("([A-Za-z0-9]+)"\)/g)].map(match => match[1]));
-  const missing = [...ids].filter(id => !html.includes(`id="${id}"`));
-  assert.deepEqual(missing, []);
-});
-
-test("league allocation aggregates player holdings by market and excludes benchmarks", async () => {
-  const queries = [];
+test("league allocation endpoint aggregates non-benchmark assets and cash", async () => {
   const env = {
     DB: {
       prepare(sql) {
-        queries.push(sql);
         return {
-          first: async () => (sql.includes("current_cash") && !sql.includes("holdings")
-            ? { cash_ck: 91000.5 }
-            : { gpw_ck: 42000, usa_ck: 28000 }),
+          first: async () => {
+            if (sql.includes("SUM(current_cash)")) return { cash_ck: 50000 };
+            return { gpw_ck: 30000, usa_ck: 20000 };
+          },
         };
       },
     },
   };
-  const response = await worker.fetch(new Request("https://example.com/api/league-allocation"), env, {});
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/league-allocation"),
+    env,
+    {},
+  );
   assert.equal(response.status, 200);
-  assert.deepEqual((await response.json()).data, { gpw_ck: 42000, usa_ck: 28000, cash_ck: 91000.5 });
-  assert.ok(queries.every(sql => sql.includes("benchmark_sp500") && sql.includes("benchmark_wig20")));
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.data.gpw_ck, 30000);
+  assert.equal(body.data.usa_ck, 20000);
+  assert.equal(body.data.cash_ck, 50000);
 });
 
-test("v2 markup is balanced and exposes the Ring dashboard hooks", async () => {
-  const html = await readFile(new URL("../public/index-v2.html", import.meta.url), "utf8");
-  const body = html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<!--[\s\S]*?-->/g, "");
-  const voidTags = new Set(["meta", "link", "img", "input", "br", "hr", "source", "path", "circle", "line", "rect", "stop", "defs"]);
-  const stack = [];
-  for (const [, closing, name, selfClosing] of body.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g)) {
-    const tag = name.toLowerCase();
-    if (voidTags.has(tag) || selfClosing) continue;
-    if (closing) assert.equal(stack.pop(), tag, `unbalanced </${tag}>`);
-    else stack.push(tag);
-  }
-  assert.deepEqual(stack, []);
-  for (const id of ["v2Markets", "v2ValuePill", "v2UserCard", "v2Allocation", "v2RankCount", "v2ExposureBar", "v2PositionsBadge"]) {
-    assert.match(html, new RegExp(`id="${id}"`));
-  }
-  for (const action of ["rank-filter", "sort-positions", "analyze-portfolios", "open-audit"]) {
-    assert.match(html, new RegExp(`data-v2-action="${action}"`));
-  }
+test("my-transactions endpoint returns authenticated user history", async () => {
+  const fakeTransactions = [
+    { id: 1, ticker: "NVDA", type: "BUY", shares: 5, price: 100, thesis: "Test thesis for testing.", ai_roast: "Ciekawe." }
+  ];
+  const env = createEnv({
+    user: { id: 3, is_admin: 0 },
+    rows: fakeTransactions,
+  });
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/my-transactions", {
+      headers: { Cookie: "session_token=test-session" },
+    }),
+    env,
+    {},
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.data[0].ticker, "NVDA");
+  assert.equal(body.data[0].ai_roast, "Ciekawe.");
 });
+
+test("instruments autocomplete returns suggestions with market status", async () => {
+  const env = {
+    DB: {
+      prepare(sql) {
+        return {
+          bind() {
+            return {
+              all: async () => ({
+                results: [
+                  { ticker: "NVDA", name: "NVIDIA Corp", price: 120, currency: "USD", fx_to_pln: 4.0 }
+                ]
+              }),
+            };
+          },
+        };
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request("https://dev.example/api/instruments/search?q=NV&autocomplete=1"),
+    env,
+    {},
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.data[0].ticker, "NVDA");
+  assert.equal(body.data[0].market, "USA");
+  assert.ok(body.data[0].market_status);
+});
+

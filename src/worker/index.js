@@ -1,25 +1,18 @@
 import { jsonResponse } from "./lib/http.js";
 import { allowedMethods, findRoute } from "./routes/index.js";
 import { syncAllMarketPrices } from "./services/pricing.js";
-import { sendEveningRecap, sendMorningBriefing } from "./services/slackBriefing.js";
+import { generateStandup } from "./services/ai.js";
 
 export default {
   async scheduled(event, env, ctx) {
-    if (event.cron === "30 6 * * 1-5") {
-      ctx.waitUntil(sendMorningBriefing(env).catch(error => {
-        console.error("Morning Slack briefing failed.", error);
-      }));
-      return;
+    const cron = event?.cron || "";
+    if (cron === "0 6 * * *" || cron === "0 6 * * MON-FRI") {
+      ctx.waitUntil(generateStandup(env, "STANDUP_MORNING"));
+    } else if (cron === "0 14 * * *" || cron === "0 14 * * MON-FRI") {
+      ctx.waitUntil(generateStandup(env, "STANDUP_EVENING"));
+    } else {
+      ctx.waitUntil(syncAllMarketPrices(env));
     }
-    if (event.cron === "30 15 * * 1-5") {
-      ctx.waitUntil(sendEveningRecap(env).catch(error => {
-        console.error("Evening Slack recap failed.", error);
-      }));
-      return;
-    }
-    ctx.waitUntil(syncAllMarketPrices(env).catch(error => {
-      console.error("Scheduled market price sync failed.", error);
-    }));
   },
 
   async fetch(request, env, ctx) {
@@ -61,13 +54,6 @@ export default {
 
     if (url.pathname.startsWith("/api/")) {
       return jsonResponse({ status: "error", message: "Nie znaleziono endpointu." }, 404);
-    }
-
-    if (env.ASSETS && (url.pathname === "/v2" || url.pathname === "/v2/") &&
-        (request.method === "GET" || request.method === "HEAD")) {
-      // Nowy interfejs wybiera wyłącznie adres /v2 (bez ciasteczek i parametrów).
-      // Ścieżka bez rozszerzenia: Workers Assets zamieniłby "/index-v2.html" na przekierowanie.
-      return env.ASSETS.fetch(new Request(new URL("/index-v2", url), request));
     }
 
     if (env.ASSETS) return env.ASSETS.fetch(request);

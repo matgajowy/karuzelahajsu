@@ -1,0 +1,42 @@
+/* ==========================================================================
+   Motyw v1: Klasyczny (Slate Minimal)
+   ========================================================================== */
+
+:root {
+  --theme-name: "v1";
+  --theme-bg: #020617;
+  --theme-surface: #0f172a;
+  --theme-surface-card: #0f172a;
+  --theme-border: #1e293b;
+  --theme-primary: #6366f1;
+  --theme-accent: #f59e0b;
+}
+
+body {
+  background-color: var(--theme-bg);
+  color: #f8fafc;
+}
+
+/* W motywie v1 zaawansowane sekcje v2 są ukryte */
+.feature-journal,
+.feature-allocation,
+.v2-only-feature {
+  display: none !important;
+}
+
+/* Klasyczny layout centrowany */
+.app-container {
+  max-width: 72rem;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* Standardowy poziomy pasek górny */
+.app-nav {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  border-bottom: 1px solid #1e293b;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(8px);
+}

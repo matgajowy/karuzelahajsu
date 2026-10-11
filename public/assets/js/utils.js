@@ -115,3 +115,59 @@ function formatQuotePrice(value, currency) {
   });
   return `${amount} ${currency === "PLN" ? "CK" : currency}`;
 }
+
+/* ==========================================================================
+   Toasty powiadomień
+   ========================================================================== */
+function toast(message, kind = "info") {
+  const host = document.getElementById("appToasts");
+  if (!host) {
+    return;
+  }
+  const item = document.createElement("div");
+  item.className = "app-toast";
+  item.dataset.kind = kind;
+  item.textContent = String(message);
+  host.appendChild(item);
+  requestAnimationFrame(() => item.classList.add("in"));
+  setTimeout(() => {
+    item.classList.remove("in");
+    setTimeout(() => item.remove(), 250);
+  }, kind === "error" ? 6000 : 3800);
+}
+
+if (typeof window !== "undefined") {
+  window.toast = toast;
+  window.alert = message => {
+    const text = String(message);
+    toast(text, /pomyślnie|sukces|zaktualizowany|zrealizowane/i.test(text) ? "success" : "info");
+  };
+}
+
+/* ==========================================================================
+   Theme Switcher (CSS-First Theming)
+   ========================================================================== */
+function setTheme(themeName) {
+  if (!["v1", "v2", "v3"].includes(themeName)) return;
+  document.documentElement.setAttribute("data-theme", themeName);
+  try {
+    localStorage.setItem("kh_theme", themeName);
+  } catch (e) {}
+
+  const link = document.getElementById("activeThemeStylesheet");
+  if (link) {
+    link.href = `/assets/css/theme-${themeName}.css`;
+  }
+
+  if (window.currentUser) {
+    fetch("/api/profile/theme", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ theme: themeName })
+    }).catch(err => console.warn("Błąd zapisu motywu w profilu:", err));
+  }
+}
+
+if (typeof window !== "undefined") {
+  window.setTheme = setTheme;
+}

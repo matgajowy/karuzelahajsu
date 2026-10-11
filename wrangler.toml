@@ -12,7 +12,7 @@ binding = "AI"
 enabled = true
 
 [triggers]
-crons = ["30 6 * * 1-5", "30 15 * * 1-5", "*/15 6-21 * * 1-5"]
+crons = ["*/15 6-21 * * MON-FRI", "0 6 * * *", "0 14 * * *"]
 
 [assets]
 directory = "./public"
@@ -34,15 +34,12 @@ DEV_AUTH_LOGIN = "demo_marta"
 [env.dev.ai]
 binding = "AI"
 
-[env.dev.observability]
-enabled = true
-
 [env.dev.assets]
 directory = "./public"
 binding = "ASSETS"
 
 [env.dev.triggers]
-crons = ["30 6 * * MON-FRI", "30 15 * * MON-FRI", "*/15 6-21 * * MON-FRI"]
+crons = []
 
 [[env.dev.d1_databases]]
 binding = "DB"

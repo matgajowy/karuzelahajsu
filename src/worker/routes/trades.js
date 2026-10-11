@@ -1,6 +1,7 @@
 import { jsonResponse } from "../lib/http.js";
 import { getSessionUser, logAudit } from "../lib/auth.js";
 import { getMarketInfo, marketClosedMessage, toMarketStatus } from "../lib/marketHours.js";
+import { generateTradeRoast } from "../services/ai.js";
 
 export async function handleTrade(context) {
   const { request, env, url, clientIp } = context;
@@ -48,7 +49,6 @@ export async function handleTrade(context) {
   // 1 CK = 1 PLN.
   const priceCk = inst.price * inst.fx_to_pln;
   const totalTradeCk = shares * priceCk;
-  // Keep storing the same numeric amount in the legacy *_pln transaction column.
 
   // Wycena całkowita portfela użytkownika
   const portSummary = await env.DB.prepare(`
@@ -63,6 +63,22 @@ export async function handleTrade(context) {
   `).bind(user.id).first();
 
   const totalPortfolioValueCk = (portSummary.current_cash || 0) + (portSummary.stocks_value || 0);
+
+  // 50% szansy na uszczypliwy roast AI (błąd nie może blokować transakcji)
+  let aiRoast = null;
+  if (Math.random() < 0.5) {
+    try {
+      aiRoast = await generateTradeRoast(env, {
+        ticker,
+        type,
+        shares,
+        thesis: thesis.trim(),
+        userName: user.display_name,
+      });
+    } catch (err) {
+      console.warn("Could not generate trade roast:", err);
+    }
+  }
 
   if (type === "BUY") {
     if (user.current_cash < totalTradeCk) {
@@ -96,13 +112,13 @@ export async function handleTrade(context) {
           shares = holdings.shares + excluded.shares
       `).bind(user.id, ticker, shares, inst.price),
       env.DB.prepare(`
-        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis)
-        VALUES (?, ?, 'BUY', ?, ?, ?, ?)
-      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim())
+        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis, ai_roast)
+        VALUES (?, ?, 'BUY', ?, ?, ?, ?, ?)
+      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim(), aiRoast)
     ]);
 
     await logAudit(env, user.id, "TRADE_BUY", { ticker, shares, totalTradeCk }, clientIp, "SUCCESS");
-    return jsonResponse({ status: "success", message: "Zlecenie kupna zrealizowane pomyślnie!" });
+    return jsonResponse({ status: "success", message: "Zlecenie kupna zrealizowane pomyślnie!", roast: aiRoast });
 
   } else if (type === "SELL") {
     // Walidacja posiadanych akcji
@@ -116,9 +132,9 @@ export async function handleTrade(context) {
     const batchQueries = [
       env.DB.prepare("UPDATE users SET current_cash = current_cash + ? WHERE id = ?").bind(totalTradeCk, user.id),
       env.DB.prepare(`
-        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis)
-        VALUES (?, ?, 'SELL', ?, ?, ?, ?)
-      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim())
+        INSERT INTO transactions (user_id, ticker, type, shares, price, total_value_pln, thesis, ai_roast)
+        VALUES (?, ?, 'SELL', ?, ?, ?, ?, ?)
+      `).bind(user.id, ticker, shares, inst.price, totalTradeCk, thesis.trim(), aiRoast)
     ];
 
     if (remainingShares <= 0.0001) {
@@ -129,6 +145,6 @@ export async function handleTrade(context) {
 
     await env.DB.batch(batchQueries);
     await logAudit(env, user.id, "TRADE_SELL", { ticker, shares, totalTradeCk }, clientIp, "SUCCESS");
-    return jsonResponse({ status: "success", message: "Zlecenie sprzedaży zrealizowane pomyślnie!" });
+    return jsonResponse({ status: "success", message: "Zlecenie sprzedaży zrealizowane pomyślnie!", roast: aiRoast });
   }
 }
