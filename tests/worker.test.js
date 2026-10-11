@@ -1130,7 +1130,7 @@ test("sale percentage presets round down to whole shares", async () => {
   assert.deepEqual(JSON.parse(result), { quarter: "2", half: "5", max: "4", disabled: false });
 });
 
-test("CSS-first theming: index.html defines anti-FOUC script, themes exist, and legacy v2 duplicate files are removed", async () => {
+test("CSS-first theming: index.html defines anti-FOUC script, themes exist, and the /v2 document stays separate", async () => {
   const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
   assert.match(html, /localStorage\.getItem\(['"]kh_theme['"]\)/);
   assert.match(html, /data-theme/);
@@ -1147,20 +1147,9 @@ test("CSS-first theming: index.html defines anti-FOUC script, themes exist, and 
   assert.match(themeV2, /feature-allocation/);
   assert.match(themeV3, /cyberpunk|neon/i);
 
-  // Weryfikacja braku legacy plików i routingu
-  let indexV2Found = false;
-  try {
-    await readFile(new URL("../public/index-v2.html", import.meta.url));
-    indexV2Found = true;
-  } catch {}
-  assert.equal(indexV2Found, false, "public/index-v2.html should not exist");
-
-  let v2JsFound = false;
-  try {
-    await readFile(new URL("../public/assets/js/v2.js", import.meta.url));
-    v2JsFound = true;
-  } catch {}
-  assert.equal(v2JsFound, false, "public/assets/js/v2.js should not exist");
+  // Interfejs v2 (Stitch) żyje pod osobnym adresem /v2, a nie jako motyw w index.html.
+  const indexV2 = await readFile(new URL("../public/index-v2.html", import.meta.url), "utf8");
+  assert.match(indexV2, /assets\/v2\/v2\.css/);
 });
 
 test("profile theme endpoint updates user theme with validation", async () => {
@@ -1262,3 +1251,123 @@ test("instruments autocomplete returns suggestions with market status", async ()
   assert.ok(body.data[0].market_status);
 });
 
+
+function createAssetsRecorder() {
+  const requested = [];
+  return {
+    requested,
+    fetch: async request => {
+      requested.push(new URL(request.url).pathname);
+      return new Response(`asset:${new URL(request.url).pathname}`, { status: 200 });
+    },
+  };
+}
+
+test("/v2 and /v2/ serve the new UI document while / keeps the legacy page", async () => {
+  const assets = createAssetsRecorder();
+  const env = createEnv({ assets });
+
+  for (const path of ["/v2", "/v2/"]) {
+    const response = await worker.fetch(new Request(`https://example.com${path}`), env, {});
+    assert.equal(response.status, 200);
+    assert.equal(await response.text(), "asset:/index-v2");
+  }
+  const root = await worker.fetch(new Request("https://example.com/"), env, {});
+  assert.equal(await root.text(), "asset:/");
+  assert.deepEqual(assets.requested, ["/index-v2", "/index-v2", "/"]);
+});
+
+test("UI version is selected only by path: no cookie or query switch", async () => {
+  const assets = createAssetsRecorder();
+  const env = createEnv({ assets });
+  const response = await worker.fetch(
+    new Request("https://example.com/?ui=v2", { headers: { Cookie: "ui_version=v2" } }),
+    env,
+    {}
+  );
+  assert.equal(await response.text(), "asset:/");
+  assert.equal(response.headers.get("Set-Cookie"), null);
+});
+
+test("/v2 does not swallow API routes or other paths", async () => {
+  const assets = createAssetsRecorder();
+  const env = createEnv({ assets });
+  const api = await worker.fetch(new Request("https://example.com/api/v2/anything"), env, {});
+  assert.equal(api.status, 404);
+  await worker.fetch(new Request("https://example.com/v2/other"), env, {});
+  await worker.fetch(new Request("https://example.com/assets/v2/v2.css"), env, {});
+  assert.deepEqual(assets.requested, ["/v2/other", "/assets/v2/v2.css"]);
+});
+
+test("v2 page keeps every element and action the shared scripts depend on", async () => {
+  const [html, legacy, events, ...scripts] = await Promise.all([
+    readFile(new URL("../public/index-v2.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/index.html", import.meta.url), "utf8"),
+    readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8"),
+    ...["app", "leaderboard", "portfolio", "profile", "admin", "trading"].map(name =>
+      readFile(new URL(`../public/assets/js/${name}.js`, import.meta.url), "utf8")),
+  ]);
+
+  // Kluczowe ID z wspólnego JS muszą istnieć w v2 (pozostałe sięgnięcia są null-safe).
+  const required = ["leaderboardBody", "feedContainer", "portfolioTableBody", "userCashDisplay", "portfolioTotalValue",
+    "tradeModal", "tradeForm", "tradeShares", "tradeAmount", "tradeThesis", "submitTradeBtn", "verifyBtn",
+    "tradeTickerInput", "userHoldingsSelect", "btnBuy", "btnSell", "estimatedCost", "tradeError", "syncStatusText",
+    "authContainer", "viewArena", "viewPortfolio", "viewAdmin", "profileModal", "rulesModal", "benchmarkResetModal"];
+  assert.deepEqual(required.filter(id => !html.includes(`id="${id}"`)), []);
+
+  const staticActions = [
+    ...events.matchAll(/^\s+"([a-z-]+)":/gm),
+    ...events.matchAll(/dataset\.action === "([a-z-]+)"/g),
+  ].map(match => match[1]);
+  const v2Actions = new Set([...html.matchAll(/data-action="([^"]+)"/g)].map(match => match[1]));
+  for (const action of v2Actions) assert.ok(staticActions.includes(action), `unknown action ${action}`);
+  for (const action of ["switch-tab", "open-trade", "close-trade", "submit-trade", "verify-ticker", "set-trade-type", "open-rules", "open-profile", "quick-refresh"]) {
+    assert.ok(v2Actions.has(action), `v2 is missing action ${action}`);
+  }
+
+  assert.ok(scripts.length > 0);
+  assert.match(html, /<link rel="stylesheet" href="\/assets\/v2\/v2\.css">/);
+  assert.match(html, /href="\/api\/auth\/github"/);
+  assert.doesNotMatch(html, /\son(?:click|change|submit|input|keypress)=/i);
+  for (const script of ["state", "api", "utils", "leaderboard", "portfolio", "profile", "admin", "trading", "app", "events"]) {
+    assert.match(html, new RegExp(`src="/assets/js/${script}\\.js"`));
+  }
+  assert.doesNotMatch(html, /(?:src|href)="(?!https?:|\/|#|data:)[^"]+"/);
+});
+
+test("v2 extensions only use hooks that exist in the shared scripts", async () => {
+  const [v2, html, ...shared] = await Promise.all([
+    readFile(new URL("../public/assets/v2/v2.js", import.meta.url), "utf8"),
+    readFile(new URL("../public/index-v2.html", import.meta.url), "utf8"),
+    ...["app", "leaderboard", "portfolio", "trading"].map(name =>
+      readFile(new URL(`../public/assets/js/${name}.js`, import.meta.url), "utf8")),
+  ]);
+  const sharedSource = shared.join("\n");
+  for (const name of ["fetchUserPortfolio", "renderDashboard", "fetchAllData", "fetchFeed", "switchTab", "updateTradeAvailability", "openTradeModal", "closeTradeModal", "setTradeType"]) {
+    assert.match(sharedSource, new RegExp(`function ${name}\\(`), name);
+    assert.match(v2, new RegExp(`window\\.${name} = `), `v2.js should wrap ${name}`);
+  }
+  assert.match(html, /<script defer src="\/assets\/v2\/v2\.js"><\/script>/);
+  const ids = new Set([...v2.matchAll(/\$\("([A-Za-z0-9]+)"\)/g)].map(match => match[1]));
+  assert.deepEqual([...ids].filter(id => !html.includes(`id="${id}"`)), []);
+});
+
+test("v2 markup is balanced and exposes the Ring dashboard hooks", async () => {
+  const html = await readFile(new URL("../public/index-v2.html", import.meta.url), "utf8");
+  const body = html.replace(/<script[\s\S]*?<\/script>/g, "").replace(/<!--[\s\S]*?-->/g, "");
+  const voidTags = new Set(["meta", "link", "img", "input", "br", "hr", "source", "path", "circle", "line", "rect", "stop", "defs"]);
+  const stack = [];
+  for (const [, closing, name, selfClosing] of body.matchAll(/<(\/?)([a-zA-Z][a-zA-Z0-9]*)\b[^>]*?(\/?)>/g)) {
+    const tag = name.toLowerCase();
+    if (voidTags.has(tag) || selfClosing) continue;
+    if (closing) assert.equal(stack.pop(), tag, `unbalanced </${tag}>`);
+    else stack.push(tag);
+  }
+  assert.deepEqual(stack, []);
+  for (const id of ["v2Markets", "v2ValuePill", "v2UserCard", "v2Allocation", "v2RankCount", "v2ExposureBar", "v2PositionsBadge"]) {
+    assert.match(html, new RegExp(`id="${id}"`));
+  }
+  for (const action of ["rank-filter", "sort-positions", "analyze-portfolios", "open-audit"]) {
+    assert.match(html, new RegExp(`data-v2-action="${action}"`));
+  }
+});
