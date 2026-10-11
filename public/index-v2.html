@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0f131d">
+  <title>Karuzela Hajsu 🎠💸 — Biurowa Liga Spekulacyjna</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&amp;display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&amp;display=swap">
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="/assets/css/app.css">
+  <link rel="stylesheet" href="/assets/v2/v2.css">
+</head>
+<body class="v2">
+<div class="v2-shell">
+
+  <!-- ========================================== -->
+  <!-- PASEK BOCZNY (desktop) / DOLNA NAWIGACJA (mobile) -->
+  <!-- ========================================== -->
+  <aside class="v2-sidebar">
+    <div>
+      <a href="/v2" class="v2-brand" data-action="switch-tab" data-tab="arena">
+        <span class="v2-brand-mark" aria-hidden="true">🎠</span>
+        <span>
+          <span class="v2-brand-title">Karuzela Hajsu <span class="v2-version">v2.2</span></span>
+          <span class="v2-brand-sub">Biurowa Liga Spekulacyjna</span>
+        </span>
+      </a>
+
+      <nav class="v2-nav" aria-label="Nawigacja główna">
+        <button id="tabBtnArena" type="button" data-ui="v2" data-active data-action="switch-tab" data-tab="arena" class="v2-nav-item">
+          <span class="material-symbols-outlined" aria-hidden="true">leaderboard</span>
+          <span class="v2-nav-label"><span class="v2-long">Ring Spekulantów</span><span class="v2-short">Ring</span></span>
+        </button>
+        <button id="tabBtnPortfolio" type="button" data-ui="v2" data-action="switch-tab" data-tab="portfolio" style="display: none;" class="v2-nav-item">
+          <span class="material-symbols-outlined" aria-hidden="true">pie_chart</span>
+          <span class="v2-nav-label">Mój Portfel</span>
+        </button>
+        <div id="quickTradeBtnContainer" style="display: none;" class="v2-nav-trade">
+          <button type="button" data-action="open-trade" data-trade-type="BUY" class="v2-nav-item">
+            <span class="material-symbols-outlined" aria-hidden="true">candlestick_chart</span>
+            <span class="v2-nav-label">Złóż Zlecenie</span>
+          </button>
+        </div>
+        <button type="button" data-action="open-rules" class="v2-nav-item">
+          <span class="material-symbols-outlined" aria-hidden="true">menu_book</span>
+          <span class="v2-nav-label"><span class="v2-long">Kodeks Spekulanta</span><span class="v2-short">Kodeks</span></span>
+        </button>
+        <button id="tabBtnAdmin" type="button" data-ui="v2" data-action="switch-tab" data-tab="admin" style="display: none;" class="v2-nav-item v2-nav-admin">
+          <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+          <span class="v2-nav-label"><span class="v2-long">Panel Audytu &amp; Whitelist</span><span class="v2-short">Audyt</span></span>
+        </button>
+      </nav>
+    </div>
+
+    <div class="v2-sidebar-foot">
+      <div id="v2UserCard" class="v2-usercard hidden">
+        <div class="v2-usercard-top">
+          <img id="v2UserAvatar" src="" alt="">
+          <div class="v2-usercard-id">
+            <b id="v2UserName">—</b>
+            <span id="v2UserRank">—</span>
+          </div>
+          <button type="button" data-action="open-profile" class="v2-icon-btn" style="min-width:2rem;height:2rem;padding:0" aria-label="Ustawienia profilu"><span class="material-symbols-outlined" style="font-size:1.1rem" aria-hidden="true">settings</span></button>
+        </div>
+        <div class="v2-usercard-cash"><span>Dostępne środki:</span><b id="v2UserCash">—</b></div>
+      </div>
+      <div id="syncStatusBadge" class="v2-status hidden">
+        <span class="v2-dot" aria-hidden="true"></span>
+        <span id="syncStatusText">Synchronizacja...</span>
+        <button type="button" data-action="quick-refresh" title="Odśwież dane z bazy" aria-label="Odśwież dane z bazy">
+          <i data-lucide="refresh-cw" id="quickRefreshIcon" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+      <div class="v2-foot-note">1 CK = 1.00 PLN • Cron: Cloudflare Workers (*/15 min)</div>
+    </div>
+  </aside>
+
+  <!-- ========================================== -->
+  <!-- GÓRNA BELKA                                -->
+  <!-- ========================================== -->
+  <header class="v2-topbar">
+    <div class="v2-topbar-left">
+      <a href="/v2" class="v2-brand-compact" data-action="switch-tab" data-tab="arena"><span aria-hidden="true">🎠</span> Karuzela Hajsu</a>
+      <div class="v2-crumb"><span class="material-symbols-outlined" style="font-size:1rem" aria-hidden="true">home</span><span>/</span><strong>Arena Giełdowa</strong></div>
+      <span class="v2-pill v2-pill-rate" title="Cyrk Koin (CK) — oficjalna waluta ligi: 1 CK = 1 PLN">
+        <span class="material-symbols-outlined" style="font-size:.9rem" aria-hidden="true">currency_exchange</span>1 CK = 1.00 PLN
+      </span>
+      <span id="v2Markets" class="v2-markets" aria-label="Status giełd"></span>
+    </div>
+    <div class="v2-topbar-right">
+      <button type="button" data-action="quick-refresh" class="v2-icon-btn v2-hide-md" title="Odśwież dane" aria-label="Odśwież dane"><span class="material-symbols-outlined" aria-hidden="true">refresh</span></button>
+      <div id="v2ValuePill" class="v2-value-pill hidden"><span>Wartość:</span><b id="v2ValueCk">—</b><em id="v2ValuePct"></em></div>
+      <button type="button" data-action="open-rules" class="v2-icon-btn" title="Zasady gry">
+        <span class="material-symbols-outlined" aria-hidden="true">menu_book</span><span class="v2-hide-md">Zasady</span>
+      </button>
+      <div id="authContainer">
+        <a href="/api/auth/github" class="v2-cta" style="min-height:2.5rem">
+          <span class="material-symbols-outlined" aria-hidden="true">login</span><span>Zaloguj z GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ========================================== -->
+  <!-- TREŚĆ                                      -->
+  <!-- ========================================== -->
+  <main class="v2-main">
+   <div class="v2-content">
+
+    <!-- WIDOK 1: RING SPEKULANTÓW -->
+    <div id="viewArena">
+      <section class="v2-kpis" aria-label="Wskaźniki kluczowe ringu">
+
+        <div class="v2-card">
+          <div class="v2-card-glow"></div>
+          <div>
+            <div class="v2-card-head">
+              <span class="v2-badge-leader"><span class="material-symbols-outlined" style="font-size:.9rem" aria-hidden="true">military_tech</span>Lider Ringu</span>
+              <span class="material-symbols-outlined" style="color:var(--v2-secondary);font-size:1.6rem" aria-hidden="true">workspace_premium</span>
+            </div>
+            <div class="v2-leader" style="margin-top:.9rem">
+              <span class="v2-leader-avatar"><img id="kpiLeaderAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=leader" alt="Lider"><i>#1</i></span>
+              <div style="min-width:0">
+                <div id="leaderName" class="v2-leader-name">Ładowanie...</div>
+                <small id="v2LeaderLogin" class="v2-muted"></small>
+              </div>
+            </div>
+            <div class="v2-leader-figures">
+              <div>
+                <small>Wycena całkowita</small>
+                <div id="leaderValue" class="v2-leader-value font-mono">-- CK</div>
+              </div>
+              <div class="v2-leader-ret">
+                <span id="leaderReturn" class="v2-leader-return font-mono">--</span>
+                <small id="v2LeaderProfit">—</small>
+              </div>
+            </div>
+          </div>
+          <div class="v2-card-note">Płynna gotówka: <b id="v2LeaderCash">—</b></div>
+        </div>
+
+        <div class="v2-card">
+          <div>
+            <div class="v2-card-head">
+              <span class="v2-label">Benchmarki rynkowe</span>
+              <span class="v2-label" style="color:var(--v2-primary)">Pasywne indeksy</span>
+            </div>
+            <div class="v2-bench-grid">
+              <div class="v2-bench">
+                <small>🇺🇸 S&amp;P 500 ETF <span class="v2-muted">SPY</span></small>
+                <b id="benchSp500Val" class="font-mono">--</b>
+                <span id="v2BenchSpValue" class="v2-bench-val">—</span>
+              </div>
+              <div class="v2-bench">
+                <small>🇵🇱 WIG20 GPW <span class="v2-muted">WIG20.WA</span></small>
+                <b id="benchWig20Val" class="font-mono">--</b>
+                <span id="v2BenchWigValue" class="v2-bench-val">—</span>
+              </div>
+            </div>
+            <p class="v2-bench-note">Baza odniesienia: kapitał startowy 100 000 CK.</p>
+          </div>
+          <div class="v2-card-note v2-split"><span>Średnia rynku: <b id="v2MarketAvg">—</b></span><span class="v2-tag">Tryb: pasywny HODL</span></div>
+        </div>
+
+        <div class="v2-card">
+          <div>
+            <div class="v2-card-head">
+              <span class="v2-label">Kondycja ringu</span>
+              <span id="beatTheMarketNote" class="v2-tag" data-tone="good">Rywalizacja trwa</span>
+            </div>
+            <div style="margin-top:.5rem">
+              <small class="v2-muted">Średnia stopa zespołu</small>
+              <div id="avgReturn" class="v2-big font-mono">--</div>
+              <div id="activeParticipantsCount" class="v2-muted" style="font-size:.72rem">Sprawdzanie wyników...</div>
+            </div>
+            <div class="v2-health">
+              <div><small>Współczynnik alfa</small><b id="v2Alpha2">—</b></div>
+              <div><small>Dominacja vs indeksy</small><b id="v2Dominance">—</b></div>
+            </div>
+          </div>
+          <div class="v2-card-note">Łączna wycena graczy: <b id="v2TotalValuation">—</b></div>
+        </div>
+
+      </section>
+
+      <div class="v2-arena-grid">
+        <div class="v2-stack-sm">
+        <section class="v2-panel" aria-labelledby="rankingTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h2 id="rankingTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-secondary)" aria-hidden="true">emoji_events</span>Oficjalny Ranking Inwestycyjny</h2>
+              <p class="v2-panel-sub">Wycena portfeli na żywo z uwzględnieniem kursów giełdowych</p>
+            </div>
+            <div class="v2-tools">
+              <div class="v2-seg-sm" role="group" aria-label="Filtr rankingu">
+                <button type="button" data-v2-action="rank-filter" data-filter="all" data-active>Wszystkie</button>
+                <button type="button" data-v2-action="rank-filter" data-filter="players">Tylko gracze</button>
+                <button type="button" data-v2-action="rank-filter" data-filter="bench">Benchmarki</button>
+              </div>
+              <span id="dataTimestamp" class="hidden">Ładowanie danych...</span>
+            </div>
+          </div>
+          <div class="v2-table-wrap">
+            <table class="v2-rank w-full text-left text-sm text-slate-300">
+              <thead class="text-[11px] uppercase bg-slate-950/70 text-slate-400 border-b border-slate-800 font-semibold tracking-wider">
+                <tr>
+                  <th scope="col" class="py-3 px-4 w-14 text-center">#</th>
+                  <th scope="col" class="py-3 px-4">Uczestnik</th>
+                  <th scope="col" class="py-3 px-4 text-right">Wycena portfela (CK)</th>
+                  <th scope="col" class="py-3 px-4 text-right">Gotówka (CK)</th>
+                  <th scope="col" class="py-3 px-4 text-right">Wynik (CK)</th>
+                  <th scope="col" class="py-3 px-4 text-right">Stopa zwrotu</th>
+                </tr>
+              </thead>
+              <tbody id="leaderboardBody" class="divide-y divide-slate-800/60 font-medium">
+                <tr><td colspan="6" class="py-12 text-center text-slate-400">Pobieranie wyników ligi...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="v2-rank-foot"><span class="material-symbols-outlined" aria-hidden="true">info</span><span>Wyceny aktualizowane w interwale 15-minutowym przez Cloudflare Cron Worker</span><b id="v2RankCount">—</b></div>
+        </section>
+
+        <section class="v2-panel" aria-labelledby="allocTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h2 id="allocTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">donut_large</span>Agregacja alokacji w lidze</h2>
+              <p id="v2AllocInsight" class="v2-panel-sub">Ładowanie…</p>
+            </div>
+            <button type="button" data-v2-action="analyze-portfolios" class="v2-icon-btn"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span><span class="v2-hide-sm">Analiza portfeli</span></button>
+          </div>
+          <div class="v2-panel-body" id="v2Allocation"></div>
+        </section>
+        </div>
+
+        <div class="v2-stack-sm">
+        <section class="v2-panel" aria-labelledby="feedTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h2 id="feedTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">forum</span>Ostatnie Ruchy &amp; Tezy</h2>
+              <p class="v2-panel-sub">Podgląd strategii i uzasadnień zespołu</p>
+            </div>
+            <span class="v2-label" style="color:var(--v2-primary)">Na żywo</span>
+          </div>
+          <div id="feedContainer" class="v2-panel-body">
+            <div class="text-center text-slate-400 text-xs py-8">Ładowanie ostatnich zleceń...</div>
+          </div>
+        </section>
+
+        <aside class="v2-transparency">
+          <div class="v2-transparency-head"><span class="material-symbols-outlined" aria-hidden="true">gavel</span><b>Zasada transparentności</b></div>
+          <p>Wszystkie zlecenia są nieodwracalnie zapisywane w logu audytowym, a każda teza inwestycyjna jest publiczna dla całej ligi.</p>
+          <button type="button" data-v2-action="open-audit" class="v2-link-btn">Otwórz pełny rejestr audytu <span class="material-symbols-outlined" aria-hidden="true">arrow_forward</span></button>
+        </aside>
+        </div>
+      </div>
+    </div>
+
+    <!-- WIDOK 2: MÓJ PORTFEL -->
+    <div id="viewPortfolio" style="display: none;" class="v2-stack">
+
+      <div class="v2-page-head">
+        <div style="min-width:0">
+          <span class="v2-label" style="color:var(--v2-primary)">Portfel główny spekulanta</span>
+          <h2 class="v2-h1">Mój Portfel Aktywów</h2>
+          <div class="v2-who">
+            <img id="myPortfolioAvatar" src="https://api.dicebear.com/7.x/bottts/svg?seed=user" alt="Awatar">
+            <span id="userNameDisplay">--</span>
+            <span id="v2RankChip" class="v2-tag hidden">—</span>
+            <button type="button" data-action="open-profile" class="v2-link-btn">✏️ Edytuj profil</button>
+          </div>
+        </div>
+        <div class="v2-page-actions">
+          <span class="v2-live" title="Dane odświeżane automatycznie co 15 sekund"><span class="v2-dot"></span>Live · 15 s</span>
+          <button type="button" data-v2-action="goto-journal" class="v2-icon-btn"><span class="material-symbols-outlined" aria-hidden="true">history_edu</span><span class="v2-hide-sm">Historia &amp; audyt</span></button>
+          <button type="button" data-action="open-trade" data-trade-type="BUY" class="v2-cta"><span class="material-symbols-outlined" aria-hidden="true">add</span>Nowe zlecenie</button>
+        </div>
+      </div>
+
+      <section class="v2-stats" aria-label="Podsumowanie portfela">
+        <div class="v2-stat-card v2-stat-main">
+          <div class="v2-stat-top"><span class="v2-label">Wycena całkowita</span><span class="material-symbols-outlined" aria-hidden="true">account_balance_wallet</span></div>
+          <div id="portfolioTotalValue" class="v2-stat-value font-mono">0,00 CK</div>
+          <div id="v2TotalDelta" class="v2-stat-sub">—</div>
+        </div>
+        <div class="v2-stat-card">
+          <div class="v2-stat-top"><span class="v2-label">Dostępna gotówka</span><span class="material-symbols-outlined" aria-hidden="true">payments</span></div>
+          <div id="userCashDisplay" class="v2-stat-value font-mono">0,00 CK</div>
+          <div class="v2-stat-sub"><span>Siła nabywcza: <b id="v2CashShare">—</b></span><span id="v2Liquidity" class="v2-tag">—</span></div>
+        </div>
+        <div class="v2-stat-card">
+          <div class="v2-stat-top"><span class="v2-label">W akcjach</span><span class="material-symbols-outlined" aria-hidden="true">pie_chart</span></div>
+          <div id="v2StocksValue" class="v2-stat-value font-mono">0,00 CK</div>
+          <div class="v2-stat-sub"><span>Ekspozycja: <b id="v2Exposure">—</b> <span id="v2PositionCount"></span></span><span id="v2Risk" class="v2-tag">—</span></div>
+        </div>
+        <div id="v2CodexCard" class="v2-stat-card" data-state="ok">
+          <div class="v2-stat-top"><span class="v2-label">Limit koncentracji</span><span class="material-symbols-outlined" aria-hidden="true">verified_user</span></div>
+          <div class="v2-stat-value"><span id="v2MaxPos">—</span> <small>/ limit 35,0%</small></div>
+          <div class="v2-meter" role="img" aria-label="Największa pozycja względem limitu"><span id="v2MaxPosBar" style="width:0"></span><i style="left:100%"></i></div>
+          <div id="v2ExposureBar" class="v2-stack-bar" role="img" aria-label="Struktura portfela"></div>
+          <div id="v2ExposureLegend" class="v2-legend"></div>
+          <div id="v2CodexNote" class="v2-stat-sub">Brak otwartych pozycji.</div>
+        </div>
+      </section>
+
+      <section class="v2-panel" aria-labelledby="positionsTitle">
+        <div class="v2-panel-head">
+          <div>
+            <h3 id="positionsTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">table_rows</span>Otwarte pozycje <span id="v2PositionsBadge" class="v2-count">0</span></h3>
+            <p class="v2-panel-sub">Wycena w CK według bieżących kursów i przeliczenia walut</p>
+          </div>
+          <div class="v2-tools">
+            <div class="v2-seg-sm" role="group" aria-label="Sortowanie pozycji">
+              <button type="button" data-v2-action="sort-positions" data-sort="profit"><span class="material-symbols-outlined" aria-hidden="true">trending_up</span>Wg zysku</button>
+              <button type="button" data-v2-action="sort-positions" data-sort="value" data-active><span class="material-symbols-outlined" aria-hidden="true">pie_chart</span>Wg wartości</button>
+            </div>
+            <label class="v2-select"><span class="material-symbols-outlined" aria-hidden="true">filter_list</span>
+              <select id="v2MarketFilter" aria-label="Filtr rynku">
+                <option value="all">Wszystkie rynki</option>
+                <option value="GPW">GPW</option>
+                <option value="USA">USA</option>
+              </select>
+            </label>
+            <button type="button" data-v2-action="export-csv" class="v2-icon-btn" title="Pobierz pozycje jako CSV"><span class="material-symbols-outlined" aria-hidden="true">download</span><span class="v2-hide-sm">CSV</span></button>
+          </div>
+        </div>
+        <div class="v2-table-wrap">
+          <table class="v2-tbl">
+            <thead>
+              <tr>
+                <th>Spółka / ticker</th>
+                <th class="num">Liczba akcji</th>
+                <th class="num">Śr. zakup</th>
+                <th class="num">Kurs bieżący</th>
+                <th class="num">Wycena (CK)</th>
+                <th class="num">Udział</th>
+                <th class="num">P&amp;L</th>
+                <th class="act">Akcje</th>
+              </tr>
+            </thead>
+            <tbody id="portfolioTableBody">
+              <tr><td colspan="8" class="v2-empty">Brak otwartych pozycji</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div class="v2-two">
+        <section id="v2Journal" class="v2-panel" aria-labelledby="journalTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h3 id="journalTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-secondary)" aria-hidden="true">forum</span>Dziennik transakcji &amp; tez</h3>
+              <p class="v2-panel-sub">Obowiązkowe uzasadnienie każdego ruchu (min. 15 znaków)</p>
+            </div>
+          </div>
+          <div id="v2JournalList" class="v2-journal"><p class="v2-empty">Ładowanie historii…</p></div>
+        </section>
+
+        <section class="v2-panel" aria-labelledby="alphaTitle">
+          <div class="v2-panel-head">
+            <div>
+              <h3 id="alphaTitle" class="v2-panel-title"><span class="material-symbols-outlined" style="color:var(--v2-primary)" aria-hidden="true">donut_large</span>Alokacja &amp; alfa</h3>
+              <p class="v2-panel-sub">Twoja stopa zwrotu na tle benchmarków</p>
+            </div>
+          </div>
+          <div class="v2-panel-body" id="v2Alpha">
+            <p class="v2-empty">Ładowanie…</p>
+          </div>
+        </section>
+      </div>
+
+    </div>
+
+    <!-- ========================================== -->
+    <!-- WIDOK 3: PANEL AUDYTU & WHITELIST (ADMIN)  -->
+    <!-- ========================================== -->
+    <div id="viewAdmin" style="display: none;" class="space-y-6">
+
+      <section class="bg-rose-950/20 border border-rose-500/40 rounded-2xl p-6 shadow-xl space-y-3">
+        <div>
+          <h3 class="text-base font-bold text-rose-300 flex items-center gap-2">
+            <i data-lucide="triangle-alert" class="w-4 h-4"></i> Danger Zone — Benchmarki
+          </h3>
+          <p class="text-xs text-slate-400 mt-1">Reset ustawia wartość początkową obu benchmarków na 100 000 CK. Operacja jest nieodwracalna.</p>
+        </div>
+        <button type="button" data-action="open-benchmark-reset" class="bg-rose-700 hover:bg-rose-600 text-white border border-rose-500/50 text-xs font-bold px-4 py-2 rounded-lg transition">
+          ⚠️ Zresetuj bazę Benchmarków (100k CK)
+        </button>
+      </section>
+
+      <!-- SEKCJA: ZARZĄDZANIE BIAŁĄ LISTĄ (WHITELIST) -->
+      <div class="bg-slate-900 border border-indigo-500/30 rounded-2xl p-6 shadow-xl space-y-4">
+        <div class="flex flex-col sm:flex-row justify-between sm:items-center gap-2 pb-4 border-b border-slate-800">
+          <div>
+            <h3 class="text-base font-bold text-white flex items-center gap-2">
+              <i data-lucide="user-plus" class="w-4 h-4 text-indigo-400"></i> Dodaj Uczestnika do Gry (Biała Lista)
+            </h3>
+            <p class="text-xs text-slate-400">Tylko dodani użytkownicy będą mogli zalogować się kontem GitHub.</p>
+          </div>
+        </div>
+
+        <form id="addUserForm" data-action="add-user" class="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">GitHub Login (dokładny nick)</label>
+            <input type="text" id="newGhLogin" placeholder="np. jankowalski" required class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white font-mono focus:outline-none focus:border-indigo-500">
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-slate-300 mb-1">Wyświetlana nazwa / Ksywka</label>
+            <input type="text" id="newDisplayName" placeholder="np. Janek (Książę GPW)" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-indigo-500">
+          </div>
+          <div class="flex items-center gap-2 py-2">
+            <input type="checkbox" id="newIsAdmin" class="rounded bg-slate-950 border-slate-700 text-indigo-600 focus:ring-0">
+            <label for="newIsAdmin" class="text-xs text-slate-300 cursor-pointer">Uprawnienia Admina</label>
+          </div>
+          <button type="submit" class="bg-indigo-600 hover:bg-indigo-500 text-white font-bold py-2 px-4 rounded-lg text-xs transition">
+            + Wpuść na Karuzelę
+          </button>
+        </form>
+
+        <div id="addUserMsg" class="hidden text-xs p-2.5 rounded-lg"></div>
+
+        <!-- Tabela zarejestrowanych osób -->
+        <div class="mt-4 pt-4 border-t border-slate-800/80">
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Obecna Biała Lista:</h4>
+          <div class="overflow-x-auto max-h-48">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="text-slate-400 border-b border-slate-800 uppercase">
+                <tr>
+                  <th class="py-2">Gracz</th>
+                  <th class="py-2">GitHub Login</th>
+                  <th class="py-2 text-right">Gotówka (CK)</th>
+                  <th class="py-2 text-center">Rola</th>
+                </tr>
+              </thead>
+              <tbody id="whitelistTableBody" class="divide-y divide-slate-800/40 font-mono">
+                <tr><td colspan="4" class="py-4 text-center text-slate-500">Ładowanie uczestników...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- SEKCJA: DZIENNIK AUDYTU -->
+      <div class="bg-slate-900 border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+        <div class="px-6 py-4 border-b border-slate-800 flex justify-between items-center bg-slate-950/60">
+          <div>
+            <h2 class="text-base font-bold text-amber-300 flex items-center gap-2">
+              <i data-lucide="shield-alert" class="w-4 h-4 text-amber-400"></i> Dziennik Audytu Bezpieczeństwa
+            </h2>
+            <p class="text-xs text-slate-400">Rejestr zdarzeń i adresów IP</p>
+          </div>
+          <div class="flex gap-2">
+            <button data-action="manual-sync" class="bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 text-xs px-3 py-1.5 rounded-lg transition">
+              Wymuś synchronizację kursów
+            </button>
+            <button data-action="fetch-audit" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-3 py-1.5 rounded-lg transition">
+              Odśwież
+            </button>
+          </div>
+        </div>
+        <div class="overflow-x-auto max-h-[400px]">
+          <table class="w-full text-left text-xs text-slate-300">
+            <thead class="text-slate-400 uppercase bg-slate-950/40 border-b border-slate-800 sticky top-0">
+              <tr>
+                <th class="py-2.5 px-4">Czas</th>
+                <th class="py-2.5 px-4">Użytkownik</th>
+                <th class="py-2.5 px-4">Akcja</th>
+                <th class="py-2.5 px-4">Status</th>
+                <th class="py-2.5 px-4">IP</th>
+                <th class="py-2.5 px-4">Payload</th>
+              </tr>
+            </thead>
+            <tbody id="auditTableBody" class="divide-y divide-slate-800/60 font-mono">
+              <tr><td colspan="6" class="py-6 text-center text-slate-400">Brak logów audytowych</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+   </div>
+
+   <footer class="v2-footer">
+     <div class="v2-footer-row">
+       <span><b>Karuzela Hajsu Engine</b> • Wersja 2.2</span>
+       <span class="v2-footer-links">
+         <button type="button" data-action="open-rules">Kodeks Spekulanta</button>
+         <button type="button" data-v2-action="open-audit">Whitelist &amp; audyt</button>
+       </span>
+     </div>
+     <p>Symulacja portfela nie stanowi rekomendacji finansowej w rozumieniu KNF/ESMA. Wszystkie transakcje są fikcyjne, a punkty CK nie są środkiem płatniczym — gra ma charakter edukacyjny w ramach wewnętrznej ligi biurowej.</p>
+   </footer>
+  </main>
+
+</div>
+<div id="v2Toasts" class="v2-toasts" aria-live="polite"></div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: EDYTOR PROFILU & AWATARA            -->
+  <!-- ========================================== -->
+  <div id="profileModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-md shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-base font-bold text-white flex items-center gap-2">
+          <span>🎭</span> Twoje Biurowe Alter-Ego
+        </h3>
+        <button data-action="close-profile" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-4">
+        <!-- Podgląd Awatara -->
+        <div class="flex flex-col items-center justify-center py-2">
+          <img id="editAvatarPreview" src="" alt="Podgląd" class="w-20 h-20 rounded-full border-2 border-indigo-500 bg-slate-800 object-cover shadow-lg">
+          <span class="text-[11px] text-slate-400 mt-2">Podgląd Twojej tożsamości na Ringu</span>
+        </div>
+
+        <!-- Losowanie stylu awatara -->
+        <div class="grid grid-cols-2 gap-2">
+          <button type="button" data-action="randomize-avatar" data-avatar="bottts" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            🤖 Losuj Robota
+          </button>
+          <button type="button" data-action="randomize-avatar" data-avatar="pixel-art" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            👾 Losuj Pixel-Art
+          </button>
+          <button type="button" data-action="randomize-avatar" data-avatar="fun-emoji" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-lg border border-slate-700 transition">
+            😎 Losuj Emotkę
+          </button>
+          <button type="button" data-action="reset-avatar" class="py-2 px-3 text-xs bg-slate-800 hover:bg-slate-700 text-indigo-300 rounded-lg border border-slate-700 transition">
+            🐙 Awatar z GitHuba
+          </button>
+        </div>
+
+        <!-- Ksywka i Generator -->
+        <div>
+          <div class="flex justify-between items-center mb-1">
+            <label class="text-xs font-medium text-slate-300">Wyświetlana Ksywka</label>
+            <button id="generateNickBtn" type="button" data-action="generate-nick" class="text-[11px] text-amber-400 hover:text-amber-300 font-bold">
+              🎲 Wylosuj ksywkę
+            </button>
+          </div>
+          <input type="text" id="editDisplayNameInput" maxlength="30" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
+        </div>
+
+        <div id="profileError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
+
+        <div class="flex gap-2 pt-2">
+          <button type="button" data-action="close-profile" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+          <button type="button" data-action="save-profile" class="w-1/2 bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">Zapisz Zmiany</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- MODAL: KODEKS SPEKULANTA                   -->
+  <!-- ========================================== -->
+  <div id="rulesModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl relative">
+      <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+        <h3 class="text-lg font-bold text-white flex items-center gap-2">
+          <span>📜</span> Kodeks Spekulanta — Zasady Gry
+        </h3>
+        <button data-action="close-rules" class="text-slate-400 hover:text-white transition">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="mt-4 space-y-3.5 text-xs text-slate-300 leading-relaxed">
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-white block mb-0.5">💵 1. Kapitał Startowy: 100 000 CK</span>
+          Każdy uczestnik rozpoczyna z równą kwotą wirtualnej gotówki. 1 CK ma stały parytet 1:1 z PLN, a notowania giełdowe przeliczamy na CK.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-amber-300 block mb-0.5">⚖️ 2. Zasada Dywersyfikacji (Max 35%)</span>
+          Żaden walor nie może przekraczać 35% łącznej wyceny Twojego portfela w chwili zakupu.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-indigo-300 block mb-0.5">🗣️ 3. Teza Inwestycyjna (min. 15 znaków)</span>
+          Każda transakcja wymaga publicznego uzasadnienia. Trafia ono do wspólnego feedu zespołu.
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-emerald-300 block mb-0.5">📈 4. Rynki GPW & USA</span>
+          Akceptujemy symbole z USA (np. <code class="text-indigo-300">NVDA, AAPL</code>) oraz z GPW z końcówką <code class="text-indigo-300">.WA</code> (np. <code class="text-indigo-300">CDR.WA</code>).
+        </div>
+
+        <div class="p-3 bg-slate-950 rounded-xl border border-slate-800">
+          <span class="font-bold text-rose-300 block mb-0.5">🚫 5. Brak Dźwigni i Pozycji Krótkich</span>
+          Brak lewara, brak gry na spadek. Kupujesz wyłącznie to, na co masz pokrycie w gotówce.
+        </div>
+      </div>
+
+      <div class="mt-6">
+        <button data-action="close-rules" class="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-xl text-xs font-bold transition">
+          Zrozumiałem, wchodzę na parkiet!
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================== -->
+  <!-- ZLECENIE: KUPNO / SPRZEDAŻ                 -->
+  <!-- ========================================== -->
+  <div id="tradeModal" class="v2-trade hidden" role="dialog" aria-modal="true" aria-labelledby="tradeTitle">
+    <div class="v2-trade-sheet">
+      <header class="v2-trade-head">
+        <div class="v2-trade-title">
+          <span class="v2-trade-icon material-symbols-outlined" aria-hidden="true">bolt</span>
+          <div>
+            <h3 id="tradeTitle">Złóż zlecenie</h3>
+            <p>Kupno lub sprzedaż akcji GPW &amp; USA w ramach Ringu Spekulantów.</p>
+          </div>
+        </div>
+        <button type="button" data-action="close-trade" class="v2-icon-btn" aria-label="Zamknij"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
+      </header>
+
+      <form id="tradeForm" data-action="submit-trade" class="v2-trade-body" autocomplete="off">
+        <div class="v2-trade-col">
+          <div class="v2-wallet">
+            <div><small>Dostępne środki</small><b id="tradeAvailableCash" class="font-mono">0,00 CK</b></div>
+            <div><small>Wycena całkowita</small><b id="v2TradeTotal" class="font-mono">—</b></div>
+          </div>
+
+          <fieldset class="v2-field">
+            <legend>Kierunek operacji</legend>
+            <div class="v2-seg">
+              <button type="button" id="btnBuy" data-action="set-trade-type" data-trade-type="BUY" class="bg-emerald-600"><span class="material-symbols-outlined" aria-hidden="true">trending_up</span>KUPNO</button>
+              <button type="button" id="btnSell" data-action="set-trade-type" data-trade-type="SELL"><span class="material-symbols-outlined" aria-hidden="true">trending_down</span>SPRZEDAŻ</button>
+            </div>
+          </fieldset>
+
+          <div id="buyInstrumentSection" class="v2-field">
+            <label for="tradeTickerInput">Symbol waloru (ticker)</label>
+            <div class="v2-input-row">
+              <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="v2-input" style="text-transform:uppercase" spellcheck="false">
+              <button type="button" id="verifyBtn" data-action="verify-ticker" class="v2-btn-soft"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span>Sprawdź</button>
+            </div>
+            <div id="v2Chips" class="v2-chips" aria-label="Szybki wybór waloru"></div>
+          </div>
+
+          <div id="sellInstrumentSection" class="v2-field hidden">
+            <label for="userHoldingsSelect">Wybierz ze swojego portfela</label>
+            <select id="userHoldingsSelect" data-action="holding-selected" class="v2-input">
+              <option value="">Wybierz walor do sprzedaży...</option>
+            </select>
+          </div>
+
+          <div id="verifiedInstrumentCard" class="v2-instrument hidden">
+            <div class="v2-instrument-top">
+              <span id="v2InstInitial" class="v2-ini">?</span>
+              <div class="v2-instrument-name">
+                <div id="instFullName">--</div>
+                <small id="instTickerDisplay">--</small>
+              </div>
+              <div class="v2-instrument-price">
+                <b id="instPriceDisplay" class="font-mono">--</b>
+                <small id="instFxDisplay" class="font-mono">--</small>
+              </div>
+            </div>
+            <div id="marketStatusBadge" class="hidden"></div>
+          </div>
+
+          <div class="v2-field">
+            <div class="v2-field-head">
+              <label for="tradeShares">Liczba akcji (szt.)</label>
+              <span id="availableSharesBadge" class="hidden v2-hint">Dostępne: <b id="availableSharesCount">0</b></span>
+            </div>
+            <div class="v2-stepper">
+              <button type="button" data-v2-action="step-down" aria-label="Zmniejsz liczbę akcji"><span class="material-symbols-outlined" aria-hidden="true">remove</span></button>
+              <input type="number" step="1" min="1" id="tradeShares" data-action="update-estimated-cost" required placeholder="0" inputmode="numeric">
+              <button type="button" data-v2-action="step-up" aria-label="Zwiększ liczbę akcji"><span class="material-symbols-outlined" aria-hidden="true">add</span></button>
+            </div>
+
+            <div id="v2BuyQuick" class="v2-quick-wrap">
+              <span class="v2-hint">Kalkulator alokacji — szybkie proporcje gotówki</span>
+              <div class="v2-quick">
+                <button type="button" data-v2-action="buy-percent" data-percent="0.25"><b>25%</b><small data-quick-amount="0.25">—</small></button>
+                <button type="button" data-v2-action="buy-percent" data-percent="0.5"><b>50%</b><small data-quick-amount="0.5">—</small></button>
+                <button type="button" data-v2-action="buy-percent" data-percent="0.75"><b>75%</b><small data-quick-amount="0.75">—</small></button>
+                <button type="button" data-v2-action="buy-percent" data-percent="1"><b>MAX</b><small data-quick-amount="1">—</small></button>
+              </div>
+            </div>
+
+            <div id="quickSharesButtons" class="hidden v2-quick v2-quick-sell">
+              <button type="button" data-action="set-sell-share-percentage" data-percent="0.25"><b>25%</b></button>
+              <button type="button" data-action="set-sell-share-percentage" data-percent="0.50"><b>50%</b></button>
+              <button type="button" data-action="set-sell-share-percentage" data-percent="1"><b>MAX</b><small>pełne akcje</small></button>
+            </div>
+
+            <div id="tradeAmountSection">
+              <label for="tradeAmount" class="v2-sublabel">…albo podaj kwotę zakupu (CK)</label>
+              <input type="number" step="0.01" min="0.01" id="tradeAmount" data-action="update-estimated-cost" placeholder="np. 500,00" class="v2-input">
+              <p id="tradeAmountRemainder" class="hidden v2-hint"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="v2-trade-col">
+          <div class="v2-summary">
+            <div class="v2-line"><span>Szacowana wartość</span><b id="estimatedCost" class="font-mono">0,00 CK</b></div>
+            <div class="v2-line"><span>Prowizja</span><span class="v2-muted">0,00 CK (brak opłat)</span></div>
+            <div class="v2-line v2-line-total"><span id="v2CashAfterLabel">Gotówka po transakcji</span><b id="v2CashAfter" class="font-mono">—</b></div>
+          </div>
+
+          <div id="v2Codex" class="v2-codex" data-state="idle">
+            <span class="material-symbols-outlined" aria-hidden="true">verified_user</span>
+            <div>
+              <b>Weryfikacja kodeksu — limit 35% na walor</b>
+              <p id="v2CodexText">Wybierz walor i liczbę akcji, aby sprawdzić koncentrację portfela.</p>
+            </div>
+          </div>
+
+          <div class="v2-field">
+            <div class="v2-field-head">
+              <label for="tradeThesis">Teza inwestycyjna <span class="v2-req" aria-hidden="true">*</span></label>
+              <span id="v2ThesisCount" class="v2-hint">0 / min. 15 znaków</span>
+            </div>
+            <textarea id="tradeThesis" rows="3" required placeholder="Dlaczego wykonujesz ten ruch? Twoje uzasadnienie trafi na żywo do tablicy Ringu." class="v2-input"></textarea>
+            <p id="v2ThesisState" class="v2-hint" data-state="idle">Teza jest publiczna i widoczna dla całej ligi.</p>
+          </div>
+
+          <div id="tradeError" class="hidden v2-error" role="alert"></div>
+
+          <div class="v2-trade-actions">
+            <button type="submit" id="submitTradeBtn" disabled class="v2-submit"><span class="material-symbols-outlined" aria-hidden="true">verified</span><span id="v2SubmitLabel">Złóż zlecenie</span></button>
+            <button type="button" data-action="close-trade" class="v2-link-btn">Anuluj i wróć</button>
+          </div>
+          <p class="v2-note"><span class="material-symbols-outlined" aria-hidden="true">info</span>Zlecenie jest natychmiast wiążące w Biurowej Lidze Spekulacyjnej. Kursy odświeżane są co 15 minut.</p>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <div id="benchmarkResetModal" class="fixed inset-0 bg-black/70 z-[60] hidden flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="benchmarkResetTitle">
+    <div class="bg-slate-900 border border-rose-500/40 rounded-2xl p-6 w-full max-w-md shadow-2xl">
+      <h2 id="benchmarkResetTitle" class="text-lg font-bold text-rose-300">Potwierdź reset benchmarków</h2>
+      <p class="mt-3 text-sm text-slate-300">Ta operacja wyzeruje gotówkę oraz ustawi pozycje S&amp;P 500 i WIG20 na wartość 100 000 CK według bieżących kursów. Nie można jej cofnąć.</p>
+      <label for="benchmarkResetPhrase" class="block text-xs font-medium text-slate-300 mt-4 mb-1">Wpisz dokładnie: <code class="text-rose-300">RESET-BENCHMARKS</code></label>
+      <input id="benchmarkResetPhrase" type="text" autocomplete="off" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-rose-500">
+      <div class="flex gap-2 mt-5">
+        <button type="button" data-action="close-benchmark-reset" class="w-1/2 bg-slate-800 hover:bg-slate-700 text-slate-300 py-2.5 rounded-xl text-xs font-semibold transition">Anuluj</button>
+        <button id="confirmBenchmarkResetBtn" type="button" data-action="confirm-benchmark-reset" disabled class="w-1/2 bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-rose-600 text-white py-2.5 rounded-xl text-xs font-bold transition">Wykonaj reset</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- SKRYPTY APLIKACJI (wspólne z głównym UI) -->
+  <script defer src="/assets/js/state.js"></script>
+  <script defer src="/assets/js/api.js"></script>
+  <script defer src="/assets/js/utils.js"></script>
+  <script defer src="/assets/js/leaderboard.js"></script>
+  <script defer src="/assets/js/portfolio.js"></script>
+  <script defer src="/assets/js/profile.js"></script>
+  <script defer src="/assets/js/admin.js"></script>
+  <script defer src="/assets/js/trading.js"></script>
+  <script defer src="/assets/js/app.js"></script>
+  <script defer src="/assets/js/events.js"></script>
+  <script defer src="/assets/v2/v2.js"></script>
+</body>
+</html>
