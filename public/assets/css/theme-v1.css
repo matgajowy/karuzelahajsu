@@ -1,5 +1,5 @@
 /* ==========================================================================
-   Motyw v1: Klasyczny (Slate Minimal)
+   Motyw v1: Klasyczny (Slate Minimal — Wierny Oryginalnemu Wyglądowi)
    ========================================================================== */
 
 :root {
@@ -15,9 +15,10 @@
 body {
   background-color: var(--theme-bg);
   color: #f8fafc;
+  padding-left: 0 !important;
 }
 
-/* W motywie v1 zaawansowane sekcje v2 są ukryte */
+/* W motywie v1 zaawansowane widgety v2 są ukryte */
 .feature-journal,
 .feature-allocation,
 .v2-only-feature {
@@ -26,17 +27,32 @@ body {
 
 /* Klasyczny layout centrowany */
 .app-container {
-  max-width: 72rem;
-  margin-left: auto;
-  margin-right: auto;
+  max-width: 72rem !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+  padding-left: 1rem !important;
+  padding-right: 1rem !important;
 }
 
-/* Standardowy poziomy pasek górny */
-.app-nav {
-  position: sticky;
-  top: 0;
-  z-index: 40;
-  border-bottom: 1px solid #1e293b;
-  background-color: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(8px);
+/* Poziomy pasek górny (Topbar) */
+.layout-navigation {
+  position: static !important;
+  width: 100% !important;
+  height: auto !important;
+  display: block !important;
+}
+
+.layout-topbar {
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 40 !important;
+  border-bottom: 1px solid #1e293b !important;
+  background-color: rgba(15, 23, 42, 0.75) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+.layout-nav {
+  position: static !important;
+  border-bottom: 1px solid rgba(30, 41, 59, 0.8) !important;
+  background-color: rgba(2, 6, 23, 0.8) !important;
 }

@@ -9,7 +9,7 @@
   <!-- Zapobieganie FOUC: natychmiastowe ustawienie atrybutu i motywu -->
   <script>
     (function() {
-      const savedTheme = localStorage.getItem('kh_theme') || 'v2';
+      const savedTheme = localStorage.getItem('kh_theme') || 'v1';
       document.documentElement.setAttribute('data-theme', savedTheme);
     })();
   </script>
@@ -18,14 +18,24 @@
   <!-- Style bazowe (reset, Tailwind app.css, toasty, autocomplete) -->
   <link rel="stylesheet" href="/assets/css/base.css">
 
-  <!-- Dynamiczny arkusz motywu (CSS-First) -->
-  <link id="activeThemeStylesheet" rel="stylesheet" href="/assets/css/theme-v2.css">
+  <!-- Dynamiczny arkusz motywu (CSS-First) - domyślnie theme-v1.css (dostępne: theme-v2.css, theme-v3.css) -->
+  <link id="activeThemeStylesheet" rel="stylesheet" href="/assets/css/theme-v1.css">
+  <script>
+    (function() {
+      const savedTheme = localStorage.getItem('kh_theme') || 'v1';
+      if (savedTheme !== 'v1') {
+        const link = document.getElementById('activeThemeStylesheet');
+        if (link) link.href = '/assets/css/theme-' + savedTheme + '.css';
+      }
+    })();
+  </script>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
   <!-- ========================================== -->
-  <!-- GÓRNY PASEK NAWIGACJI                      -->
+  <!-- NAWIGACJA (Topbar v1 / Sidebar v2)         -->
   <!-- ========================================== -->
+  <div class="layout-navigation">
   <header class="app-nav layout-topbar border-b border-slate-800 bg-slate-900/60 backdrop-blur sticky top-0 z-40">
     <div class="max-w-6xl mx-auto px-4 py-3 flex items-center justify-between gap-4">
 
@@ -99,6 +109,13 @@
           <span class="hidden md:inline">Zasady</span>
         </button>
 
+        <!-- Szybki selektor motywów (CSS-First) -->
+        <div id="quickThemeSelector" class="flex items-center bg-slate-950/80 border border-slate-800 p-0.5 rounded-lg text-xs" title="Wybierz motyw graficzny">
+          <button type="button" data-action="quick-set-theme" data-theme="v1" class="theme-pill-btn active" title="Motyw v1 (Klasyczny)">v1</button>
+          <button type="button" data-action="quick-set-theme" data-theme="v2" class="theme-pill-btn" title="Motyw v2 (Stitch Ring)">v2</button>
+          <button type="button" data-action="quick-set-theme" data-theme="v3" class="theme-pill-btn" title="Motyw v3 (Cyberpunk Neon)">v3</button>
+        </div>
+
         <!-- Profil / Logowanie GitHub -->
         <div id="authContainer">
           <a href="/api/auth/github" class="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-500 text-white px-3.5 py-1.5 rounded-lg text-xs font-semibold shadow-md shadow-indigo-600/20 transition">
@@ -114,7 +131,7 @@
   <!-- ========================================== -->
   <!-- ZAKŁADKI NAWIGACYJNE                      -->
   <!-- ========================================== -->
-  <nav class="border-b border-slate-800/80 bg-slate-950/80">
+  <nav class="layout-nav border-b border-slate-800/80 bg-slate-950/80">
     <div class="max-w-6xl mx-auto px-4 flex items-center justify-between">
       <div class="flex gap-2">
         <button id="tabBtnArena" data-action="switch-tab" data-tab="arena" class="py-3 px-4 text-xs font-bold border-b-2 border-indigo-500 text-indigo-400 flex items-center gap-2 transition">
@@ -137,6 +154,7 @@
       </div>
     </div>
   </nav>
+  </div>
 
   <!-- GŁÓWNA TREŚĆ STRONY -->
   <main class="app-container max-w-6xl mx-auto px-4 py-8 flex-grow w-full">

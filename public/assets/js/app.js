@@ -1,5 +1,7 @@
     document.addEventListener("DOMContentLoaded", () => {
       if (typeof lucide !== "undefined" && lucide.createIcons) lucide.createIcons();
+      const initialTheme = localStorage.getItem("kh_theme") || "v1";
+      if (typeof setTheme === "function") setTheme(initialTheme);
       checkAuth();
       fetchAllData();
     });

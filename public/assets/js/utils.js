@@ -159,7 +159,22 @@ function setTheme(themeName) {
     link.href = `/assets/css/theme-${themeName}.css`;
   }
 
+  // Synchronizacja przycisków w belce
+  document.querySelectorAll("[data-action='quick-set-theme']").forEach(btn => {
+    if (btn.dataset.theme === themeName) {
+      btn.classList.add("active");
+    } else {
+      btn.classList.remove("active");
+    }
+  });
+
+  // Synchronizacja kontrolek w profilu
+  document.querySelectorAll("input[name='uiThemeOption']").forEach(radio => {
+    radio.checked = radio.value === themeName;
+  });
+
   if (window.currentUser) {
+    window.currentUser.theme = themeName;
     fetch("/api/profile/theme", {
       method: "POST",
       headers: { "Content-Type": "application/json" },

@@ -1,5 +1,3 @@
-    let tempAvatarUrl = "";
-
     function openProfileModal() {
       if (!currentUser) return;
       document.getElementById("profileError").classList.add("hidden");

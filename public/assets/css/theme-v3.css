@@ -30,6 +30,13 @@ body {
     radial-gradient(ellipse at 80% 80%, rgba(6, 182, 212, 0.1) 0%, transparent 50%);
   background-attachment: fixed;
   color: #f5f3ff;
+  padding-left: 0 !important;
+}
+
+.layout-navigation {
+  position: static !important;
+  width: 100% !important;
+  display: block !important;
 }
 
 /* Szklane panele glassmorphism z neonowym obrysem */

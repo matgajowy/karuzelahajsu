@@ -26,6 +26,7 @@ const clickActions = {
   "copy-accordion-holding": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
   "filter-feed": element => setFeedFilter(element.dataset.filter),
   "select-chip-ticker": element => window.karuzela.selectChipTicker(element.dataset.ticker),
+  "quick-set-theme": element => setTheme(element.dataset.theme),
 };
 
 document.addEventListener("click", event => {
