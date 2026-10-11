@@ -12,7 +12,7 @@
   --theme-primary-hover: #059669;
   --theme-accent: #fbbf24;
 
-  /* Remapowanie Tailwind do szmaragdowej palety */
+  /* Remapowanie kolorów Tailwind do szmaragdowej palety Stitch Ring */
   --color-slate-950: #020b08;
   --color-slate-900: #061811;
   --color-slate-850: #092118;
@@ -31,85 +31,164 @@ body {
 /* W motywie v2 zaawansowane sekcje są aktywne */
 .feature-journal,
 .feature-allocation {
-  display: block;
+  display: block !important;
 }
 
 /* Karty ze szmaragdowym obrysem i subtelnym blaskiem */
 .bg-slate-900,
-.bg-slate-900\/90 {
+.bg-slate-900\/90,
+.bg-slate-900\/70 {
   background-color: var(--theme-surface-card) !important;
   border-color: var(--theme-border) !important;
   box-shadow: 0 4px 20px -2px rgba(2, 44, 34, 0.5);
 }
 
 .border-slate-800,
-.border-slate-800\/80 {
+.border-slate-800\/80,
+.border-slate-800\/60 {
   border-color: var(--theme-border) !important;
 }
 
 /* Desktop layout: Pasek nawigacyjny jako elegancki lewy sidebar */
 @media (min-width: 1024px) {
   body {
-    padding-left: 17rem;
+    padding-left: 16rem !important;
   }
 
-  header.app-nav {
+  .layout-navigation {
     position: fixed !important;
     top: 0 !important;
     left: 0 !important;
     bottom: 0 !important;
-    width: 17rem !important;
+    width: 16rem !important;
     height: 100vh !important;
-    border-right: 1px solid var(--theme-border) !important;
-    border-bottom: none !important;
     background-color: var(--theme-surface) !important;
+    border-right: 1px solid var(--theme-border) !important;
     z-index: 50 !important;
     display: flex !important;
     flex-direction: column !important;
+    justify-content: flex-start !important;
+    overflow-y: auto !important;
   }
 
-  header.app-nav > div {
+  /* Sekcja górna sidebara (Branding + Przełącznik motywów) */
+  .layout-topbar {
+    position: static !important;
+    border-bottom: 1px solid var(--theme-border) !important;
+    background: transparent !important;
+    padding: 1.25rem 1rem !important;
+    width: 100% !important;
+  }
+
+  .layout-topbar > div {
     display: flex !important;
     flex-direction: column !important;
-    height: 100% !important;
-    justify-content: space-between !important;
-    padding: 1.5rem 1rem !important;
+    align-items: stretch !important;
+    gap: 1rem !important;
+    padding: 0 !important;
+    max-width: 100% !important;
   }
 
-  nav.border-b {
-    position: fixed !important;
-    top: 5rem !important;
-    left: 0 !important;
-    width: 17rem !important;
-    background: transparent !important;
-    border: none !important;
-    z-index: 51 !important;
-  }
-
-  nav.border-b > div {
+  .layout-topbar > div > div:last-child {
+    display: flex !important;
     flex-direction: column !important;
-    gap: 0.5rem !important;
-    padding: 0 1rem !important;
+    align-items: stretch !important;
+    width: 100% !important;
+    gap: 0.65rem !important;
   }
 
-  nav.border-b .flex.gap-2 {
+  #quickThemeSelector {
+    width: 100% !important;
+    justify-content: space-around !important;
+    background: #020b08 !important;
+    border-color: var(--theme-border) !important;
+  }
+
+  #syncStatusBadge {
+    width: 100% !important;
+    justify-content: space-between !important;
+    background: #020b08 !important;
+    border-color: var(--theme-border) !important;
+  }
+
+  #authContainer {
+    width: 100% !important;
+  }
+
+  #authContainer > div,
+  #authContainer > a {
+    width: 100% !important;
+    justify-content: center !important;
+    background-color: var(--theme-surface-card) !important;
+    border-color: var(--theme-border) !important;
+  }
+
+  /* Sekcja zakładek i nawigacji pionowej */
+  .layout-nav {
+    position: static !important;
+    border: none !important;
+    background: transparent !important;
+    padding: 1rem !important;
+    width: 100% !important;
+  }
+
+  .layout-nav > div {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.5rem !important;
+    padding: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .layout-nav .flex.gap-2 {
+    display: flex !important;
     flex-direction: column !important;
     width: 100% !important;
     gap: 0.35rem !important;
   }
 
-  nav.border-b button {
+  .layout-nav button[data-action="switch-tab"] {
     width: 100% !important;
     border-radius: 0.75rem !important;
     border: 1px solid transparent !important;
-    padding: 0.75rem 1rem !important;
+    padding: 0.65rem 0.85rem !important;
+    display: flex !important;
     justify-content: flex-start !important;
+    align-items: center !important;
+    gap: 0.65rem !important;
+    text-align: left !important;
+    font-size: 0.8125rem !important;
+    color: #94a3b8 !important;
+    transition: all 0.15s ease !important;
   }
 
-  nav.border-b button[class*="border-indigo-500"] {
+  .layout-nav button[data-action="switch-tab"]:hover {
+    color: #ecfdf5 !important;
+    background: rgba(16, 185, 129, 0.08) !important;
+  }
+
+  .layout-nav button[class*="border-indigo-500"] {
     background: rgba(16, 185, 129, 0.15) !important;
-    border-color: rgba(16, 185, 129, 0.35) !important;
+    border-color: rgba(16, 185, 129, 0.4) !important;
     color: #34d399 !important;
+  }
+
+  #quickTradeBtnContainer {
+    width: 100% !important;
+    padding-top: 0.5rem !important;
+  }
+
+  #quickTradeBtnContainer button {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+
+  /* Rozszerzony kontener dashboardu na szerokich ekranach */
+  .app-container {
+    max-width: 100% !important;
+    padding-left: 2rem !important;
+    padding-right: 2rem !important;
   }
 }
 
