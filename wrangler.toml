@@ -41,8 +41,9 @@ enabled = true
 directory = "./public"
 binding = "ASSETS"
 
+# Limit planu: 5 cronów na konto (prod używa 3). Dev uruchamiamy ręcznie przez --test-scheduled.
 [env.dev.triggers]
-crons = ["30 6 * * MON-FRI", "30 15 * * MON-FRI", "*/15 6-21 * * MON-FRI", "0 6 * * MON-FRI", "0 14 * * MON-FRI"]
+crons = []
 
 [[env.dev.d1_databases]]
 binding = "DB"
