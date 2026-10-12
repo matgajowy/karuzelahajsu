@@ -48,7 +48,7 @@
                 <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(dateStr)}</span>
               </div>
               <h4 class="font-bold text-white text-sm mb-1.5">${escapeHtml(item.title)}</h4>
-              <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-line">${escapeHtml(item.content)}</p>
+              <div class="standup-body">${formatStandupHtml(item.content)}</div>
             </div>
           `;
         } else {
