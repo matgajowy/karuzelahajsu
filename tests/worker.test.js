@@ -1129,3 +1129,110 @@ test("sale percentage presets round down to whole shares", async () => {
 
   assert.deepEqual(JSON.parse(result), { quarter: "2", half: "5", max: "4", disabled: false });
 });
+
+test("market stand-ups: feed returns news next to transactions", async () => {
+  const news = [{ id: 1, type: "STANDUP_MORNING", title: "Poranny stand-up", content: "Treść", created_at: "2026-10-12 06:00:00" }];
+  const env = {
+    DB: {
+      prepare(sql) {
+        return { all: async () => ({ results: sql.includes("market_news") ? news : [] }) };
+      },
+    },
+  };
+  const response = await worker.fetch(new Request("https://example.com/api/feed"), env, {});
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.deepEqual(body.news, news);
+  assert.deepEqual(body.data, []);
+});
+
+test("market stand-ups: feed filter pills and handlers are wired", async () => {
+  const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
+  const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(events, /"filter-feed": element => setFeedFilter/);
+  assert.match(portfolio, /function setFeedFilter/);
+  assert.doesNotMatch(portfolio, /ai_roast|Roast AI/);
+  for (const filter of ["all", "trades", "news"]) {
+    assert.match(html, new RegExp(`data-action="filter-feed" data-filter="${filter}"`));
+  }
+  assert.match(html, /href="\/assets\/css\/features\.css"/);
+});
+
+test("scheduled stand-up crons write a market_news row and fall back without Gemini", async () => {
+  const inserts = [];
+  const env = {
+    DB: {
+      prepare(sql) {
+        return {
+          all: async () => ({ results: [] }),
+          bind: (...values) => ({
+            run: async () => { if (sql.includes("INSERT INTO market_news")) inserts.push(values); return { success: true }; },
+          }),
+        };
+      },
+    },
+  };
+  const pending = [];
+  const ctx = { waitUntil: promise => pending.push(promise) };
+  await worker.scheduled({ cron: "0 6 * * MON-FRI" }, env, ctx);
+  await worker.scheduled({ cron: "0 14 * * MON-FRI" }, env, ctx);
+  await Promise.all(pending);
+  assert.deepEqual(inserts.map(values => values[0]), ["STANDUP_MORNING", "STANDUP_EVENING"]);
+  assert.ok(inserts.every(values => values[1] && values[2]));
+});
+
+test("other cron schedules still run the price sync, not a stand-up", async () => {
+  const queries = [];
+  const env = {
+    DB: {
+      prepare(sql) {
+        queries.push(sql);
+        return { all: async () => ({ results: [] }), bind: () => ({ run: async () => ({ success: true }), all: async () => ({ results: [] }) }) };
+      },
+    },
+  };
+  const pending = [];
+  await worker.scheduled({ cron: "*/15 6-21 * * MON-FRI" }, env, { waitUntil: promise => pending.push(promise) });
+  await Promise.allSettled(pending);
+  assert.ok(!queries.some(sql => sql.includes("market_news")));
+});
+
+test("instruments autocomplete returns suggestions with market status", async () => {
+  const env = {
+    DB: {
+      prepare() {
+        return {
+          bind() {
+            return {
+              all: async () => ({
+                results: [{ ticker: "NVDA", name: "NVIDIA Corp", price: 120, currency: "USD", fx_to_pln: 4.0 }],
+              }),
+            };
+          },
+        };
+      },
+    },
+  };
+  const response = await worker.fetch(
+    new Request("https://example.com/api/instruments/search?q=NV&autocomplete=1"),
+    env,
+    {},
+  );
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  assert.equal(body.status, "success");
+  assert.equal(body.data[0].ticker, "NVDA");
+  assert.equal(body.data[0].market, "USA");
+  assert.ok(body.data[0].market_status);
+});
+
+test("ticker autocomplete is wired in the page and event handlers", async () => {
+  const trading = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(trading, /autocomplete=1/);
+  assert.match(events, /onTickerInputDebounced/);
+  assert.match(html, /id="tickerAutocompleteDropdown"/);
+  assert.match(html, /id="tradeTickerInput"[^>]*autocomplete="off"/);
+});
