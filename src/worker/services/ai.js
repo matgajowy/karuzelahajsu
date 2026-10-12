@@ -1,6 +1,9 @@
 // Serwis integracji Google Gemini Flash dla stand-upów i roastów inwestycyjnych
 
-const GEMINI_API_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+// gemini-1.5-flash został wycofany (API zwraca 404), więc model jest nadpisywalny zmienną GEMINI_MODEL.
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const geminiUrl = model =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || DEFAULT_GEMINI_MODEL)}:generateContent`;
 
 const STANDUP_SYSTEM_PROMPT = `Jesteś bezwzględnym, cynicznym, wulgarnym i brutalnie szczerym stand-uperem korporacyjnym oraz starym maklerem giełdowym w jednym.
 Zero korporacyjnej poprawności politycznej, zero uprzejmości i litości.
@@ -18,7 +21,7 @@ const TRADE_ROAST_SYSTEM_PROMPT = `Jesteś bezwzględnym, złośliwym i ciętym 
 Skomentuj poniższe zlecenie i tezę gracza w JEDNYM krótkim, uszczypliwym zdaniu (MAKSYMALNIE 120 ZNAKÓW).
 Nie używaj cudzysłowów. Zero uprzejmości.`;
 
-async function callGemini(apiKey, prompt, systemInstruction = null) {
+async function callGemini(apiKey, prompt, systemInstruction = null, model = null, timeoutMs = 6000) {
   if (!apiKey) return null;
 
   const body = {
@@ -29,15 +32,20 @@ async function callGemini(apiKey, prompt, systemInstruction = null) {
     ]
   };
 
+  // Modele 2.5 domyślnie "myślą" przed odpowiedzią; dla krótkich tekstów wyłączamy to (szybciej, taniej).
+  if (String(model || DEFAULT_GEMINI_MODEL).includes("2.5")) {
+    body.generationConfig = { ...(body.generationConfig || {}), thinkingConfig: { thinkingBudget: 0 } };
+  }
+
   if (systemInstruction) {
     body.systemInstruction = {
       parts: [{ text: systemInstruction }]
     };
   }
 
-  const url = `${GEMINI_API_URL}?key=${encodeURIComponent(apiKey)}`;
+  const url = `${geminiUrl(model)}?key=${encodeURIComponent(apiKey)}`;
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 6000);
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
   try {
     const res = await fetch(url, {
@@ -137,7 +145,7 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
   let title = defaultTitle;
   let content = "";
 
-  const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT);
+  const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT, env.GEMINI_MODEL, 25000);
   if (responseText) {
     try {
       const cleanJson = responseText.replace(/^```json\s*|\s*```$/g, "").trim();
@@ -176,7 +184,7 @@ Akcja: ${type === "BUY" ? "KUPNO" : "SPRZEDAŻ"} ${shares} szt. ${ticker}
 Teza gracza: "${thesis}"`;
 
   try {
-    const roast = await callGemini(env.GEMINI_API_KEY, prompt, TRADE_ROAST_SYSTEM_PROMPT);
+    const roast = await callGemini(env.GEMINI_API_KEY, prompt, TRADE_ROAST_SYSTEM_PROMPT, env.GEMINI_MODEL);
     if (!roast) return null;
     const cleanRoast = roast.replace(/^["'“”]+|["'“”]+$/g, "").trim();
     return cleanRoast.length > 120 ? `${cleanRoast.slice(0, 117)}...` : cleanRoast;
