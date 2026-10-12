@@ -24,10 +24,17 @@ const clickActions = {
   "copy-feed-trade": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
   "toggle-opponent-accordion": element => toggleOpponentAccordion(element.dataset.userId, element),
   "copy-accordion-holding": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
+  "filter-feed": element => setFeedFilter(element.dataset.filter),
+  "select-chip-ticker": element => window.karuzela.selectChipTicker(element.dataset.ticker),
 };
 
 document.addEventListener("click", event => {
   if (!(event.target instanceof Element)) return;
+
+  // Zamknij podpowiedzi tickera po kliknięciu poza polem wyboru waloru
+  if (!event.target.closest("#buyInstrumentSection")) {
+    if (typeof closeAutocomplete === "function") closeAutocomplete();
+  }
   const element = event.target.closest("[data-action]");
   if (!element) return;
 
@@ -54,6 +61,10 @@ document.addEventListener("input", event => {
     updateBenchmarkResetConfirmation(event.target);
   }
   if (event.target instanceof HTMLInputElement &&
+      event.target.id === "tradeTickerInput") {
+    if (typeof onTickerInputDebounced === "function") onTickerInputDebounced(event);
+  }
+  if (event.target instanceof HTMLInputElement &&
       event.target.dataset.action === "update-estimated-cost") {
     if (event.target.id === "tradeShares") {
       syncTradeInput("shares");
@@ -73,6 +84,9 @@ document.addEventListener("change", event => {
 });
 
 document.addEventListener("keydown", event => {
+  if (event.key === "Escape") {
+    if (typeof closeAutocomplete === "function") closeAutocomplete();
+  }
   if ((event.key === "Enter" || event.key === " ") &&
       event.target instanceof HTMLTableRowElement &&
       event.target.dataset.action === "toggle-opponent-accordion") {

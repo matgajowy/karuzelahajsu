@@ -1,10 +1,22 @@
 import { jsonResponse } from "./lib/http.js";
 import { allowedMethods, findRoute } from "./routes/index.js";
 import { syncAllMarketPrices } from "./services/pricing.js";
+import { generateStandup } from "./services/ai.js";
 
 export default {
-  async scheduled(_event, env, ctx) {
-    ctx.waitUntil(syncAllMarketPrices(env));
+  async scheduled(event, env, ctx) {
+    const cron = event?.cron || "";
+    if (cron === "0 6 * * MON-FRI" || cron === "0 6 * * *") {
+      ctx.waitUntil(generateStandup(env, "STANDUP_MORNING").catch(error => {
+        console.error("Morning stand-up failed.", error);
+      }));
+    } else if (cron === "0 14 * * MON-FRI" || cron === "0 14 * * *") {
+      ctx.waitUntil(generateStandup(env, "STANDUP_EVENING").catch(error => {
+        console.error("Evening stand-up failed.", error);
+      }));
+    } else {
+      ctx.waitUntil(syncAllMarketPrices(env));
+    }
   },
 
   async fetch(request, env, ctx) {

@@ -7,6 +7,80 @@ export async function handleInstrumentSearch(context) {
   const q = (url.searchParams.get("q") || "").trim().toUpperCase();
   if (!q) return jsonResponse({ status: "error", message: "Brak symbolu waloru" }, 400);
 
+  const isAutocomplete = url.searchParams.get("autocomplete") === "true" || url.searchParams.get("autocomplete") === "1";
+
+  if (isAutocomplete) {
+    const term = `%${q}%`;
+    let results = [];
+
+    // 1. Przeszukaj lokalny cache D1 (market_prices)
+    try {
+      const { results: localResults } = await env.DB.prepare(`
+        SELECT ticker, name, price, currency, fx_to_pln
+        FROM market_prices
+        WHERE ticker LIKE ? OR name LIKE ?
+        ORDER BY
+          CASE WHEN ticker = ? THEN 0
+               WHEN ticker LIKE ? THEN 1
+               ELSE 2 END,
+          ticker ASC
+        LIMIT 5
+      `).bind(term, term, q, `${q}%`).all();
+
+      if (Array.isArray(localResults)) {
+        results = localResults.map(item => {
+          const info = getMarketInfo(item.ticker);
+          return {
+            ticker: item.ticker,
+            name: item.name,
+            market: item.ticker.endsWith(".WA") ? "GPW" : "USA",
+            market_status: toMarketStatus(info),
+            price: item.price,
+            currency: item.currency,
+          };
+        });
+      }
+    } catch (err) {
+      console.warn("D1 autocomplete search error:", err.message);
+    }
+
+    // 2. Jeśli znaleziono mniej niż 5 pozycji, odpytaj Yahoo Finance Search API
+    if (results.length < 5) {
+      try {
+        const yahooSearchUrl = `https://query1.finance.yahoo.com/v1/finance/search?q=${encodeURIComponent(q)}&quotesCount=5&newsCount=0`;
+        const res = await fetch(yahooSearchUrl, {
+          headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)" },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const quotes = data?.quotes || [];
+          for (const quote of quotes) {
+            if (results.length >= 5) break;
+            const ticker = (quote.symbol || "").toUpperCase();
+            if (!ticker || results.some(r => r.ticker === ticker)) continue;
+            // Filtrujemy tylko rynki akcji / dozwolone (GPW .WA lub USA)
+            const isWA = ticker.endsWith(".WA");
+            const isUS = !ticker.includes(".");
+            if (!isWA && !isUS) continue;
+
+            const info = getMarketInfo(ticker);
+            results.push({
+              ticker,
+              name: quote.shortname || quote.longname || ticker,
+              market: isWA ? "GPW" : "USA",
+              market_status: toMarketStatus(info),
+            });
+          }
+        }
+      } catch (err) {
+        console.warn("Yahoo search API failed:", err.message);
+      }
+    }
+
+    return jsonResponse({ status: "success", data: results });
+  }
+
+  // Standardowy tryb pojedynczego waloru (weryfikacja kursu)
   const quote = await fetchYahooQuote(q);
   if (!quote) {
     return jsonResponse({ status: "error", message: `Walor "${q}" nie został znaleziony lub nie jest dozwolony.` }, 404);

@@ -1,5 +1,7 @@
     let isUpdatingTradeInputs = false;
     let tradeInputSource = "shares";
+    let autocompleteTimeout = null;
+    let selectedAutocompleteIndex = -1;
 
     function isMarketClosed() {
       return verifiedInstrument?.market_status?.is_open === false;
@@ -43,6 +45,7 @@
       document.getElementById("verifiedInstrumentCard").classList.add("hidden");
       document.getElementById("tradeTickerInput").value = "";
       verifiedInstrument = null;
+      closeAutocomplete();
       renderMarketStatus();
 
       populateHoldingsDropdown();
@@ -59,6 +62,7 @@
 
     function closeTradeModal() {
       document.getElementById("tradeModal").classList.add("hidden");
+      closeAutocomplete();
     }
 
     function setTradeType(type) {
@@ -252,15 +256,16 @@
       updateEstimatedCost();
     }
 
-    async function verifyTicker() {
+    async function verifyTicker(customTicker = null) {
       const input = document.getElementById("tradeTickerInput");
-      const ticker = input.value.trim().toUpperCase();
+      const ticker = (customTicker || input.value || "").trim().toUpperCase();
       const errDiv = document.getElementById("tradeError");
       const btn = document.getElementById("verifyBtn");
       const submitBtn = document.getElementById("submitTradeBtn");
 
       if (!ticker) return;
 
+      closeAutocomplete();
       errDiv.classList.add("hidden");
       btn.innerText = "...";
       btn.disabled = true;
@@ -299,6 +304,80 @@
       }
     }
 
+    /* ==========================================================================
+       MODUŁ A: Autocomplete na Ticker w czasie rzeczywistym
+       ========================================================================== */
+    function closeAutocomplete() {
+      const dropdown = document.getElementById("tickerAutocompleteDropdown");
+      if (dropdown) dropdown.classList.add("hidden");
+      selectedAutocompleteIndex = -1;
+    }
+
+    function onTickerInputDebounced(e) {
+      clearTimeout(autocompleteTimeout);
+      const val = (e.target.value || "").trim().toUpperCase();
+      if (val.length < 2) {
+        closeAutocomplete();
+        return;
+      }
+
+      autocompleteTimeout = setTimeout(async () => {
+        try {
+          const res = await apiRequest(`/api/instruments/search?q=${encodeURIComponent(val)}&autocomplete=1`);
+          if (res.status === "success" && Array.isArray(res.data) && res.data.length > 0) {
+            renderAutocompleteDropdown(res.data);
+          } else {
+            closeAutocomplete();
+          }
+        } catch (err) {
+          closeAutocomplete();
+        }
+      }, 300);
+    }
+
+    function renderAutocompleteDropdown(items) {
+      const dropdown = document.getElementById("tickerAutocompleteDropdown");
+      if (!dropdown) return;
+
+      dropdown.innerHTML = "";
+      selectedAutocompleteIndex = -1;
+
+      items.slice(0, 5).forEach((item, index) => {
+        const row = document.createElement("div");
+        row.className = "autocomplete-item";
+        row.dataset.index = index;
+        row.dataset.ticker = item.ticker;
+
+        const isOpen = item.market_status?.is_open;
+        const statusClass = isOpen ? "market-pill-open" : "market-pill-closed";
+        const statusLabel = isOpen ? "🟢 Otwarta" : "🔴 Zamknięta";
+        const marketFlag = item.market === "GPW" ? "🇵🇱 GPW" : "🇺🇸 USA";
+
+        row.innerHTML = `
+          <div>
+            <div class="autocomplete-ticker">${escapeHtml(item.ticker)}</div>
+            <div class="autocomplete-name">${escapeHtml(item.name || item.ticker)}</div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-[10px] text-slate-400 font-mono">${marketFlag}</span>
+            <span class="market-pill ${statusClass}">${statusLabel}</span>
+          </div>
+        `;
+
+        row.addEventListener("click", () => selectAutocompleteItem(item.ticker));
+        dropdown.appendChild(row);
+      });
+
+      dropdown.classList.remove("hidden");
+    }
+
+    function selectAutocompleteItem(ticker) {
+      const input = document.getElementById("tradeTickerInput");
+      input.value = ticker;
+      closeAutocomplete();
+      verifyTicker(ticker);
+    }
+
     function updateEstimatedCost() {
       const shares = Number(document.getElementById("tradeShares").value) || 0;
       if (verifiedInstrument && shares > 0) {
@@ -327,6 +406,10 @@
     if (typeof window !== "undefined") {
       window.karuzela = window.karuzela || {};
       window.karuzela.copyTrade = copyTrade;
+      window.karuzela.selectChipTicker = ticker => {
+        document.getElementById("tradeTickerInput").value = ticker;
+        verifyTicker(ticker);
+      };
     }
 
     function showMarketClosedError(errDiv, status, message) {

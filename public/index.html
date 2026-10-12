@@ -7,6 +7,7 @@
   <link rel="icon" type="image/svg+xml" href="/favicon.svg">
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <link rel="stylesheet" href="/assets/css/features.css">
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-indigo-500 selection:text-white">
 
@@ -247,6 +248,13 @@
             <p class="text-xs text-slate-400 mt-0.5">Podgląd strategii i uzasadnień zespołu</p>
           </div>
           <span class="text-xs text-slate-400">Na żywo</span>
+        </div>
+
+        <!-- Pigułki filtrów feedu -->
+        <div class="flex items-center gap-2 px-6 py-3 border-b border-slate-800/60 bg-slate-950/40">
+          <button type="button" data-action="filter-feed" data-filter="all" class="feed-filter-btn active">Wszystko</button>
+          <button type="button" data-action="filter-feed" data-filter="trades" class="feed-filter-btn">🥊 Ruchy graczy</button>
+          <button type="button" data-action="filter-feed" data-filter="news" class="feed-filter-btn">📰 Stand-up &amp; Rynek</button>
         </div>
 
         <div id="feedContainer" class="p-6 space-y-3">
@@ -561,11 +569,25 @@
 
         <div id="buyInstrumentSection">
           <label class="block text-xs font-medium text-slate-300 mb-1">Symbol waloru (Ticker)</label>
-          <div class="flex gap-2">
-            <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
-            <button type="button" id="verifyBtn" data-action="verify-ticker" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
-              Sprawdź
-            </button>
+          <div class="ticker-autocomplete-container">
+            <div class="flex gap-2">
+              <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" autocomplete="off" class="uppercase w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-slate-100 font-mono focus:border-indigo-500 focus:outline-none">
+              <button type="button" id="verifyBtn" data-action="verify-ticker" class="bg-slate-800 hover:bg-slate-700 text-indigo-300 px-4 py-2 rounded-lg text-xs font-semibold whitespace-nowrap transition">
+                Sprawdź
+              </button>
+            </div>
+            <!-- Podpowiedzi tickera pod polem -->
+            <div id="tickerAutocompleteDropdown" class="ticker-autocomplete-dropdown hidden"></div>
+          </div>
+
+          <!-- Szybki wybór popularnych spółek -->
+          <div class="flex flex-wrap gap-1.5 mt-2">
+            <button type="button" data-action="select-chip-ticker" data-ticker="NVDA" class="trade-ticker-chip">NVDA</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="AAPL" class="trade-ticker-chip">AAPL</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="MSFT" class="trade-ticker-chip">MSFT</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="CDR.WA" class="trade-ticker-chip">CDR.WA</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="PKO.WA" class="trade-ticker-chip">PKO.WA</button>
+            <button type="button" data-action="select-chip-ticker" data-ticker="DNP.WA" class="trade-ticker-chip">DNP.WA</button>
           </div>
         </div>
 

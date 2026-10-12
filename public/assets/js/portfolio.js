@@ -1,51 +1,108 @@
+    let activeFeedFilter = "all";
+    let cachedFeedData = { transactions: [], news: [] };
+
+    function setFeedFilter(filter) {
+      activeFeedFilter = filter;
+      document.querySelectorAll("[data-action='filter-feed']").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.filter === filter);
+      });
+      renderHybridFeed();
+    }
+
+    function renderHybridFeed() {
+      const container = document.getElementById("feedContainer");
+      if (!container) return;
+
+      const { transactions = [], news = [] } = cachedFeedData;
+
+      // Budowanie połączonej listy
+      let items = [];
+      if (activeFeedFilter === "all" || activeFeedFilter === "trades") {
+        transactions.forEach(t => items.push({ ...t, feedItemType: "TRADE" }));
+      }
+      if (activeFeedFilter === "all" || activeFeedFilter === "news") {
+        news.forEach(n => items.push({ ...n, feedItemType: "NEWS" }));
+      }
+
+      items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+
+      if (items.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-400 text-xs py-6">Brak wpisów dla wybranego filtra.</div>';
+        return;
+      }
+
+      container.innerHTML = "";
+      items.forEach(item => {
+        if (item.feedItemType === "NEWS") {
+          const isMorning = item.type === "STANDUP_MORNING";
+          const tagTime = isMorning ? "08:00" : "16:00";
+          const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+
+          container.innerHTML += `
+            <div class="standup-feed-entry my-2">
+              <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
+                <span class="standup-tag">
+                  <span>🎤</span>
+                  <span>STAND-UP Z PARKIETU [${tagTime}]</span>
+                </span>
+                <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(dateStr)}</span>
+              </div>
+              <h4 class="font-bold text-white text-sm mb-1.5">${escapeHtml(item.title)}</h4>
+              <p class="text-xs text-slate-200 leading-relaxed whitespace-pre-line">${escapeHtml(item.content)}</p>
+            </div>
+          `;
+        } else {
+          // Standardowy wpis transakcji gracza
+          const isBuy = item.type === "BUY";
+          const ticker = String(item.ticker ?? "").toUpperCase();
+          const isBenchmarkTicker = ["^GSPC", "WIG20", "WIG20.WA"].includes(ticker);
+          const canCopy = isBuy && !isBenchmark(item.user_name) && !isBenchmarkTicker;
+          const badgeColor = isBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30";
+          const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+          const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.user_name)}`;
+
+          container.innerHTML += `
+            <div class="group relative p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/60 transition flex flex-col md:flex-row md:items-center justify-between gap-3">
+              <div class="flex items-start gap-3">
+                <img src="${escapeHtml(avatar)}" alt="${escapeHtml(item.user_name)}" class="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700 mt-0.5">
+                <div class="space-y-1">
+                  <div class="flex items-center flex-wrap gap-2">
+                    <span class="font-bold text-white text-xs">${escapeHtml(item.user_name)}</span>
+                    <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${escapeHtml(item.type)}</span>
+                    <span class="font-semibold text-slate-200 text-xs font-mono">${escapeHtml(item.shares)} szt. ${escapeHtml(item.company_name || item.ticker)} (${escapeHtml(item.ticker)})</span>
+                    <span class="text-[11px] text-slate-500 font-mono">(${formatCK(item.total_value_ck ?? item.total_value_pln)})</span>
+                  </div>
+                  <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
+                    "${escapeHtml(item.thesis)}"
+                  </p>
+                </div>
+              </div>
+              <div class="flex items-center gap-3 shrink-0 self-end md:self-center">
+                ${canCopy ? `
+                  <button type="button" data-action="copy-feed-trade" data-ticker="${escapeHtml(item.ticker)}" data-user-name="${escapeHtml(item.user_name)}" class="opacity-100 md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto transition-opacity duration-200 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer shadow-sm shrink-0" title="Kopiuj ruch gracza ${escapeHtml(item.user_name)}">
+                    <span>⚡</span>
+                    <span>Kopiuj</span>
+                  </button>
+                ` : ""}
+                <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap">
+                  ${escapeHtml(dateStr)}
+                </span>
+              </div>
+            </div>
+          `;
+        }
+      });
+    }
+
     async function fetchFeed() {
       try {
         const json = await apiRequest('/api/feed');
-        const container = document.getElementById("feedContainer");
-
-        if (json.status === "success" && json.data.length > 0) {
-          container.innerHTML = "";
-          json.data.forEach(item => {
-            const isBuy = item.type === "BUY";
-            const ticker = String(item.ticker ?? "").toUpperCase();
-            const isBenchmarkTicker = ["^GSPC", "WIG20", "WIG20.WA"].includes(ticker);
-            const canCopy = isBuy && !isBenchmark(item.user_name) && !isBenchmarkTicker;
-            const badgeColor = isBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30";
-            const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
-            const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.user_name)}`;
-
-            container.innerHTML += `
-              <div class="group relative p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-slate-700 hover:bg-slate-900/60 transition flex flex-col md:flex-row md:items-center justify-between gap-3">
-                <div class="flex items-start gap-3">
-                  <img src="${escapeHtml(avatar)}" alt="${escapeHtml(item.user_name)}" class="w-8 h-8 rounded-full bg-slate-800 object-cover border border-slate-700 mt-0.5">
-                  <div class="space-y-1">
-                    <div class="flex items-center flex-wrap gap-2">
-                      <span class="font-bold text-white text-xs">${escapeHtml(item.user_name)}</span>
-                      <span class="text-[10px] font-bold px-2 py-0.5 rounded-md border ${badgeColor}">${escapeHtml(item.type)}</span>
-                      <span class="font-semibold text-slate-200 text-xs font-mono">${escapeHtml(item.shares)} szt. ${escapeHtml(item.company_name || item.ticker)} (${escapeHtml(item.ticker)})</span>
-                      <span class="text-[11px] text-slate-500 font-mono">(${formatCK(item.total_value_ck ?? item.total_value_pln)})</span>
-                    </div>
-                    <p class="text-xs text-slate-300 italic pl-3 border-l-2 border-indigo-500/40">
-                      "${escapeHtml(item.thesis)}"
-                    </p>
-                  </div>
-                </div>
-                <div class="flex items-center gap-3 shrink-0 self-end md:self-center">
-                  ${canCopy ? `
-                    <button type="button" data-action="copy-feed-trade" data-ticker="${escapeHtml(item.ticker)}" data-user-name="${escapeHtml(item.user_name)}" class="opacity-100 md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto transition-opacity duration-200 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 cursor-pointer shadow-sm shrink-0" title="Kopiuj ruch gracza ${escapeHtml(item.user_name)}">
-                      <span>⚡</span>
-                      <span>Kopiuj</span>
-                    </button>
-                  ` : ""}
-                  <span class="text-[10px] text-slate-400 font-mono whitespace-nowrap">
-                    ${escapeHtml(dateStr)}
-                  </span>
-                </div>
-              </div>
-            `;
-          });
-        } else {
-          container.innerHTML = '<div class="text-center text-slate-400 text-xs py-6">Brak ostatnich transakcji.</div>';
+        if (json.status === "success") {
+          cachedFeedData = {
+            transactions: Array.isArray(json.data) ? json.data : [],
+            news: Array.isArray(json.news) ? json.news : [],
+          };
+          renderHybridFeed();
         }
       } catch (e) {
         console.error("Feed error:", e);

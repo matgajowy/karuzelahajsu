@@ -15,6 +15,25 @@ export async function handleFeed(context) {
     ORDER BY t.created_at DESC
     LIMIT 20
   `;
-  const { results } = await env.DB.prepare(query).all();
-  return jsonResponse({ status: "success", data: results });
+  const { results: transactions } = await env.DB.prepare(query).all();
+
+  let news = [];
+  try {
+    const newsRes = await env.DB.prepare(`
+      SELECT id, type, title, content, created_at
+      FROM market_news
+      ORDER BY created_at DESC, id DESC
+      LIMIT 10
+    `).all();
+    news = newsRes?.results || [];
+  } catch (err) {
+    // Tabela market_news może jeszcze nie istnieć w testach
+    news = [];
+  }
+
+  return jsonResponse({
+    status: "success",
+    data: transactions || [],
+    news: news || [],
+  });
 }
