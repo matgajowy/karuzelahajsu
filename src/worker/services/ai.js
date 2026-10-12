@@ -1,9 +1,46 @@
-// Serwis integracji Google Gemini Flash dla stand-upów i roastów inwestycyjnych
+const GEMINI_MODEL = "gemini-2.5-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
-// gemini-1.5-flash został wycofany (API zwraca 404), więc model jest nadpisywalny zmienną GEMINI_MODEL.
-const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
-const geminiUrl = model =>
-  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model || DEFAULT_GEMINI_MODEL)}:generateContent`;
+export async function generateText(env, systemInstruction, userPrompt, fallbackText = "Generator AI jest chwilowo niedostępny.") {
+  try {
+    if (!env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY secret is not configured.");
+    }
+
+    const endpoint = new URL(GEMINI_API_URL);
+    endpoint.searchParams.set("key", env.GEMINI_API_KEY);
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ parts: [{ text: userPrompt }] }],
+        generationConfig: {
+          temperature: 0.9,
+          maxOutputTokens: 300,
+        },
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Gemini API returned HTTP ${response.status}.`);
+    }
+
+    const result = await response.json();
+    const text = result.candidates?.[0]?.content?.parts
+      ?.map(part => part.text || "")
+      .join("")
+      .trim();
+    if (!text) {
+      throw new Error("Gemini API returned no text.");
+    }
+    return text;
+  } catch (error) {
+    console.error("Gemini text generation failed; using fallback.", error);
+    return fallbackText;
+  }
+}
 
 const STANDUP_SYSTEM_PROMPT = `Jesteś bezwzględnym, cynicznym, wulgarnym i brutalnie szczerym stand-uperem korporacyjnym oraz starym maklerem giełdowym w jednym.
 Zero korporacyjnej poprawności politycznej, zero uprzejmości i litości.
@@ -17,56 +54,32 @@ Format wyjściowy (zwróć JSON z polami 'title' i 'content'):
   3. Twardy, cyniczny komentarz makroekonomiczny (stopy, inflacja, USD/PLN, rentowności obligacji, nastroje w USA i Polsce).
 Styl: żywy język, ironia, korpo-żargon pomieszany z ulicznym parkietem giełdowym.`;
 
-const TRADE_ROAST_SYSTEM_PROMPT = `Jesteś bezwzględnym, złośliwym i ciętym maklerem giełdowym.
-Skomentuj poniższe zlecenie i tezę gracza w JEDNYM krótkim, uszczypliwym zdaniu (MAKSYMALNIE 120 ZNAKÓW).
-Nie używaj cudzysłowów. Zero uprzejmości.`;
-
-async function callGemini(apiKey, prompt, systemInstruction = null, model = null, timeoutMs = 6000) {
+// Pojedyncze wywołanie Gemini dla stand-upów. Zwraca null przy braku klucza, błędzie lub timeoucie.
+async function callGemini(apiKey, prompt, systemInstruction) {
   if (!apiKey) return null;
-
-  const body = {
-    contents: [
-      {
-        parts: [{ text: prompt }]
-      }
-    ]
-  };
-
-  // Modele 2.5 domyślnie "myślą" przed odpowiedzią; dla krótkich tekstów wyłączamy to (szybciej, taniej).
-  if (String(model || DEFAULT_GEMINI_MODEL).includes("2.5")) {
-    body.generationConfig = { ...(body.generationConfig || {}), thinkingConfig: { thinkingBudget: 0 } };
-  }
-
-  if (systemInstruction) {
-    body.systemInstruction = {
-      parts: [{ text: systemInstruction }]
-    };
-  }
-
-  const url = `${geminiUrl(model)}?key=${encodeURIComponent(apiKey)}`;
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
-
+  const endpoint = new URL(GEMINI_API_URL);
+  endpoint.searchParams.set("key", apiKey);
   try {
-    const res = await fetch(url, {
+    const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: controller.signal,
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: systemInstruction }] },
+        contents: [{ parts: [{ text: prompt }] }],
+        // 2.5-flash domyślnie "myśli"; dla krótkiego tekstu wyłączamy to (szybciej, mieści się w limicie).
+        generationConfig: { temperature: 0.9, thinkingConfig: { thinkingBudget: 0 } },
+      }),
+      signal: AbortSignal.timeout(25000),
     });
-    clearTimeout(timeoutId);
-
-    if (!res.ok) {
-      console.warn("Gemini API error:", res.status, await res.text().catch(() => ""));
+    if (!response.ok) {
+      console.warn("Gemini API error:", response.status, await response.text().catch(() => ""));
       return null;
     }
-
-    const data = await res.json();
-    const candidate = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-    return candidate ? candidate.trim() : null;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    console.warn("Gemini API call failed:", err.message);
+    const data = await response.json();
+    const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
+    return text || null;
+  } catch (error) {
+    console.warn("Gemini API call failed:", error.message);
     return null;
   }
 }
@@ -145,7 +158,7 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
   let title = defaultTitle;
   let content = "";
 
-  const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT, env.GEMINI_MODEL, 25000);
+  const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT);
   if (responseText) {
     try {
       const cleanJson = responseText.replace(/^```json\s*|\s*```$/g, "").trim();
@@ -174,22 +187,4 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
   }
 
   return { type, title, content };
-}
-
-export async function generateTradeRoast(env, { ticker, type, shares, thesis, userName }) {
-  if (!thesis) return null;
-
-  const prompt = `Gracz: ${userName || "Anonim"}
-Akcja: ${type === "BUY" ? "KUPNO" : "SPRZEDAŻ"} ${shares} szt. ${ticker}
-Teza gracza: "${thesis}"`;
-
-  try {
-    const roast = await callGemini(env.GEMINI_API_KEY, prompt, TRADE_ROAST_SYSTEM_PROMPT, env.GEMINI_MODEL);
-    if (!roast) return null;
-    const cleanRoast = roast.replace(/^["'“”]+|["'“”]+$/g, "").trim();
-    return cleanRoast.length > 120 ? `${cleanRoast.slice(0, 117)}...` : cleanRoast;
-  } catch (err) {
-    console.warn("generateTradeRoast error:", err.message);
-    return null;
-  }
 }

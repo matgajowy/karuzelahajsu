@@ -470,50 +470,65 @@
   };
 
   /* ---------------- Feed ---------------- */
-  window.fetchFeed = async function fetchFeedV2() {
+  let feedCache = { trades: [], news: [] };
+  let feedFilter = "all";
+
+  function renderFeed() {
     const container = $("feedContainer");
+    if (!container) return;
+    const showTrades = feedFilter !== "news";
+    const showNews = feedFilter !== "trades";
+    const trades = showTrades ? feedCache.trades : [];
+    const news = showNews ? feedCache.news.slice(0, feedFilter === "news" ? 6 : 2) : [];
+    if (!trades.length && !news.length) {
+      container.innerHTML = `<div class="v2-empty">${feedFilter === "news" ? "Brak stand-upów rynkowych." : "Brak ostatnich transakcji."}</div>`;
+      return;
+    }
+    const standups = news.map(item => `
+        <article class="v2-post v2-standup">
+          <header>
+            <span class="v2-ini">🎤</span>
+            <div><b>Stand-up z parkietu</b><small>${escapeHtml(agoLabel(item.created_at))}</small></div>
+            <span class="v2-badge buy">${item.type === "STANDUP_MORNING" ? "Rano" : "Wieczór"}</span>
+          </header>
+          <b>${escapeHtml(item.title)}</b>
+          <p class="v2-standup-text">${escapeHtml(item.content)}</p>
+        </article>`).join("");
+    container.innerHTML = standups + trades.map(item => {
+      const buy = item.type === "BUY";
+      const ticker = String(item.ticker ?? "").toUpperCase();
+      const benchTicker = ["^GSPC", "WIG20", "WIG20.WA"].includes(ticker);
+      const canCopy = buy && !isBenchmark(item.user_name) && !benchTicker;
+      const shares = num(item.shares);
+      const totalCk = num(item.total_value_ck ?? item.total_value_pln);
+      const perShare = shares > 0 ? totalCk / shares : 0;
+      const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.user_name)}`;
+      return `
+        <article class="v2-post">
+          <header>
+            <img src="${escapeHtml(avatar)}" alt="">
+            <div><b>${escapeHtml(item.user_name)}</b><small>${escapeHtml(agoLabel(item.created_at))}</small></div>
+            <span class="v2-badge ${buy ? "buy" : "sell"}">${buy ? "Buy" : "Sell"}</span>
+          </header>
+          <div class="v2-post-deal">
+            <div><b>${escapeHtml(item.shares)} szt. ${escapeHtml(item.company_name || item.ticker)}</b><small>${escapeHtml(ticker)} • ${marketOf(ticker) === "GPW" ? "GPW" : "USA"} · @ ${ck(perShare)}</small></div>
+            <b class="v2-post-total font-mono">${ck(totalCk)}</b>
+          </div>
+          <blockquote>${escapeHtml(item.thesis)}</blockquote>
+          ${canCopy ? `<button type="button" class="v2-copy" data-action="copy-feed-trade" data-ticker="${escapeHtml(item.ticker)}" data-user-name="${escapeHtml(item.user_name)}"><span class="material-symbols-outlined" aria-hidden="true">bolt</span>Kopiuj ruch</button>` : ""}
+        </article>`;
+    }).join("");
+  }
+
+  window.fetchFeed = async function fetchFeedV2() {
     try {
       const json = await apiRequest("/api/feed");
-      const trades = Array.isArray(json.data) ? json.data : [];
-      const news = Array.isArray(json.news) ? json.news : [];
-      if (json.status !== "success" || (!trades.length && !news.length)) {
-        container.innerHTML = '<div class="v2-empty">Brak ostatnich transakcji.</div>';
-        return;
-      }
-      const standups = news.slice(0, 2).map(item => `
-          <article class="v2-post v2-standup">
-            <header>
-              <span class="v2-ini">🎤</span>
-              <div><b>Stand-up z parkietu</b><small>${escapeHtml(agoLabel(item.created_at))}</small></div>
-              <span class="v2-badge buy">${item.type === "STANDUP_MORNING" ? "Rano" : "Wieczór"}</span>
-            </header>
-            <b>${escapeHtml(item.title)}</b>
-            <p class="v2-standup-text">${escapeHtml(item.content)}</p>
-          </article>`).join("");
-      container.innerHTML = standups + trades.map(item => {
-        const buy = item.type === "BUY";
-        const ticker = String(item.ticker ?? "").toUpperCase();
-        const benchTicker = ["^GSPC", "WIG20", "WIG20.WA"].includes(ticker);
-        const canCopy = buy && !isBenchmark(item.user_name) && !benchTicker;
-        const shares = num(item.shares);
-        const totalCk = num(item.total_value_ck ?? item.total_value_pln);
-        const perShare = shares > 0 ? totalCk / shares : 0;
-        const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.user_name)}`;
-        return `
-          <article class="v2-post">
-            <header>
-              <img src="${escapeHtml(avatar)}" alt="">
-              <div><b>${escapeHtml(item.user_name)}</b><small>${escapeHtml(agoLabel(item.created_at))}</small></div>
-              <span class="v2-badge ${buy ? "buy" : "sell"}">${buy ? "Buy" : "Sell"}</span>
-            </header>
-            <div class="v2-post-deal">
-              <div><b>${escapeHtml(item.shares)} szt. ${escapeHtml(item.company_name || item.ticker)}</b><small>${escapeHtml(ticker)} • ${marketOf(ticker) === "GPW" ? "GPW" : "USA"} · @ ${ck(perShare)}</small></div>
-              <b class="v2-post-total font-mono">${ck(totalCk)}</b>
-            </div>
-            <blockquote>${escapeHtml(item.thesis)}</blockquote>
-            ${canCopy ? `<button type="button" class="v2-copy" data-action="copy-feed-trade" data-ticker="${escapeHtml(item.ticker)}" data-user-name="${escapeHtml(item.user_name)}"><span class="material-symbols-outlined" aria-hidden="true">bolt</span>Kopiuj ruch</button>` : ""}
-          </article>`;
-      }).join("");
+      if (json.status !== "success") return;
+      feedCache = {
+        trades: Array.isArray(json.data) ? json.data : [],
+        news: Array.isArray(json.news) ? json.news : [],
+      };
+      renderFeed();
     } catch (error) {
       console.error("Feed error:", error);
     }
@@ -658,21 +673,6 @@
     return result;
   };
 
-  // Profil: v2 nie ma własnego wyboru motywu, więc zapis ma zachować motyw użytkownika
-  // (inaczej saveProfile() nadpisałby go domyślną wartością).
-  const originalOpenProfile = openProfileModal;
-  window.openProfileModal = function openProfileModalV2(...args) {
-    const result = originalOpenProfile.apply(this, args);
-    const keep = $("v2ThemeKeep");
-    if (keep) {
-      let stored = "";
-      try { stored = localStorage.getItem("kh_theme") || ""; } catch (error) { stored = ""; }
-      keep.value = (currentUser && currentUser.theme) || stored || "v1";
-      keep.checked = true;
-    }
-    return result;
-  };
-
   const originalOpenTrade = openTradeModal;
   window.openTradeModal = function openTradeModalV2(type) {
     const result = originalOpenTrade.call(this, type);
@@ -777,6 +777,12 @@
     },
     "step-down": () => setShares(Math.max(0, Math.floor(num($("tradeShares").value)) - 1)),
     "export-csv": exportCsv,
+    "feed-filter": element => {
+      feedFilter = element.dataset.filter;
+      document.querySelectorAll('[data-v2-action="feed-filter"]').forEach(button =>
+        button.toggleAttribute("data-active", button === element));
+      renderFeed();
+    },
     "rank-filter": element => {
       state.rankFilter = element.dataset.filter;
       document.querySelectorAll('[data-v2-action="rank-filter"]').forEach(button =>

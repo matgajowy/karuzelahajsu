@@ -14,7 +14,6 @@ export async function handleMyTransactions({ request, env }) {
       t.price,
       t.total_value_pln AS total_value_ck,
       t.thesis,
-      t.ai_roast,
       t.created_at,
       COALESCE(p.name, t.ticker) AS company_name,
       COALESCE(p.currency, 'PLN') AS currency

@@ -3,13 +3,13 @@ import { handleAdminUsers, handleAuditLogs, handlePriceSync, handleResetBenchmar
 import { handleFeed } from "./feed.js";
 import { handleInstrumentSearch } from "./instruments.js";
 import { handleLeaderboard } from "./leaderboard.js";
+import { handleLeagueAllocation } from "./leagueAllocation.js";
 import { handleLogout } from "./logout.js";
 import { handlePortfolio } from "./portfolio.js";
 import { handleOpponentPortfolio } from "../services/p2.js";
-import { handleGenerateNickname, handleProfileTheme, handleProfileUpdate } from "./profile.js";
+import { handleGenerateNickname, handleProfileUpdate } from "./profile.js";
 import { handleCurrentSession } from "./session.js";
 import { handleTrade } from "./trades.js";
-import { handleLeagueAllocation } from "./leagueAllocation.js";
 import { handleMyTransactions } from "./transactions.js";
 
 const routes = new Map([
@@ -17,16 +17,15 @@ const routes = new Map([
   ["GET /api/auth/callback", handleGitHubCallback],
   ["GET /api/me", handleCurrentSession],
   ["POST /api/profile", handleProfileUpdate],
-  ["POST /api/profile/theme", handleProfileTheme],
   ["POST /api/profile/generate-nickname", handleGenerateNickname],
   ["POST /api/logout", handleLogout],
   ["GET /api/leaderboard", handleLeaderboard],
+  ["GET /api/league-allocation", handleLeagueAllocation],
   ["GET /api/portfolio", handlePortfolio],
   ["GET /api/opponent-portfolio", handleOpponentPortfolio],
   ["GET /api/instruments/search", handleInstrumentSearch],
   ["POST /api/trade", handleTrade],
   ["GET /api/feed", handleFeed],
-  ["GET /api/league-allocation", handleLeagueAllocation],
   ["GET /api/my-transactions", handleMyTransactions],
   ["GET /api/admin/users", handleAdminUsers],
   ["POST /api/admin/users", handleAdminUsers],

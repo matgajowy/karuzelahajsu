@@ -40,7 +40,6 @@
       document.getElementById("tradeAmountRemainder").innerText = "";
       tradeInputSource = "shares";
       document.getElementById("tradeThesis").value = "";
-      updateThesisCount();
       document.getElementById("estimatedCost").innerHTML = formatCK(0);
       document.getElementById("tradeAvailableCash").innerHTML = formatCK(currentUser.current_cash ?? 0);
       document.getElementById("verifiedInstrumentCard").classList.add("hidden");
@@ -379,35 +378,13 @@
       verifyTicker(ticker);
     }
 
-    function updateThesisCount() {
-      const thesis = document.getElementById("tradeThesis")?.value || "";
-      const countEl = document.getElementById("tradeThesisCount");
-      if (!countEl) return;
-      const len = thesis.trim().length;
-      countEl.innerText = `${len} / min. 15 znaków`;
-      if (len >= 15) {
-        countEl.className = "text-[11px] text-emerald-400 font-semibold";
-      } else {
-        countEl.className = "text-[11px] text-slate-400";
-      }
-    }
-
     function updateEstimatedCost() {
       const shares = Number(document.getElementById("tradeShares").value) || 0;
-      let val = 0;
       if (verifiedInstrument && shares > 0) {
-        val = shares * verifiedInstrument.price_ck;
+        const val = shares * verifiedInstrument.price_ck;
         document.getElementById("estimatedCost").innerHTML = formatCK(val);
       } else {
         document.getElementById("estimatedCost").innerHTML = formatCK(0);
-      }
-
-      // Aktualizacja szacunkowej gotówki po transakcji
-      const cashAfterEl = document.getElementById("tradeCashAfter");
-      if (cashAfterEl && currentUser) {
-        const cash = Number(currentUser.current_cash || 0);
-        const after = currentTradeType === "BUY" ? cash - val : cash + val;
-        cashAfterEl.innerHTML = formatCK(after);
       }
     }
 
@@ -423,7 +400,6 @@
       await verifyTicker();
       document.getElementById("tradeThesis").value =
         `Kopiuję ruch od @${targetUserName}! Też w to wchodzę.`;
-      updateThesisCount();
       document.getElementById("tradeShares").focus();
     }
 
@@ -489,7 +465,7 @@
           closeTradeModal();
           await fetchAllData();
           await fetchUserPortfolio();
-          alert(data.roast ? `Zlecenie zrealizowane! AI komentuje: "${data.roast}"` : "Zlecenie zrealizowane pomyślnie!");
+          alert("Zlecenie zrealizowane pomyślnie!");
         } else {
           errDiv.innerText = data.message || "Błąd wykonania zlecenia";
           errDiv.classList.remove("hidden");

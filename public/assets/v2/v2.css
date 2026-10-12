@@ -691,7 +691,11 @@ select.v2-input { appearance: none; cursor: pointer; }
   .v2-panel-head .v2-seg-sm button { flex: 1; justify-content: center; padding: .45rem .3rem; }
 }
 
-/* stand-up AI w feedzie */
-.v2-standup { border: 1px solid rgb(255 185 95 / .25); background: linear-gradient(160deg, rgb(255 185 95 / .08), var(--v2-surface-container) 70%); }
-.v2-standup .v2-ini { color: var(--v2-secondary); }
-.v2-standup-text { margin: 0; font-size: .8rem; line-height: 1.5; color: var(--v2-on-surface-variant); white-space: pre-line; }
+/* filtr feedu i podpowiedzi tickera w v2 */
+.v2-feed-filter { padding: .6rem 1.25rem; border-bottom: 1px solid var(--v2-line); }
+.v2-feed-filter .v2-seg-sm { max-width: 100%; overflow-x: auto; }
+.v2 .ticker-autocomplete-dropdown { background: var(--v2-surface-container); border: 1px solid var(--v2-outline-variant); border-radius: .85rem; box-shadow: 0 18px 40px rgb(0 0 0 / .5); }
+.v2 .autocomplete-item:hover, .v2 .autocomplete-item.active { background: rgb(78 222 163 / .1); }
+.v2 .autocomplete-name { color: var(--v2-on-surface-variant); }
+.v2 .market-pill-open { background: rgb(78 222 163 / .12); color: var(--v2-up); border-color: rgb(78 222 163 / .3); }
+.v2 .market-pill-closed { background: rgb(255 143 135 / .12); color: var(--v2-down); border-color: rgb(255 143 135 / .3); }

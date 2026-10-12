@@ -12,6 +12,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&amp;display=swap">
   <script src="https://unpkg.com/lucide@latest"></script>
   <link rel="stylesheet" href="/assets/css/app.css">
+  <link rel="stylesheet" href="/assets/css/features.css">
   <link rel="stylesheet" href="/assets/v2/v2.css">
 </head>
 <body class="v2">
@@ -244,6 +245,13 @@
               <p class="v2-panel-sub">Podgląd strategii i uzasadnień zespołu</p>
             </div>
             <span class="v2-label" style="color:var(--v2-primary)">Na żywo</span>
+          </div>
+          <div class="v2-feed-filter">
+            <div class="v2-seg-sm" role="group" aria-label="Filtr feedu">
+              <button type="button" data-v2-action="feed-filter" data-filter="all" data-active>Wszystko</button>
+              <button type="button" data-v2-action="feed-filter" data-filter="trades">Ruchy graczy</button>
+              <button type="button" data-v2-action="feed-filter" data-filter="news">Stand-up &amp; rynek</button>
+            </div>
           </div>
           <div id="feedContainer" class="v2-panel-body">
             <div class="text-center text-slate-400 text-xs py-8">Ładowanie ostatnich zleceń...</div>
@@ -547,7 +555,6 @@
           <input type="text" id="editDisplayNameInput" maxlength="30" class="w-full bg-slate-950 border border-slate-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-indigo-500">
         </div>
 
-        <input type="radio" name="uiThemeOption" id="v2ThemeKeep" value="v1" checked hidden>
         <div id="profileError" class="text-xs text-rose-400 hidden bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/50"></div>
 
         <div class="flex gap-2 pt-2">
@@ -640,9 +647,12 @@
 
           <div id="buyInstrumentSection" class="v2-field">
             <label for="tradeTickerInput">Symbol waloru (ticker)</label>
-            <div class="v2-input-row">
-              <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" class="v2-input" style="text-transform:uppercase" spellcheck="false">
-              <button type="button" id="verifyBtn" data-action="verify-ticker" class="v2-btn-soft"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span>Sprawdź</button>
+            <div class="ticker-autocomplete-container">
+              <div class="v2-input-row">
+                <input type="text" id="tradeTickerInput" placeholder="np. NVDA, CDR.WA, AAPL" autocomplete="off" class="v2-input" style="text-transform:uppercase" spellcheck="false">
+                <button type="button" id="verifyBtn" data-action="verify-ticker" class="v2-btn-soft"><span class="material-symbols-outlined" aria-hidden="true">query_stats</span>Sprawdź</button>
+              </div>
+              <div id="tickerAutocompleteDropdown" class="ticker-autocomplete-dropdown hidden"></div>
             </div>
             <div id="v2Chips" class="v2-chips" aria-label="Szybki wybór waloru"></div>
           </div>

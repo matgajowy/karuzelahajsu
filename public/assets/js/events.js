@@ -26,17 +26,15 @@ const clickActions = {
   "copy-accordion-holding": element => window.karuzela.copyTrade(element.dataset.ticker, element.dataset.userName),
   "filter-feed": element => setFeedFilter(element.dataset.filter),
   "select-chip-ticker": element => window.karuzela.selectChipTicker(element.dataset.ticker),
-  "quick-set-theme": element => setTheme(element.dataset.theme),
 };
 
 document.addEventListener("click", event => {
   if (!(event.target instanceof Element)) return;
 
-  // Zamknij autocomplete jeśli kliknięto poza nim
+  // Zamknij podpowiedzi tickera po kliknięciu poza polem wyboru waloru
   if (!event.target.closest("#buyInstrumentSection")) {
     if (typeof closeAutocomplete === "function") closeAutocomplete();
   }
-
   const element = event.target.closest("[data-action]");
   if (!element) return;
 
@@ -66,10 +64,6 @@ document.addEventListener("input", event => {
       event.target.id === "tradeTickerInput") {
     if (typeof onTickerInputDebounced === "function") onTickerInputDebounced(event);
   }
-  if (event.target instanceof HTMLTextAreaElement &&
-      event.target.id === "tradeThesis") {
-    if (typeof updateThesisCount === "function") updateThesisCount();
-  }
   if (event.target instanceof HTMLInputElement &&
       event.target.dataset.action === "update-estimated-cost") {
     if (event.target.id === "tradeShares") {
@@ -86,10 +80,6 @@ document.addEventListener("change", event => {
   if (event.target instanceof HTMLSelectElement &&
       event.target.dataset.action === "holding-selected") {
     onHoldingSelected();
-  }
-  if (event.target instanceof HTMLInputElement &&
-      event.target.name === "uiThemeOption") {
-    if (typeof onThemeRadioChange === "function") onThemeRadioChange(event);
   }
 });
 
