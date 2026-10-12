@@ -94,7 +94,7 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
   // Pobierz dane ligowe z D1 do kontekstu roastu
   let contextData = {};
   try {
-    const [topUsers, bottomUsers, cashSitters, recentTrades] = await Promise.all([
+    const settled = await Promise.allSettled([
       env.DB.prepare(`
         SELECT u.display_name, u.current_cash,
           (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0)) AS total_val
@@ -123,7 +123,7 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
         LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
         WHERE u.github_login NOT IN ('benchmark_sp500', 'benchmark_wig20')
         GROUP BY u.id
-        HAVING COUNT(h.id) = 0 AND u.current_cash >= 99000
+        HAVING COUNT(h.ticker) = 0 AND u.current_cash >= 99000
         LIMIT 5
       `).all(),
       env.DB.prepare(`
@@ -134,6 +134,11 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
         LIMIT 5
       `).all(),
     ]);
+    const [topUsers, bottomUsers, cashSitters, recentTrades] = settled.map(result => {
+      if (result.status === "fulfilled") return result.value;
+      console.warn("Stand-up context query failed:", result.reason?.message);
+      return { results: [] };
+    });
 
     contextData = {
       isMorning,

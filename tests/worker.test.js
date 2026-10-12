@@ -1686,3 +1686,48 @@ test("instruments autocomplete returns suggestions with market status", async ()
   assert.equal(body.data[0].market, "USA");
   assert.ok(body.data[0].market_status);
 });
+
+test("ticker autocomplete is wired in the page and event handlers", async () => {
+  const trading = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(trading, /autocomplete=1/);
+  assert.match(events, /onTickerInputDebounced/);
+  assert.match(html, /id="tickerAutocompleteDropdown"/);
+  assert.match(html, /id="tradeTickerInput"[^>]*autocomplete="off"/);
+});
+
+test("stand-up context does not depend on holdings.id and survives a failing query", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const sqls = [];
+  const env = {
+    GEMINI_API_KEY: "test-key",
+    DB: {
+      prepare(sql) {
+        sqls.push(sql);
+        return {
+          all: async () => {
+            if (sql.includes("ORDER BY total_val ASC")) throw new Error("boom");
+            if (sql.includes("ORDER BY total_val DESC")) return { results: [{ display_name: "Ola", total_val: 150000 }] };
+            return { results: [] };
+          },
+          bind: () => ({ run: async () => ({ success: true }) }),
+        };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  let prompt = "";
+  globalThis.fetch = async (_url, init) => {
+    prompt = JSON.parse(init.body).contents[0].parts[0].text;
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ title: "T", content: "C" }) }] } }] }));
+  };
+  try {
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(result.title, "T");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.ok(!sqls.some(sql => /\bh\.id\b/.test(sql)), "holdings has no id column in production");
+  assert.match(prompt, /"display_name":"Ola"/);
+});
