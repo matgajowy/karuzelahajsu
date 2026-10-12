@@ -1769,7 +1769,8 @@ test("stand-up content gets a deterministic facts bar and strips model-made quot
   const { composeStandupContent, buildStandupFacts } = await import("../src/worker/services/ai.js");
   const context = {
     top: [{ display_name: "Ola", total_val: 166300 }],
-    bottom: [{ display_name: "Kuba", total_val: 127400 }, { display_name: "Piotr", total_val: 119500 }],
+    // kolejność jak w zapytaniu SQL: rosnąco po wycenie (najsłabszy pierwszy)
+    bottom: [{ display_name: "Piotr", total_val: 119500 }, { display_name: "Kuba", total_val: 127400 }],
     cashSitters: [{}, {}],
   };
   assert.equal(
