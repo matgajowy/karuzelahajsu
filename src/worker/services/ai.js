@@ -97,7 +97,8 @@ const returnPct = totalVal => ((Number(totalVal) - 100000) / 100000) * 100;
 export function buildStandupFacts(context = {}) {
   const parts = [];
   const top = context.top?.[0];
-  const bottom = context.bottom?.[context.bottom.length - 1] ?? context.bottom?.[0];
+  // Zapytanie "bottom" sortuje rosnąco po wycenie, więc najsłabszy jest pierwszy.
+  const bottom = context.bottom?.[0];
   if (top && Number.isFinite(Number(top.total_val))) {
     const r = returnPct(top.total_val);
     parts.push(`🏆 Lider: ${shortName(top.display_name)} (${r >= 0 ? "+" : ""}${pl(r)}%)`);
