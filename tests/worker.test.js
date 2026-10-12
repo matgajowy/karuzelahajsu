@@ -1686,3 +1686,131 @@ test("instruments autocomplete returns suggestions with market status", async ()
   assert.equal(body.data[0].market, "USA");
   assert.ok(body.data[0].market_status);
 });
+
+test("ticker autocomplete is wired in the page and event handlers", async () => {
+  const trading = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const events = await readFile(new URL("../public/assets/js/events.js", import.meta.url), "utf8");
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(trading, /autocomplete=1/);
+  assert.match(events, /onTickerInputDebounced/);
+  assert.match(html, /id="tickerAutocompleteDropdown"/);
+  assert.match(html, /id="tradeTickerInput"[^>]*autocomplete="off"/);
+});
+
+test("stand-up context does not depend on holdings.id and survives a failing query", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const sqls = [];
+  const env = {
+    GEMINI_API_KEY: "test-key",
+    DB: {
+      prepare(sql) {
+        sqls.push(sql);
+        return {
+          all: async () => {
+            if (sql.includes("ORDER BY total_val ASC")) throw new Error("boom");
+            if (sql.includes("ORDER BY total_val DESC")) return { results: [{ display_name: "Ola", total_val: 150000 }] };
+            return { results: [] };
+          },
+          bind: () => ({ run: async () => ({ success: true }) }),
+        };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  let prompt = "";
+  globalThis.fetch = async (_url, init) => {
+    prompt = JSON.parse(init.body).contents[0].parts[0].text;
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ title: "T", content: "C" }) }] } }] }));
+  };
+  try {
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(result.title, "T");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+  assert.ok(!sqls.some(sql => /\bh\.id\b/.test(sql)), "holdings has no id column in production");
+  assert.match(prompt, /"display_name":"Ola"/);
+});
+
+async function loadFormatStandup() {
+  const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  return content => runInNewContext(`${source}\nformatStandupHtml(${JSON.stringify(content)})`);
+}
+
+test("stand-up formatter renders chips, headings, lists and bold, and escapes HTML", async () => {
+  const format = await loadFormatStandup();
+  const html = format([
+    "> 🏆 Lider: Ola (+66,3%) • 📉 Dno: Piotr (+19,5%) • 💤 Kisiciele gotówki: 2",
+    "",
+    "## 🏆 Podium",
+    "**Ola** znowu miała fart.",
+    "Druga linia akapitu.",
+    "",
+    "## 🌍 Makro",
+    "- **Stopy:** bez zmian",
+    "- **USD/PLN:** drożeje",
+  ].join("\n"));
+  assert.match(html, /<div class="standup-summary">(<span class="standup-chip">[^<]+<\/span>){3}<\/div>/);
+  assert.match(html, /<h5 class="standup-heading">🏆 Podium<\/h5>/);
+  assert.match(html, /<p class="standup-p"><strong>Ola<\/strong> znowu miała fart\.<br>Druga linia akapitu\.<\/p>/);
+  assert.match(html, /<ul class="standup-list"><li><strong>Stopy:<\/strong> bez zmian<\/li><li><strong>USD\/PLN:<\/strong> drożeje<\/li><\/ul>/);
+});
+
+test("stand-up formatter is XSS-safe and keeps legacy plain-text entries readable", async () => {
+  const format = await loadFormatStandup();
+  const hostile = format('## <img src=x onerror=alert(1)>\n<script>alert(1)</script> **<b>x</b>**\n- <a href="javascript:1">l</a>');
+  assert.ok(!/<(script|img|a|b)\b/i.test(hostile), hostile);
+  assert.match(hostile, /&lt;script&gt;/);
+  const legacy = format("Pierwszy akapit starego wpisu.\n\nDrugi akapit.");
+  assert.equal(legacy, '<p class="standup-p">Pierwszy akapit starego wpisu.</p><p class="standup-p">Drugi akapit.</p>');
+});
+
+test("stand-up content gets a deterministic facts bar and strips model-made quote lines", async () => {
+  const { composeStandupContent, buildStandupFacts } = await import("../src/worker/services/ai.js");
+  const context = {
+    top: [{ display_name: "Ola", total_val: 166300 }],
+    bottom: [{ display_name: "Kuba", total_val: 127400 }, { display_name: "Piotr", total_val: 119500 }],
+    cashSitters: [{}, {}],
+  };
+  assert.equal(
+    buildStandupFacts(context),
+    "> 🏆 Lider: Ola (+66,3%) • 📉 Dno: Piotr (+19,5%) • 💤 Kisiciele gotówki: 2",
+  );
+  const content = composeStandupContent(context, "> zmyślony pasek\n## 🏆 Podium\n**Ola** wygrywa.");
+  assert.ok(content.startsWith("> 🏆 Lider: Ola"));
+  assert.ok(!content.includes("zmyślony pasek"));
+  assert.match(content, /## 🏆 Podium\n\*\*Ola\*\* wygrywa\./);
+  assert.equal(composeStandupContent({}, "## Sekcja\ntekst"), "## Sekcja\ntekst");
+});
+
+test("stand-up fallback uses the same sectioned format and is stored with the facts bar", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const stored = [];
+  const env = {
+    DB: {
+      prepare(sql) {
+        return {
+          all: async () => ({
+            results: sql.includes("ORDER BY total_val DESC")
+              ? [{ display_name: "Ola", total_val: 150000 }]
+              : [],
+          }),
+          bind: (...values) => ({ run: async () => { stored.push(values); return { success: true }; } }),
+        };
+      },
+    },
+  };
+  const result = await generateStandup(env, "STANDUP_MORNING");
+  assert.match(result.content, /^> 🏆 Lider: Ola \(\+50,0%\)/);
+  assert.match(result.content, /\n## 🌍 Makro\n- \*\*GPW:\*\*/);
+  assert.equal(stored[0][0], "STANDUP_MORNING");
+  assert.equal(stored[0][2], result.content);
+});
+
+test("both UIs render stand-ups through the shared formatter", async () => {
+  const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+  const v2 = await readFile(new URL("../public/assets/v2/v2.js", import.meta.url), "utf8");
+  assert.match(portfolio, /formatStandupHtml\(item\.content\)/);
+  assert.match(v2, /formatStandupHtml\(item\.content\)/);
+  assert.doesNotMatch(portfolio, /whitespace-pre-line">\$\{escapeHtml\(item\.content\)/);
+});

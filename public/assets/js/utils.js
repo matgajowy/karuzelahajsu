@@ -115,3 +115,49 @@ function formatQuotePrice(value, currency) {
   });
   return `${amount} ${currency === "PLN" ? "CK" : currency}`;
 }
+
+// Formatuje treść stand-upu (mini-markdown: "> chipy • z • kropkami", "## nagłówek", "- punkt", "**pogrubienie**").
+// Tekst jest najpierw escapowany, więc do HTML trafiają wyłącznie znaczniki generowane tutaj.
+function formatStandupHtml(content) {
+  const inline = text => escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  const lines = String(content ?? "").replace(/\r\n?/g, "\n").split("\n");
+  const out = [];
+  let paragraph = [];
+  let list = null;
+  const flushParagraph = () => {
+    if (paragraph.length) out.push(`<p class="standup-p">${paragraph.join("<br>")}</p>`);
+    paragraph = [];
+  };
+  const flushList = () => {
+    if (list) out.push(`<ul class="standup-list">${list.join("")}</ul>`);
+    list = null;
+  };
+
+  for (const raw of lines) {
+    const line = raw.trim();
+    let match;
+    if (!line) {
+      flushParagraph();
+      flushList();
+    } else if ((match = line.match(/^>\s?(.*)$/))) {
+      flushParagraph();
+      flushList();
+      const chips = match[1].split(/\s*•\s*/).filter(Boolean)
+        .map(chip => `<span class="standup-chip">${inline(chip)}</span>`).join("");
+      if (chips) out.push(`<div class="standup-summary">${chips}</div>`);
+    } else if ((match = line.match(/^#{1,4}\s+(.*)$/))) {
+      flushParagraph();
+      flushList();
+      out.push(`<h5 class="standup-heading">${inline(match[1])}</h5>`);
+    } else if ((match = line.match(/^[-•]\s+(.*)$/))) {
+      flushParagraph();
+      (list = list || []).push(`<li>${inline(match[1])}</li>`);
+    } else {
+      flushList();
+      paragraph.push(inline(line));
+    }
+  }
+  flushParagraph();
+  flushList();
+  return out.join("");
+}

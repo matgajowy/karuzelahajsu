@@ -492,7 +492,7 @@
             <span class="v2-badge buy">${item.type === "STANDUP_MORNING" ? "Rano" : "Wieczór"}</span>
           </header>
           <b>${escapeHtml(item.title)}</b>
-          <p class="v2-standup-text">${escapeHtml(item.content)}</p>
+          <div class="standup-body">${formatStandupHtml(item.content)}</div>
         </article>`).join("");
     container.innerHTML = standups + trades.map(item => {
       const buy = item.type === "BUY";

@@ -46,12 +46,16 @@ const STANDUP_SYSTEM_PROMPT = `Jesteś bezwzględnym, cynicznym, wulgarnym i bru
 Zero korporacyjnej poprawności politycznej, zero uprzejmości i litości.
 Twoim celem jest bezlitosne zgrillowanie graczy biurowej ligi inwestycyjnej 'Karuzela Hajsu' oraz cięta, bezkompromisowa ocena sytuacji makroekonomicznej.
 
-Format wyjściowy (zwróć JSON z polami 'title' i 'content'):
-- 'title': chwytliwy, prowokacyjny tytuł stand-upu (np. "Poranny łomot przed dzwonkiem GPW", "Koniec rumakowania na Wall Street")
-- 'content': treść stand-upu (3-4 zwięzłe, mięsiste akapity):
-  1. Bezlitosne wyśmianie liderów (czy to tylko ślepy fart?) i kompletnych maruderów na dnie tabeli.
-  2. Wyśmianie 'kisicieli gotówki' (ludzi trzymających 100k CK w gotówce) i najgłupszych tez inwestycyjnych.
-  3. Twardy, cyniczny komentarz makroekonomiczny (stopy, inflacja, USD/PLN, rentowności obligacji, nastroje w USA i Polsce).
+Format wyjściowy (zwróć WYŁĄCZNIE JSON z polami 'title' i 'content'):
+- 'title': chwytliwy, prowokacyjny tytuł stand-upu (max 70 znaków, bez emoji)
+- 'content': tekst w ściśle określonym formacie (mini-markdown), sekcje w tej kolejności:
+  ## 🏆 Podium        — 1-2 zdania o liderach (czy to fart?). Imiona graczy pogrubiaj: **Imię**
+  ## 📉 Dno tabeli    — 1-2 zdania o maruderach, imiona pogrubione
+  ## 💤 Kisiciele gotówki — 1-2 zdania; pomiń sekcję, jeśli nikt nie kisi gotówki
+  ## 🗣️ Teza dnia     — zacytuj i wyśmiej jedną konkretną tezę z listy ostatnich transakcji (pomiń, jeśli brak)
+  ## 🌍 Makro         — dokładnie 3 punkty zaczynające się od "- ": **Stopy:**, **USD/PLN:**, **Nastroje:** (po jednym zdaniu)
+Zasady formatu: każda sekcja zaczyna się od nagłówka "## " w osobnej linii, między sekcjami pusta linia,
+bez wstępów i pożegnań, bez linii zaczynających się od ">" (pasek faktów dodaje system), łącznie max 1100 znaków.
 Styl: żywy język, ironia, korpo-żargon pomieszany z ulicznym parkietem giełdowym.`;
 
 // Pojedyncze wywołanie Gemini dla stand-upów. Zwraca null przy braku klucza, błędzie lub timeoucie.
@@ -84,6 +88,41 @@ async function callGemini(apiKey, prompt, systemInstruction) {
   }
 }
 
+
+const pl = (value, digits = 1) => Number(value).toFixed(digits).replace(".", ",");
+const shortName = name => String(name || "?").trim();
+const returnPct = totalVal => ((Number(totalVal) - 100000) / 100000) * 100;
+
+// Pasek faktów budowany z danych (nie przez AI): lider, dno, liczba kisicieli gotówki.
+export function buildStandupFacts(context = {}) {
+  const parts = [];
+  const top = context.top?.[0];
+  const bottom = context.bottom?.[context.bottom.length - 1] ?? context.bottom?.[0];
+  if (top && Number.isFinite(Number(top.total_val))) {
+    const r = returnPct(top.total_val);
+    parts.push(`🏆 Lider: ${shortName(top.display_name)} (${r >= 0 ? "+" : ""}${pl(r)}%)`);
+  }
+  if (bottom && bottom !== top && Number.isFinite(Number(bottom.total_val))) {
+    const r = returnPct(bottom.total_val);
+    parts.push(`📉 Dno: ${shortName(bottom.display_name)} (${r >= 0 ? "+" : ""}${pl(r)}%)`);
+  }
+  const sitters = context.cashSitters?.length || 0;
+  if (sitters > 0) parts.push(`💤 Kisiciele gotówki: ${sitters}`);
+  return parts.length ? `> ${parts.join(" • ")}` : "";
+}
+
+// Składa finalną treść: pasek faktów + sekcje od AI (bez własnych linii ">").
+export function composeStandupContent(context, body) {
+  const cleaned = String(body || "")
+    .split(/\r?\n/)
+    .filter(line => !/^\s*>/.test(line))
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+  const facts = buildStandupFacts(context);
+  return [facts, cleaned].filter(Boolean).join("\n\n");
+}
+
 export async function generateStandup(env, type = "STANDUP_MORNING") {
   const isMorning = type === "STANDUP_MORNING";
   const tagTime = isMorning ? "08:00" : "16:00";
@@ -94,7 +133,7 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
   // Pobierz dane ligowe z D1 do kontekstu roastu
   let contextData = {};
   try {
-    const [topUsers, bottomUsers, cashSitters, recentTrades] = await Promise.all([
+    const settled = await Promise.allSettled([
       env.DB.prepare(`
         SELECT u.display_name, u.current_cash,
           (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0)) AS total_val
@@ -123,7 +162,7 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
         LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
         WHERE u.github_login NOT IN ('benchmark_sp500', 'benchmark_wig20')
         GROUP BY u.id
-        HAVING COUNT(h.id) = 0 AND u.current_cash >= 99000
+        HAVING COUNT(h.ticker) = 0 AND u.current_cash >= 99000
         LIMIT 5
       `).all(),
       env.DB.prepare(`
@@ -134,6 +173,11 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
         LIMIT 5
       `).all(),
     ]);
+    const [topUsers, bottomUsers, cashSitters, recentTrades] = settled.map(result => {
+      if (result.status === "fulfilled") return result.value;
+      console.warn("Stand-up context query failed:", result.reason?.message);
+      return { results: [] };
+    });
 
     contextData = {
       isMorning,
@@ -171,11 +215,12 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
   }
 
   if (!content) {
-    // Solidny fallback, gdyby brakowało klucza Gemini w dev lub nastąpił timeout
+    // Solidny fallback (ten sam format), gdyby brakowało klucza Gemini lub nastąpił timeout
     content = isMorning
-      ? `Kawa stygnie, a wy nadal kisicie kapitał na 0%. Liderzy znowu myślą, że przypadkowy wzrost to ich geniusz inwestycyjny, a dół tabeli udaje, że 'inwestuje długoterminowo'. GPW rusza lada moment, a Wall Street czeka, by zweryfikować wasze rzekome strategie. Czas na zakupy albo powrót do Excela.`
-      : `GPW zbliża się do dzwonka, a Wall Street właśnie zaczyna jazdę bez trzymanki. Połowa z was kisi gotówkę, jakby inflacja nie istniała, a druga połowa weszła na samej górce. Przypominamy: teza 'będzie rosło' nie ochroni was przed spadkiem. Zobaczymy, kto do jutra utrzyma się na powierzchni.`;
+      ? `## 🌅 Na dzień dobry\nKawa stygnie, a wy nadal kisicie kapitał na 0%. Liderzy znowu myślą, że przypadkowy wzrost to ich geniusz inwestycyjny, a dół tabeli udaje, że „inwestuje długoterminowo”.\n\n## 🌍 Makro\n- **GPW:** rusza lada moment.\n- **Wall Street:** czeka, by zweryfikować wasze rzekome strategie.\n- **Plan dnia:** zakupy albo powrót do Excela.`
+      : `## 🌇 Przed dzwonkiem\nGPW zbliża się do dzwonka, a Wall Street właśnie zaczyna jazdę bez trzymanki. Połowa z was kisi gotówkę, jakby inflacja nie istniała, a druga połowa weszła na samej górce.\n\n## 🗣️ Teza dnia\nTeza „będzie rosło” nie ochroni was przed spadkiem. Zobaczymy, kto do jutra utrzyma się na powierzchni.`;
   }
+  content = composeStandupContent(contextData, content);
 
   try {
     await env.DB.prepare(`
