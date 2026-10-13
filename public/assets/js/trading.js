@@ -318,7 +318,13 @@
           errDiv.classList.remove("hidden");
         }
       } catch (e) {
+        // Walor odrzucony (np. kurs poniżej minimum): nie zostawiaj poprzednio zweryfikowanego waloru.
+        verifiedInstrument = null;
+        document.getElementById("verifiedInstrumentCard").classList.add("hidden");
+        renderMarketStatus();
+        updateTradeAvailability();
         errDiv.innerText = e.message || "Błąd połączenia z API wyszukiwania.";
+        errDiv.dataset && delete errDiv.dataset.budget;
         errDiv.classList.remove("hidden");
       } finally {
         btn.innerText = "Sprawdź";
