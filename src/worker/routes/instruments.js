@@ -1,6 +1,7 @@
 import { jsonResponse } from "../lib/http.js";
 import { fetchYahooQuote } from "../services/pricing.js";
 import { getMarketInfo, toMarketStatus } from "../lib/marketHours.js";
+import { isBelowMinPrice, priceTooLowMessage } from "../lib/tradingRules.js";
 
 export async function handleInstrumentSearch(context) {
   const { request, env, url, clientIp } = context;
@@ -28,7 +29,8 @@ export async function handleInstrumentSearch(context) {
       `).bind(term, term, q, `${q}%`).all();
 
       if (Array.isArray(localResults)) {
-        results = localResults.map(item => {
+        // Akcje groszkowe nie są dostępne w lidze — nie podpowiadamy ich.
+        results = localResults.filter(item => !isBelowMinPrice(item.price)).map(item => {
           const info = getMarketInfo(item.ticker);
           return {
             ticker: item.ticker,
@@ -84,6 +86,14 @@ export async function handleInstrumentSearch(context) {
   const quote = await fetchYahooQuote(q);
   if (!quote) {
     return jsonResponse({ status: "error", message: `Walor "${q}" nie został znaleziony lub nie jest dozwolony.` }, 404);
+  }
+
+  if (isBelowMinPrice(quote.price)) {
+    return jsonResponse({
+      status: "error",
+      code: "PRICE_TOO_LOW",
+      message: priceTooLowMessage(quote.ticker, quote.price, quote.currency),
+    }, 400);
   }
 
   // The Yahoo USD/PLN quote is also USD/CK because 1 CK = 1 PLN.
