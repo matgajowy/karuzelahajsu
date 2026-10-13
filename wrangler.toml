@@ -12,7 +12,8 @@ binding = "AI"
 enabled = true
 
 [triggers]
-crons = ["*/15 6-21 * * MON-FRI", "0 6 * * MON-FRI", "0 14 * * MON-FRI"]
+# Stand-upy: 8:00 i 16:00 czasu lokalnego przez cały rok (obie godziny UTC; bramka w workerze).
+crons = ["*/15 6-21 * * MON-FRI", "0 6,7 * * MON-FRI", "0 14,15 * * MON-FRI"]
 
 [assets]
 directory = "./public"

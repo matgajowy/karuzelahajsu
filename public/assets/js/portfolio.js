@@ -24,7 +24,7 @@
         news.forEach(n => items.push({ ...n, feedItemType: "NEWS" }));
       }
 
-      items.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      items.sort((a, b) => (parseDbTimestamp(b.created_at) || 0) - (parseDbTimestamp(a.created_at) || 0));
 
       if (items.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs py-6">Brak wpisów dla wybranego filtra.</div>';
@@ -35,15 +35,14 @@
       items.forEach(item => {
         if (item.feedItemType === "NEWS") {
           const isMorning = item.type === "STANDUP_MORNING";
-          const tagTime = isMorning ? "08:00" : "16:00";
-          const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+          const dateStr = formatFeedTimestamp(item.created_at);
 
           container.innerHTML += `
             <div class="standup-feed-entry my-2">
               <div class="flex items-center justify-between flex-wrap gap-2 mb-2">
                 <span class="standup-tag">
                   <span>🎤</span>
-                  <span>STAND-UP Z PARKIETU [${tagTime}]</span>
+                  <span>STAND-UP Z PARKIETU · ${isMorning ? "RANO" : "WIECZÓR"}</span>
                 </span>
                 <span class="text-[10px] text-slate-400 font-mono">${escapeHtml(dateStr)}</span>
               </div>
@@ -58,7 +57,7 @@
           const isBenchmarkTicker = ["^GSPC", "WIG20", "WIG20.WA"].includes(ticker);
           const canCopy = isBuy && !isBenchmark(item.user_name) && !isBenchmarkTicker;
           const badgeColor = isBuy ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" : "bg-rose-500/10 text-rose-400 border-rose-500/30";
-          const dateStr = new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', month: 'short', day: 'numeric' });
+          const dateStr = formatFeedTimestamp(item.created_at);
           const avatar = item.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${encodeURIComponent(item.user_name)}`;
 
           container.innerHTML += `
