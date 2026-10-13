@@ -1161,27 +1161,60 @@ test("market stand-ups: feed filter pills and handlers are wired", async () => {
   assert.match(html, /href="\/assets\/css\/features\.css"/);
 });
 
-test("scheduled stand-up crons write a market_news row and fall back without Gemini", async () => {
-  const inserts = [];
-  const env = {
+// Mock D1 dla generateStandup: zapytania rozpoznawane po fragmencie SQL.
+function standupDb({ board = [], previous = [], positions = [], active = [], newTrades = [], recent = [], failBoard = false } = {}) {
+  const inserted = [];
+  const sqls = [];
+  const binds = [];
+  const route = sql => {
+    sqls.push(sql);
+    if (sql.includes("COUNT(h.ticker) AS positions")) {
+      if (failBoard) throw new Error("boom");
+      return board;
+    }
+    if (sql.includes("FROM market_news")) return previous;
+    if (sql.includes("return_pct")) return positions;
+    if (sql.includes("COUNT(*) AS n")) return active;
+    if (sql.includes("value_ck")) return newTrades;
+    if (sql.includes("FROM transactions")) return recent;
+    return [];
+  };
+  return {
+    inserted, sqls, binds,
     DB: {
       prepare(sql) {
         return {
-          all: async () => ({ results: [] }),
+          all: async () => ({ results: route(sql) }),
           bind: (...values) => ({
-            run: async () => { if (sql.includes("INSERT INTO market_news")) inserts.push(values); return { success: true }; },
+            all: async () => { binds.push(values); return { results: route(sql) }; },
+            run: async () => { if (sql.includes("INSERT INTO market_news")) inserted.push(values); return { success: true }; },
+            first: async () => null,
           }),
         };
       },
     },
   };
+}
+
+const PLAYERS = [
+  { id: 1, github_login: "ola", display_name: "Ola", current_cash: 30000, positions: 2, total_val: 150000 },
+  { id: 2, github_login: "kuba", display_name: "Kuba", current_cash: 11000, positions: 3, total_val: 148000 },
+  { id: 3, github_login: "piotr", display_name: "Piotr", current_cash: 83000, positions: 1, total_val: 95000 },
+  { id: 4, github_login: "ada", display_name: "Ada", current_cash: 100000, positions: 0, total_val: 100000 },
+  { id: 90, github_login: "benchmark_sp500", display_name: "S&P 500", current_cash: 0, positions: 1, total_val: 120000 },
+  { id: 91, github_login: "benchmark_wig20", display_name: "WIG20", current_cash: 0, positions: 1, total_val: 118000 },
+].sort((a, b) => b.total_val - a.total_val);
+
+test("scheduled stand-up crons write a market_news row and fall back without Gemini", async () => {
+  const db = standupDb({ board: PLAYERS });
+  const env = { STANDUP_MARKET_OVERRIDE: [], DB: db.DB };
   const pending = [];
   const ctx = { waitUntil: promise => pending.push(promise) };
   await worker.scheduled({ cron: "0 6 * * MON-FRI" }, env, ctx);
   await worker.scheduled({ cron: "0 14 * * MON-FRI" }, env, ctx);
   await Promise.all(pending);
-  assert.deepEqual(inserts.map(values => values[0]), ["STANDUP_MORNING", "STANDUP_EVENING"]);
-  assert.ok(inserts.every(values => values[1] && values[2]));
+  assert.deepEqual(db.inserted.map(values => values[0]), ["STANDUP_MORNING", "STANDUP_EVENING"]);
+  assert.ok(db.inserted.every(values => values[1] && values[2]));
 });
 
 test("other cron schedules still run the price sync, not a stand-up", async () => {
@@ -1241,23 +1274,11 @@ test("ticker autocomplete is wired in the page and event handlers", async () => 
 
 test("stand-up context does not depend on holdings.id and survives a failing query", async () => {
   const { generateStandup } = await import("../src/worker/services/ai.js");
-  const sqls = [];
-  const env = {
-    GEMINI_API_KEY: "test-key",
-    DB: {
-      prepare(sql) {
-        sqls.push(sql);
-        return {
-          all: async () => {
-            if (sql.includes("ORDER BY total_val ASC")) throw new Error("boom");
-            if (sql.includes("ORDER BY total_val DESC")) return { results: [{ display_name: "Ola", total_val: 150000 }] };
-            return { results: [] };
-          },
-          bind: () => ({ run: async () => ({ success: true }) }),
-        };
-      },
-    },
-  };
+  const db = standupDb({
+    board: PLAYERS,
+    recent: [{ ticker: "NVDA", type: "BUY", thesis: "AI", display_name: "Ola" }],
+  });
+  const env = { GEMINI_API_KEY: "test-key", STANDUP_MARKET_OVERRIDE: [], DB: db.DB };
   const originalFetch = globalThis.fetch;
   let prompt = "";
   globalThis.fetch = async (_url, init) => {
@@ -1270,8 +1291,8 @@ test("stand-up context does not depend on holdings.id and survives a failing que
   } finally {
     globalThis.fetch = originalFetch;
   }
-  assert.ok(!sqls.some(sql => /\bh\.id\b/.test(sql)), "holdings has no id column in production");
-  assert.match(prompt, /"display_name":"Ola"/);
+  assert.ok(!db.sqls.some(sql => /\bh\.id\b/.test(sql)), "holdings has no id column in production");
+  assert.match(prompt, /"gracz":"Ola"/);
 });
 
 async function loadFormatStandup() {
@@ -1336,46 +1357,23 @@ test("stand-ups render through the shared formatter in the feed", async () => {
 
 test("stand-up fallback is data-driven (same sections, real names) and stored with the facts bar", async () => {
   const { generateStandup } = await import("../src/worker/services/ai.js");
-  const stored = [];
-  const env = {
-    DB: {
-      prepare(sql) {
-        return {
-          all: async () => ({
-            results: sql.includes("ORDER BY total_val DESC")
-              ? [{ display_name: "Ola", total_val: 150000 }, { display_name: "Kuba", total_val: 120000 }]
-              : sql.includes("ORDER BY total_val ASC")
-                ? [{ display_name: "Piotr", total_val: 95000 }]
-                : sql.includes("FROM transactions")
-                  ? [{ ticker: "NVDA", type: "BUY", thesis: "AI rządzi", display_name: "Ola" }]
-                  : [],
-          }),
-          bind: (...values) => ({ run: async () => { stored.push(values); return { success: true }; } }),
-        };
-      },
-    },
-  };
-  const result = await generateStandup(env, "STANDUP_MORNING");
+  const db = standupDb({
+    board: PLAYERS,
+    newTrades: [{ ticker: "NVDA", type: "BUY", value_ck: 5000, shares: 3, thesis: "AI rządzi", display_name: "Ola" }],
+  });
+  const result = await generateStandup({ STANDUP_MARKET_OVERRIDE: [], DB: db.DB }, "STANDUP_MORNING");
   assert.equal(result.title, "Poranny Stand-up z Parkietu");
-  assert.match(result.content, /^> 🏆 Lider: Ola \(\+50,0%\)/);
+  assert.match(result.content, /^> 🏆 Lider: Ola \(\+50,0%\) • 📉 Dno: Piotr \(-5,0%\)/);
   assert.match(result.content, /## 🏆 Podium\n- \*\*Ola\*\* — 150.000 CK \(\+50,0%\)\n- \*\*Kuba\*\*/);
   assert.match(result.content, /## 📉 Dno tabeli\n- \*\*Piotr\*\* — 95.000 CK \(-5,0%\)/);
-  assert.match(result.content, /## 🔁 Ostatnie ruchy\n- \*\*Ola\*\* kupuje NVDA — „AI rządzi”/);
-  assert.equal(stored[0][0], "STANDUP_MORNING");
-  assert.equal(stored[0][2], result.content);
+  assert.match(result.content, /## 🔁 Nowe ruchy\n- \*\*Ola\*\* kupuje NVDA — „AI rządzi”/);
+  assert.equal(db.inserted[0][0], "STANDUP_MORNING");
+  assert.equal(db.inserted[0][2], result.content);
 });
 
 test("Gemini calls are retried on temporary errors before falling back", async () => {
   const { generateStandup } = await import("../src/worker/services/ai.js");
-  const env = {
-    GEMINI_API_KEY: "key",
-    GEMINI_RETRY_DELAY_MS: 0,
-    DB: {
-      prepare() {
-        return { all: async () => ({ results: [] }), bind: () => ({ run: async () => ({ success: true }) }) };
-      },
-    },
-  };
+  const env = { GEMINI_API_KEY: "key", GEMINI_RETRY_DELAY_MS: 0, STANDUP_MARKET_OVERRIDE: [], DB: standupDb({ board: PLAYERS }).DB };
   const originalFetch = globalThis.fetch;
   const statuses = [503, 429, 200];
   let calls = 0;
@@ -1396,15 +1394,7 @@ test("Gemini calls are retried on temporary errors before falling back", async (
 
 test("Gemini non-retryable errors (400) stop after one attempt and use the fallback", async () => {
   const { generateStandup } = await import("../src/worker/services/ai.js");
-  const env = {
-    GEMINI_API_KEY: "key",
-    GEMINI_RETRY_DELAY_MS: 0,
-    DB: {
-      prepare() {
-        return { all: async () => ({ results: [] }), bind: () => ({ run: async () => ({ success: true }) }) };
-      },
-    },
-  };
+  const env = { GEMINI_API_KEY: "key", GEMINI_RETRY_DELAY_MS: 0, STANDUP_MARKET_OVERRIDE: [], DB: standupDb({ board: PLAYERS }).DB };
   const originalFetch = globalThis.fetch;
   let calls = 0;
   globalThis.fetch = async () => { calls += 1; return new Response("bad request", { status: 400 }); };
@@ -1493,6 +1483,7 @@ function standupEnv({ existing = false } = {}) {
   const inserted = [];
   return {
     inserted,
+    STANDUP_MARKET_OVERRIDE: [],
     DB: {
       prepare(sql) {
         return {
@@ -1551,4 +1542,160 @@ test("stand-up crons are registered in production config as one trigger per slot
   assert.match(top, /crons = \[[^\]]*"0 6,7 \* \* MON-FRI"[^\]]*"0 14,15 \* \* MON-FRI"[^\]]*\]/);
   const count = (top.match(/crons = \[([^\]]*)\]/)[1].match(/"/g) || []).length / 2;
   assert.ok(count <= 5, "account cron limit is 5");
+});
+
+test("stand-up context survives a failing board query (other sections still built)", async () => {
+  const { loadStandupContext } = await import("../src/worker/services/standupContext.js");
+  const db = standupDb({ failBoard: true, newTrades: [{ ticker: "NVDA", type: "BUY", value_ck: 1000, thesis: "x", display_name: "Ola" }] });
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const context = await loadStandupContext({ DB: db.DB }, "STANDUP_MORNING", { fetchMarket: async () => [] });
+    assert.deepEqual(context.top, []);
+    assert.equal(context.newTrades.length, 1);
+  } finally {
+    console.warn = warn;
+  }
+});
+
+test("market moves: parses day change and drops failed symbols", async () => {
+  const { fetchMarketMoves } = await import("../src/worker/services/standupContext.js");
+  const fetchImpl = async url => {
+    if (String(url).includes("PLN%3DX")) return new Response("nope", { status: 500 });
+    const price = String(url).includes("GSPC") ? 5100 : 2400;
+    return new Response(JSON.stringify({ chart: { result: [{ meta: { regularMarketPrice: price, chartPreviousClose: price / 1.01 } }] } }));
+  };
+  const moves = await fetchMarketMoves(fetchImpl);
+  assert.deepEqual(moves.map(m => m.label), ["S&P 500", "WIG20"]);
+  assert.equal(moves[0].changePct, 1);
+});
+
+test("lens rotates deterministically per slot and only picks lenses with material", async () => {
+  const { pickLens, findDuel } = await import("../src/worker/services/standupContext.js");
+  const players = PLAYERS.filter(p => !p.github_login.startsWith("benchmark_"));
+  const context = {
+    duel: findDuel(players),
+    positionsWorst: [{ display_name: "Piotr", ticker: "MSTR", name: "Strategy", return_pct: -23.4 }],
+    positionsBest: [{ display_name: "Ola", ticker: "NVDA", name: "NVIDIA", return_pct: 31.2 }],
+    newTrades: [{}, {}], mostActive: [{ display_name: "Kuba", n: 3 }],
+    cashSitters: [{ display_name: "Ada" }], beatingMarket: 2, playerCount: 4, benchmarks: [{}],
+  };
+  const day = new Date("2026-10-14T06:00:00Z");
+  const a = pickLens(context, "STANDUP_MORNING", day);
+  assert.equal(pickLens(context, "STANDUP_MORNING", day).id, a.id);
+  const ids = new Set();
+  for (let offset = 0; offset < 30; offset += 1) {
+    ids.add(pickLens(context, offset % 2 ? "STANDUP_EVENING" : "STANDUP_MORNING", new Date(day.getTime() + offset * 86400000)).id);
+  }
+  assert.ok(ids.size >= 4, `lenses used: ${[...ids].join(",")}`);
+  // kolejne wydania (rosnące id ostatniego wpisu) nigdy nie dostają tego samego motywu
+  let previousLens = null;
+  for (let lastId = 10; lastId < 40; lastId += 1) {
+    const lens = pickLens({ ...context, previous: [{ id: lastId }] }, "STANDUP_MORNING", day);
+    assert.notEqual(lens.id, previousLens, `edition ${lastId}`);
+    previousLens = lens.id;
+  }
+  assert.equal(pickLens({ benchmarks: [], playerCount: 0 }, "STANDUP_MORNING", day), null);
+  assert.equal(findDuel(players).upper, "Ola");
+  assert.equal(findDuel(players).lower, "Kuba");
+});
+
+test("prompt carries new trades, previous editions, market data and the morning/evening role", async () => {
+  const { buildStandupPrompt } = await import("../src/worker/services/standupContext.js");
+  const base = {
+    playerCount: 4, top: [PLAYERS[1]], bottom: [PLAYERS[4] || PLAYERS[0]], cashSitters: [], benchmarks: [], beatingMarket: null,
+    newTrades: [{ display_name: "Ola", type: "BUY", ticker: "ADBT", shares: 48, value_ck: 1200, thesis: "Spółki groszkowe" }],
+    sinceLastAt: "2026-10-12 14:00:06",
+    previous: [{ type: "STANDUP_EVENING", title: "Korpo-grill", content: "> pasek\n## A\nPapier toaletowy to frajerzy." }],
+    market: [{ label: "S&P 500", price: 5100, changePct: 0.8 }],
+  };
+  const morning = buildStandupPrompt({ ...base, isMorning: true }, { instruction: "Pojedynek o 1. miejsce" }, { avoid: ["frajerzy"] });
+  assert.match(morning, /PORANNE \(zapowiedź dnia\)/);
+  assert.match(morning, /MOTYW PRZEWODNI.*Pojedynek o 1\. miejsce/);
+  assert.match(morning, /"ticker":"ADBT"/);
+  assert.match(morning, /"instrument":"S&P 500".*"zmiana_proc":0\.8/);
+  assert.match(morning, /POPRZEDNIE WYDANIA/);
+  assert.match(morning, /Papier toaletowy to frajerzy/);
+  assert.ok(!morning.includes("> pasek"));
+  assert.match(morning, /WYCZERPANE SŁOWA I OBRAZY.*frajerzy/);
+  const evening = buildStandupPrompt({ ...base, isMorning: false, newTrades: [], market: [] }, null);
+  assert.match(evening, /POPOŁUDNIOWE \(rozliczenie dnia\)/);
+  assert.match(evening, /cisza na parkiecie/);
+  assert.match(evening, /brak notowań/);
+});
+
+test("overused vocabulary from previous editions is detected (names excluded) and counted", async () => {
+  const { overusedTerms, countOverused } = await import("../src/worker/services/standupContext.js");
+  const context = {
+    top: [{ display_name: "Serowy pogromca" }], bottom: [], cashSitters: [], newTrades: [], recentTrades: [],
+    previous: [
+      { content: "**Serowy pogromca** to frajerzy, a złotówka to papier toaletowy. Inflacja żre." },
+      { content: "Znowu frajerzy i papier toaletowy, **Serowy pogromca** jak zwykle." },
+      { content: "Coś zupełnie innego o spółkach i dywidendach." },
+    ],
+  };
+  const terms = overusedTerms(context);
+  assert.ok(terms.some(t => t.startsWith("frajer")), terms.join(","));
+  assert.ok(terms.some(t => t.startsWith("papier")));
+  assert.ok(!terms.some(t => t.startsWith("serowy")), "player names are not 'overused jokes'");
+  assert.equal(countOverused("Nowy tekst bez starych motywów.", terms), 0);
+  assert.ok(countOverused("Frajerzy znowu, papier i toaleta.", terms) >= 2);
+});
+
+test("freshness gate: a repetitive first draft triggers one rewrite and the fresher text wins", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const previous = [
+    { id: 3, type: "STANDUP_EVENING", created_at: "2026-10-12 14:00:06", title: "Korpo-grill", content: "frajerzy papier toaletowy inflacja euforia kredyty gratulacje oszczędności" },
+    { id: 2, type: "STANDUP_MORNING", created_at: "2026-10-12 07:45:30", title: "Łomot", content: "frajerzy papier toaletowy inflacja euforia kredyty gratulacje oszczędności" },
+  ];
+  const db = standupDb({ board: PLAYERS, previous });
+  const originalFetch = globalThis.fetch;
+  const drafts = [
+    { title: "Stare żarty", content: "## 🏆 Podium\nFrajerzy, papier toaletowy, inflacja, euforia i kredyty. Gratulacje za oszczędności." },
+    { title: "Świeży kąt", content: "## 🏆 Podium\n**Ola** prowadzi o włos przed **Kuba**; sesja zapowiada się nerwowo." },
+  ];
+  const prompts = [];
+  let call = 0;
+  globalThis.fetch = async (_url, init) => {
+    prompts.push(JSON.parse(init.body).contents[0].parts[0].text);
+    const draft = drafts[Math.min(call++, drafts.length - 1)];
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(draft) }] } }] }));
+  };
+  try {
+    const result = await generateStandup({ GEMINI_API_KEY: "k", STANDUP_MARKET_OVERRIDE: [], DB: db.DB }, "STANDUP_MORNING");
+    assert.equal(call, 2);
+    assert.equal(result.title, "Świeży kąt");
+    assert.match(prompts[1], /poprzednia wersja powtarzała stare żarty/);
+    assert.ok(result.content.includes("prowadzi o włos"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("dry-run mode returns the stand-up without writing to the database", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const db = standupDb({ board: PLAYERS });
+  const log = console.log;
+  const lines = [];
+  console.log = (...args) => lines.push(args.join(" "));
+  try {
+    const result = await generateStandup({ STANDUP_DRY_RUN: "1", STANDUP_MARKET_OVERRIDE: [], DB: db.DB }, "STANDUP_EVENING");
+    assert.ok(result.content.startsWith("> 🏆 Lider: Ola"));
+  } finally {
+    console.log = log;
+  }
+  assert.equal(db.inserted.length, 0);
+  assert.ok(lines.some(line => line.startsWith("STANDUP_DRY_RUN")));
+});
+
+test("duel ignores cash sitters and ties", async () => {
+  const { findDuel } = await import("../src/worker/services/standupContext.js");
+  const players = [
+    { display_name: "A", positions: 2, total_val: 102400 },
+    { display_name: "B", positions: 1, total_val: 100400 },
+    { display_name: "Ada", positions: 0, total_val: 100000 },
+    { display_name: "Lukasz", positions: 0, total_val: 100000 },
+  ];
+  assert.deepEqual(findDuel(players), { rank: 1, upper: "A", lower: "B", gapPp: 2 });
+  assert.equal(findDuel([{ display_name: "X", positions: 0, total_val: 100000 }, { display_name: "Y", positions: 0, total_val: 100000 }]), null);
 });

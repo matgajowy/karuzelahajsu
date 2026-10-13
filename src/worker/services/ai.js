@@ -1,21 +1,33 @@
+import { buildStandupPrompt, countOverused, loadStandupContext, overusedTerms, pickLens } from "./standupContext.js";
+
 // Stand-upy AI (Google Gemini) dla feedu rynkowego ligi.
 const GEMINI_MODEL = "gemini-2.5-flash";
 const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
 
 const STANDUP_SYSTEM_PROMPT = `Jesteś bezwzględnym, cynicznym, wulgarnym i brutalnie szczerym stand-uperem korporacyjnym oraz starym maklerem giełdowym w jednym.
 Zero korporacyjnej poprawności politycznej, zero uprzejmości i litości.
-Twoim celem jest bezlitosne zgrillowanie graczy biurowej ligi inwestycyjnej 'Karuzela Hajsu' oraz cięta, bezkompromisowa ocena sytuacji makroekonomicznej.
+Twoim celem jest bezlitosne zgrillowanie graczy biurowej ligi inwestycyjnej 'Karuzela Hajsu' oraz cięta ocena sytuacji rynkowej.
 
 Format wyjściowy (zwróć WYŁĄCZNIE JSON z polami 'title' i 'content'):
-- 'title': chwytliwy, prowokacyjny tytuł stand-upu (max 70 znaków, bez emoji)
-- 'content': tekst w ściśle określonym formacie (mini-markdown), sekcje w tej kolejności:
-  ## 🏆 Podium        — 1-2 zdania o liderach (czy to fart?). Imiona graczy pogrubiaj: **Imię**
-  ## 📉 Dno tabeli    — 1-2 zdania o maruderach, imiona pogrubione
-  ## 💤 Kisiciele gotówki — 1-2 zdania; pomiń sekcję, jeśli nikt nie kisi gotówki
-  ## 🗣️ Teza dnia     — zacytuj i wyśmiej jedną konkretną tezę z listy ostatnich transakcji (pomiń, jeśli brak)
-  ## 🌍 Makro         — dokładnie 3 punkty zaczynające się od "- ": **Stopy:**, **USD/PLN:**, **Nastroje:** (po jednym zdaniu)
-Zasady formatu: każda sekcja zaczyna się od nagłówka "## " w osobnej linii, między sekcjami pusta linia,
-bez wstępów i pożegnań, bez linii zaczynających się od ">" (pasek faktów dodaje system), łącznie max 1100 znaków.
+- 'title': chwytliwy tytuł (max 70 znaków, bez emoji), inny niż w poprzednich wydaniach
+- 'content': tekst w mini-markdown, sekcje w tej kolejności (pomijaj sekcje, do których nie ma materiału):
+  ## 🏆 Podium            — 1-2 zdania, konkretne liczby z danych, imiona pogrubione: **Imię**
+  ## 📉 Dno tabeli        — 1-2 zdania, imiona pogrubione
+  ## 🎯 Motyw dnia        — 2-3 zdania rozwijające MOTYW PRZEWODNI z danych (obowiązkowa, gdy motyw podano)
+  ## 💤 Kisiciele gotówki — tylko jeśli są w danych
+  ## 🔁 Nowe ruchy        — tylko jeśli podano NOWE TRANSAKCJE: skomentuj 1-3 konkretne ruchy wraz z tezą
+  ## 🌍 Makro             — 3 punkty zaczynające się od "- ": gdy podano RYNEK DZIŚ, każdy punkt dotyczy konkretnego
+                             instrumentu z jego liczbą (S&P 500, WIG20, USD/PLN); bez notowań — jedna krótka uwaga
+Zasady:
+- Wydanie PORANNE to zapowiedź dnia, POPOŁUDNIOWE to rozliczenie dnia — dopasuj ton i treść.
+- Opieraj się na liczbach z danych; niczego nie zmyślaj (ruchów, kwot, nazwisk).
+- Liczby zapisuj z przecinkiem dziesiętnym i znakiem (np. +45,9%, -6,6%, 12 386 CK).
+- Każdy fakt padnie tylko raz: Podium i Dno to krótkie ujęcie, a "Motyw dnia" musi wnosić NOWĄ informację
+  (nie powtarzaj w nim liczby graczy bijących indeksy ani wyników z Podium/Dno).
+- W "Makro" zacznij każdy punkt od pogrubionej etykiety, np. "- **S&P 500 (-0,06%):** ...".
+- Nie powtarzaj żartów, porównań, puent ani tytułów z POPRZEDNICH WYDAŃ; nie używaj WYCZERPANYCH SŁÓW.
+- Każda sekcja zaczyna się od nagłówka "## " w osobnej linii, między sekcjami pusta linia.
+- Bez wstępów i pożegnań, bez linii zaczynających się od ">" (pasek faktów dodaje system), łącznie max 1500 znaków.
 Styl: żywy język, ironia, korpo-żargon pomieszany z ulicznym parkietem giełdowym.`;
 
 // Wywołanie Gemini dla stand-upów z ponowieniami (429/5xx, błąd sieci, timeout).
@@ -23,7 +35,7 @@ Styl: żywy język, ironia, korpo-żargon pomieszany z ulicznym parkietem giełd
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-async function callGemini(apiKey, prompt, systemInstruction, { attempts = 3, baseDelayMs = 1500 } = {}) {
+async function callGemini(apiKey, prompt, systemInstruction, { attempts = 3, baseDelayMs = 1500, temperature = 0.9 } = {}) {
   if (!apiKey) return null;
   const endpoint = new URL(GEMINI_API_URL);
   endpoint.searchParams.set("key", apiKey);
@@ -32,7 +44,7 @@ async function callGemini(apiKey, prompt, systemInstruction, { attempts = 3, bas
     contents: [{ parts: [{ text: prompt }] }],
     // 2.5-flash domyślnie "myśli"; dla krótkiego tekstu wyłączamy to (szybciej, mieści się w limicie).
     generationConfig: {
-      temperature: 0.9,
+      temperature,
       responseMimeType: "application/json",
       thinkingConfig: { thinkingBudget: 0 },
     },
@@ -85,6 +97,8 @@ export function buildStandupFacts(context = {}) {
   }
   const sitters = context.cashSitters?.length || 0;
   if (sitters > 0) parts.push(`💤 Kisiciele gotówki: ${sitters}`);
+  const fresh = context.newTrades?.length || 0;
+  if (fresh > 0) parts.push(`🔁 Nowych ruchów: ${fresh}`);
   return parts.length ? `> ${parts.join(" • ")}` : "";
 }
 
@@ -111,13 +125,14 @@ export function buildDataFallback(context = {}, isMorning = true) {
     const names = context.cashSitters.map(user => `**${shortName(user.display_name)}**`).join(", ");
     sections.push(`## 💤 Kisiciele gotówki\n${names} — nadal siedzą na gotówce bez żadnej pozycji.`);
   }
-  if (context.recentTrades?.length) {
-    const trades = context.recentTrades.slice(0, 5).map(trade => {
+  const tradeSource = context.newTrades?.length ? context.newTrades : context.recentTrades;
+  if (tradeSource?.length) {
+    const trades = tradeSource.slice(0, 5).map(trade => {
       const verb = trade.type === "SELL" ? "sprzedaje" : "kupuje";
       const thesis = String(trade.thesis || "").replace(/\s+/g, " ").trim().slice(0, 110);
       return `- **${shortName(trade.display_name)}** ${verb} ${trade.ticker}${thesis ? ` — „${thesis}”` : ""}`;
     });
-    sections.push(`## 🔁 Ostatnie ruchy\n${trades.join("\n")}`);
+    sections.push(`## 🔁 ${context.newTrades?.length ? "Nowe ruchy" : "Ostatnie ruchy"}\n${trades.join("\n")}`);
   }
   return sections.join("\n\n");
 }
@@ -182,95 +197,53 @@ export function parseStandupResponse(raw) {
   }
 }
 
-export async function generateStandup(env, type = "STANDUP_MORNING") {
-  const isMorning = type === "STANDUP_MORNING";
-  const defaultTitle = isMorning
-    ? "Poranny Stand-up z Parkietu"
-    : "Popołudniowy Stand-up z Parkietu";
+const MAX_OVERUSED_IN_RESULT = 3;
 
-  // Pobierz dane ligowe z D1 do kontekstu roastu
-  let contextData = {};
-  try {
-    const settled = await Promise.allSettled([
-      env.DB.prepare(`
-        SELECT u.display_name, u.current_cash,
-          (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0)) AS total_val
-        FROM users u
-        LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
-        LEFT JOIN market_prices p ON h.ticker = p.ticker
-        WHERE u.github_login NOT IN ('benchmark_sp500', 'benchmark_wig20')
-        GROUP BY u.id
-        ORDER BY total_val DESC
-        LIMIT 3
-      `).all(),
-      env.DB.prepare(`
-        SELECT u.display_name, u.current_cash,
-          (u.current_cash + COALESCE(SUM(h.shares * p.price * p.fx_to_pln), 0)) AS total_val
-        FROM users u
-        LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
-        LEFT JOIN market_prices p ON h.ticker = p.ticker
-        WHERE u.github_login NOT IN ('benchmark_sp500', 'benchmark_wig20')
-        GROUP BY u.id
-        ORDER BY total_val ASC
-        LIMIT 3
-      `).all(),
-      env.DB.prepare(`
-        SELECT u.display_name, u.current_cash
-        FROM users u
-        LEFT JOIN holdings h ON u.id = h.user_id AND h.shares > 0
-        WHERE u.github_login NOT IN ('benchmark_sp500', 'benchmark_wig20')
-        GROUP BY u.id
-        HAVING COUNT(h.ticker) = 0 AND u.current_cash >= 99000
-        LIMIT 5
-      `).all(),
-      env.DB.prepare(`
-        SELECT t.ticker, t.type, t.thesis, u.display_name
-        FROM transactions t
-        JOIN users u ON t.user_id = u.id
-        ORDER BY t.created_at DESC
-        LIMIT 5
-      `).all(),
-    ]);
-    const [topUsers, bottomUsers, cashSitters, recentTrades] = settled.map(result => {
-      if (result.status === "fulfilled") return result.value;
-      console.warn("Stand-up context query failed:", result.reason?.message);
-      return { results: [] };
-    });
-
-    contextData = {
-      isMorning,
-      top: topUsers.results || [],
-      bottom: bottomUsers.results || [],
-      cashSitters: cashSitters.results || [],
-      recentTrades: recentTrades.results || [],
-    };
-  } catch (err) {
-    console.warn("Could not fetch D1 data for standup:", err.message);
-  }
-
-  const prompt = `Aktualne dane ligi Karuzela Hajsu:
-Poranna sesja czy popołudniowa?: ${isMorning ? "Poranna przed GPW" : "Popołudniowa przed zamknięciem GPW i po otwarciu Wall Street"}
-Liderzy: ${JSON.stringify(contextData.top)}
-Dno tabeli: ${JSON.stringify(contextData.bottom)}
-Kisiciele gotówki (100k bez akcji): ${JSON.stringify(contextData.cashSitters)}
-Ostatnie transakcje i tezy: ${JSON.stringify(contextData.recentTrades)}
-
-Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
-
-  let title = defaultTitle;
-  let content = "";
-
+async function requestStandup(env, prompt, temperature) {
   const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT, {
     baseDelayMs: Number(env.GEMINI_RETRY_DELAY_MS ?? 1500),
+    temperature,
   });
-  if (responseText) {
-    const parsed = parseStandupResponse(responseText);
-    if (parsed.title) title = parsed.title;
-    if (parsed.content) {
-      content = parsed.content;
-    } else if (!/^\s*[{`]/.test(responseText)) {
-      content = responseText; // zwykły tekst bez JSON-a
+  if (!responseText) return null;
+  const parsed = parseStandupResponse(responseText);
+  if (parsed.content) return { title: parsed.title, content: parsed.content };
+  if (!/^\s*[{`]/.test(responseText)) return { title: undefined, content: responseText };
+  return null;
+}
+
+export async function generateStandup(env, type = "STANDUP_MORNING") {
+  const isMorning = type === "STANDUP_MORNING";
+  let title = isMorning ? "Poranny Stand-up z Parkietu" : "Popołudniowy Stand-up z Parkietu";
+  let content = "";
+
+  let contextData = { isMorning };
+  try {
+    contextData = await loadStandupContext(env, type, {
+      // STANDUP_MARKET_OVERRIDE: tablica notowań wstrzykiwana w testach (bez zapytań do Yahoo)
+      ...(Array.isArray(env.STANDUP_MARKET_OVERRIDE) ? { fetchMarket: async () => env.STANDUP_MARKET_OVERRIDE } : {}),
+    });
+  } catch (err) {
+    console.warn("Could not build stand-up context:", err.message);
+  }
+
+  const lens = pickLens(contextData, type);
+  const avoid = overusedTerms(contextData);
+  const prompt = buildStandupPrompt(contextData, lens, { avoid });
+
+  let result = await requestStandup(env, prompt, 1.0);
+  if (result) {
+    // Bramka świeżości: za dużo wyeksploatowanych słów -> jedna poprawka z ostrzejszą instrukcją.
+    const used = countOverused(result.content, avoid);
+    if (used > MAX_OVERUSED_IN_RESULT) {
+      const retryPrompt = buildStandupPrompt(contextData, lens, {
+        avoid,
+        extra: "UWAGA: poprzednia wersja powtarzała stare żarty i słownictwo. Napisz całość od nowa innym językiem, z innymi porównaniami i puentami.",
+      });
+      const second = await requestStandup(env, retryPrompt, 1.1);
+      if (second && countOverused(second.content, avoid) < used) result = second;
     }
+    if (result.title) title = result.title;
+    content = result.content;
   }
 
   if (!content) {
@@ -278,6 +251,12 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
     content = buildDataFallback(contextData, isMorning);
   }
   content = composeStandupContent(contextData, content);
+
+  if (env.STANDUP_DRY_RUN) {
+    // Podgląd na danych środowiska bez zapisu do bazy (wrangler dev --var STANDUP_DRY_RUN:1).
+    console.log("STANDUP_DRY_RUN", JSON.stringify({ type, title, lens: lens?.id || null, content }));
+    return { type, title, content, lens: lens?.id || null, prompt };
+  }
 
   try {
     await env.DB.prepare(`
@@ -288,5 +267,5 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
     console.error("Failed to insert market_news:", err);
   }
 
-  return { type, title, content };
+  return { type, title, content, lens: lens?.id || null, prompt };
 }
