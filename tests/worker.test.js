@@ -2095,3 +2095,101 @@ test("duel ignores cash sitters and ties", async () => {
   assert.deepEqual(findDuel(players), { rank: 1, upper: "A", lower: "B", gapPp: 2 });
   assert.equal(findDuel([{ display_name: "X", positions: 0, total_val: 100000 }, { display_name: "Y", positions: 0, total_val: 100000 }]), null);
 });
+
+test("trade balance error shows 4 decimals for sub-CK amounts so rounding does not hide the shortfall", async () => {
+  // ASFZ-like penny stock: 0,0001 USD * 3,9023 = 0,00039023 CK per share, 140 shares = 0,0546 CK, cash 0,0468
+  const env = createTradeEnv(0.0468);
+  const instrument = { ticker: "TEST", price: 0.0001, fx_to_pln: 3.9023 };
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = sql => {
+    const statement = originalPrepare(sql);
+    const first = statement.first.bind(statement);
+    statement.first = async () => (sql.startsWith("SELECT * FROM market_prices") ? instrument : first());
+    return statement;
+  };
+  const response = await submitTestBuy(env, 140);
+  const body = await response.json();
+  assert.equal(response.status, 400);
+  assert.match(body.message, /Posiadasz: 0\.0468 CK/);
+  assert.match(body.message, /wymaga: 0\.0546 CK/);
+  assert.match(body.message, /brakuje 0\.0078 CK/);
+  assert.equal(env.writes.some(({ sql }) => sql.includes("INSERT INTO transactions")), false);
+});
+
+test("trade may spend the exact cash balance (floating point tolerance)", async () => {
+  const cost = 3 * (0.0001 * 3.9023);
+  const env = createTradeEnv(cost - 1e-13);
+  const instrument = { ticker: "TEST", price: 0.0001, fx_to_pln: 3.9023 };
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = sql => {
+    const statement = originalPrepare(sql);
+    const first = statement.first.bind(statement);
+    statement.first = async () => (sql.startsWith("SELECT * FROM market_prices") ? instrument : first());
+    return statement;
+  };
+  const originalFirst = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = sql => {
+    const statement = originalFirst(sql);
+    if (sql.includes("u.current_cash,")) statement.first = async () => ({ current_cash: cost, stocks_value: 1000000 });
+    return statement;
+  };
+  const response = await submitTestBuy(env, 3);
+  assert.equal(response.status, 200);
+  const update = env.writes.find(({ sql }) => sql.includes("UPDATE users SET current_cash"));
+  assert.match(update.sql, /MAX\(current_cash - \?, 0\)/);
+});
+
+test("sub-cent prices and shortfalls are displayed with enough precision", async () => {
+  const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const run = expr => runInNewContext(`${source}\n${expr}`);
+  assert.equal(run('formatQuotePrice(0.0001, "USD")'), "0,0001 USD");
+  assert.equal(run('formatQuotePrice(0.119, "USD")'), "0,119 USD");
+  assert.equal(run('formatQuotePrice(157.3, "PLN")'), "157,30 CK");
+  assert.equal(run('formatQuotePrice(548.5, "USD")'), "548,50 USD");
+  assert.equal(run("formatUnitCK(0.00039023)"), "0,00039 CK");
+  assert.equal(run("formatUnitCK(0.0546)"), "0,0546 CK");
+  assert.equal(run("formatUnitCK(157.3)"), "157,30 CK");
+  assert.equal(run("formatCKPrecise(0.0546)"), "0,0546 CK");
+  assert.equal(run("formatCKPrecise(0.007832)"), "0,0078 CK");
+  assert.equal(run("formatCKPrecise(0.00004)"), "0,00004 CK");
+  assert.equal(run("formatCKPrecise(1234.5)"), "1234,50 CK");
+  assert.equal(run("formatCKPrecise(0)"), "0,00 CK");
+});
+
+test("trade form blocks buys above available cash and explains the shortfall", async () => {
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const utils = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const elements = new Map();
+  const el = (id, extra = {}) => {
+    if (!elements.has(id)) {
+      const classes = new Set(["hidden"]);
+      elements.set(id, { id, value: "", innerText: "", dataset: {}, disabled: false, classList: {
+        add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c),
+      }, ...extra });
+    }
+    return elements.get(id);
+  };
+  el("tradeShares").value = "140";
+  const context = {
+    document: { getElementById: id => el(id) },
+    currentUser: { current_cash: 0.0468 },
+    verifiedInstrument: { price_ck: 0.00039023, market_status: { is_open: true } },
+    currentTradeType: "BUY",
+    selectedHoldingMaxShares: 0,
+    console,
+  };
+  const vm = await import("node:vm");
+  vm.createContext(context);
+  vm.runInContext(`${utils}\n${source}\nupdateTradeAvailability();`, context);
+  const error = el("tradeError");
+  assert.equal(el("submitTradeBtn").disabled, true);
+  assert.ok(!error.classList.contains("hidden"));
+  assert.match(error.innerText, /Brakuje 0,0078 CK/);
+  assert.match(error.innerText, /Maksymalnie możesz kupić 119 szt\./);
+
+  // po zmniejszeniu ilości komunikat znika, a przycisk się odblokowuje
+  el("tradeShares").value = "119";
+  vm.runInContext("updateTradeAvailability();", context);
+  assert.equal(el("submitTradeBtn").disabled, false);
+  assert.ok(error.classList.contains("hidden"));
+});

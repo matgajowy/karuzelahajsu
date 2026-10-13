@@ -107,13 +107,42 @@ function isBenchmark(name) {
     || normalized.includes("wig");
 }
 
+// Liczba miejsc po przecinku dla kursu: grosze (np. 0,0001 USD) nie mogą się zaokrąglać do 0,00.
+function quoteDecimals(value) {
+  const magnitude = Math.abs(Number(value));
+  if (!Number.isFinite(magnitude) || magnitude === 0 || magnitude >= 1) return 2;
+  if (magnitude >= 0.01) return 4;
+  return 6;
+}
+
 function formatQuotePrice(value, currency) {
   const parsed = Number(value);
-  const amount = (Number.isFinite(parsed) ? parsed : 0).toLocaleString("pl-PL", {
+  const finite = Number.isFinite(parsed) ? parsed : 0;
+  const digits = quoteDecimals(finite);
+  const amount = finite.toLocaleString("pl-PL", {
     minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    maximumFractionDigits: digits,
   });
   return `${amount} ${currency === "PLN" ? "CK" : currency}`;
+}
+
+// Kwota CK w komunikatach o saldzie: poniżej 1 CK pokazujemy 4 miejsca, żeby 0,0468 i 0,0546
+// nie wyglądały jak „0,05 i 0,05”. Gdy 4 miejsca dałyby 0,0000, schodzimy do 6.
+function formatCKPrecise(value) {
+  const parsed = Number(value);
+  const finite = Number.isFinite(parsed) ? parsed : 0;
+  const magnitude = Math.abs(finite);
+  let digits = 2;
+  if (magnitude > 0 && magnitude < 1) digits = magnitude >= 0.0001 ? 4 : 6;
+  return `${finite.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: digits })} CK`;
+}
+
+// Cena jednej akcji w CK (akcje groszkowe: 0,00039023 CK) — do 6 miejsc po przecinku.
+function formatUnitCK(value) {
+  const parsed = Number(value);
+  const finite = Number.isFinite(parsed) ? parsed : 0;
+  const digits = Math.abs(finite) >= 1 || finite === 0 ? 2 : Math.abs(finite) >= 0.01 ? 4 : 6;
+  return `${finite.toLocaleString("pl-PL", { minimumFractionDigits: 2, maximumFractionDigits: digits })} CK`;
 }
 
 // Formatuje treść stand-upu (mini-markdown: "> chipy • z • kropkami", "## nagłówek", "- punkt", "**pogrubienie**").
