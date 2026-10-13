@@ -630,7 +630,7 @@
         <button type="button" data-action="close-trade" class="v2-icon-btn" aria-label="Zamknij"><span class="material-symbols-outlined" aria-hidden="true">close</span></button>
       </header>
 
-      <form id="tradeForm" data-action="submit-trade" class="v2-trade-body" autocomplete="off">
+      <form id="tradeForm" data-action="submit-trade" class="v2-trade-body" autocomplete="off" novalidate>
         <div class="v2-trade-col">
           <div class="v2-wallet">
             <div><small>Dostępne środki</small><b id="tradeAvailableCash" class="font-mono">0,00 CK</b></div>
@@ -738,6 +738,8 @@
             <p id="v2ThesisState" class="v2-hint" data-state="idle">Teza jest publiczna i widoczna dla całej ligi.</p>
           </div>
 
+          <!-- Znaczniki używane przez wspólny trading.js; v2 pokazuje własne odpowiedniki (v2ThesisCount, v2CashAfter). -->
+          <span id="tradeThesisCount" hidden></span><span id="tradeCashAfter" hidden></span>
           <div id="tradeError" class="hidden v2-error" role="alert"></div>
 
           <div class="v2-trade-actions">

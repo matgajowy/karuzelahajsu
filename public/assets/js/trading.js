@@ -1,5 +1,6 @@
     let isUpdatingTradeInputs = false;
     let tradeInputSource = "shares";
+    const MIN_THESIS_LENGTH = 15;
     let autocompleteTimeout = null;
     let selectedAutocompleteIndex = -1;
 
@@ -199,7 +200,19 @@
           budgetError.innerText = "";
         }
       }
-      submitBtn.disabled = !verifiedInstrument || !validShares || closed || overBudget;
+      // Teza: min. 15 znaków (licznik na żywo, przycisk zablokowany do czasu uzupełnienia).
+      const thesisInput = document.getElementById("tradeThesis");
+      const thesisLength = thesisInput ? String(thesisInput.value || "").trim().length : MIN_THESIS_LENGTH;
+      const thesisCount = document.getElementById("tradeThesisCount");
+      if (thesisCount) {
+        thesisCount.innerText = `${thesisLength} / min. ${MIN_THESIS_LENGTH} znaków`;
+        thesisCount.className = thesisLength >= MIN_THESIS_LENGTH
+          ? "text-[11px] text-emerald-400 font-semibold"
+          : "text-[11px] text-slate-400";
+      }
+      const thesisTooShort = Boolean(thesisInput) && thesisLength < MIN_THESIS_LENGTH;
+
+      submitBtn.disabled = !verifiedInstrument || !validShares || closed || overBudget || thesisTooShort;
       if (submitBtn.classList) {
         const lockClasses = ["opacity-50", "cursor-not-allowed", "bg-slate-700"];
         lockClasses.forEach(c => submitBtn.classList[closed ? "add" : "remove"](c));
@@ -305,6 +318,7 @@
             : "Parytet 1:1 z CK";
 
           document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
+          configureAmountStep();
           renderMarketStatus();
           updateTradeAvailability();
           if (currentTradeType === "BUY") syncTradeInput(tradeInputSource);
@@ -406,13 +420,85 @@
       verifyTicker(ticker);
     }
 
+    // Strzałki w polu „Kwota zakupu” zmieniają kwotę o cenę jednej akcji (a nie o 0,01 CK).
+    function configureAmountStep() {
+      const amountInput = document.getElementById("tradeAmount");
+      if (!amountInput) return;
+      const unitPrice = Number(verifiedInstrument?.price_ck);
+      const step = Number.isFinite(unitPrice) && unitPrice > 0 ? String(unitPrice) : "0.01";
+      amountInput.step = step;
+      amountInput.min = step;
+    }
+
+    // Po opuszczeniu pola kwota jest zrównywana z realnym kosztem pełnych akcji.
+    function normalizeBuyAmount() {
+      if (currentTradeType !== "BUY") return;
+      const amountInput = document.getElementById("tradeAmount");
+      const sharesInput = document.getElementById("tradeShares");
+      const remainder = document.getElementById("tradeAmountRemainder");
+      const unitPrice = Number(verifiedInstrument?.price_ck);
+      const typed = Number(amountInput.value);
+      const shares = Number(sharesInput.value);
+      if (!Number.isFinite(typed) || !Number.isFinite(unitPrice) || unitPrice <= 0 || !Number.isInteger(shares) || shares < 1) return;
+      const cost = shares * unitPrice;
+      const unused = Math.max(0, typed - cost);
+      isUpdatingTradeInputs = true;
+      try {
+        amountInput.value = cost.toFixed(2);
+      } finally {
+        isUpdatingTradeInputs = false;
+      }
+      if (remainder) {
+        remainder.innerText = unused >= 0.005
+          ? `Kwota dopasowana do pełnych akcji: ${shares} szt. = ${formatCK(cost, false)} (niewykorzystane ${formatCK(unused, false)}).`
+          : "";
+        remainder.classList[unused >= 0.005 ? "remove" : "add"]("hidden");
+      }
+    }
+
+    // Szybkie proporcje gotówki; 100% = maksymalna liczba pełnych akcji, na którą stać gracza.
+    function setBuyAmountPercentage(percentage) {
+      const error = document.getElementById("tradeError");
+      if (error && error.classList) error.classList.add("hidden");
+      if (!verifiedInstrument) {
+        if (error) {
+          error.innerText = "Najpierw wybierz i zweryfikuj walor.";
+          error.classList.remove("hidden");
+        }
+        return;
+      }
+      const cash = Number(typeof currentUser !== "undefined" ? currentUser?.current_cash : NaN);
+      const unitPrice = Number(verifiedInstrument.price_ck);
+      if (!Number.isFinite(cash) || !Number.isFinite(unitPrice) || unitPrice <= 0) return;
+      const shares = Math.floor((cash * percentage) / unitPrice + 1e-9);
+      const sharesInput = document.getElementById("tradeShares");
+      if (shares < 1) {
+        sharesInput.value = "";
+        if (error) {
+          error.innerText = `Za mało środków na jedną akcję: kosztuje ${formatCKPrecise(unitPrice)}, a do wydania jest ${formatCKPrecise(cash * percentage)}.`;
+          error.classList.remove("hidden");
+        }
+      } else {
+        sharesInput.value = String(shares);
+      }
+      syncTradeInput("shares");
+    }
+
     function updateEstimatedCost() {
       const shares = Number(document.getElementById("tradeShares").value) || 0;
+      let value = 0;
       if (verifiedInstrument && shares > 0) {
-        const val = shares * verifiedInstrument.price_ck;
-        document.getElementById("estimatedCost").innerHTML = formatCK(val);
+        value = shares * verifiedInstrument.price_ck;
+        document.getElementById("estimatedCost").innerHTML = formatCK(value);
       } else {
         document.getElementById("estimatedCost").innerHTML = formatCK(0);
+      }
+
+      const cashAfter = document.getElementById("tradeCashAfter");
+      const cash = Number(typeof currentUser !== "undefined" ? currentUser?.current_cash : NaN);
+      if (cashAfter && Number.isFinite(cash)) {
+        const after = currentTradeType === "BUY" ? cash - value : cash + value;
+        cashAfter.innerText = formatCKPrecise(after);
       }
     }
 
@@ -463,7 +549,19 @@
         return;
       }
 
-      const shares = Number(document.getElementById("tradeShares").value);
+      const sharesRaw = String(document.getElementById("tradeShares").value || "").trim();
+      if (sharesRaw === "") {
+        errDiv.innerText = "Podaj liczbę akcji (minimum 1 szt.).";
+        errDiv.classList.remove("hidden");
+        return;
+      }
+      const thesisText = String(document.getElementById("tradeThesis")?.value || "").trim();
+      if (thesisText.length < MIN_THESIS_LENGTH) {
+        errDiv.innerText = `Teza inwestycyjna musi mieć co najmniej ${MIN_THESIS_LENGTH} znaków (masz ${thesisText.length}).`;
+        errDiv.classList.remove("hidden");
+        return;
+      }
+      const shares = Number(sharesRaw);
       if (!Number.isSafeInteger(shares) || shares < 1) {
         errDiv.innerText = `${currentTradeType === "BUY" ? "Kupować" : "Sprzedawać"} można wyłącznie pełne akcje.`;
         errDiv.classList.remove("hidden");

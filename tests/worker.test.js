@@ -1491,7 +1491,7 @@ test("v2 page keeps every element and action the shared scripts depend on", asyn
   ].map(match => match[1]);
   const legacyActions = new Set([...legacy.matchAll(/data-action="([^"]+)"/g)].map(match => match[1]));
   const v2Actions = new Set([...html.matchAll(/data-action="([^"]+)"/g)].map(match => match[1]));
-  const v2Replaced = new Set(["filter-feed", "select-chip-ticker"]);
+  const v2Replaced = new Set(["filter-feed", "select-chip-ticker", "set-buy-percentage"]);
   for (const action of legacyActions) {
     if (v2Replaced.has(action)) continue;
     assert.ok(staticActions.includes(action), `unknown action ${action}`);
@@ -2170,6 +2170,7 @@ test("trade form blocks buys above available cash and explains the shortfall", a
     return elements.get(id);
   };
   el("tradeShares").value = "140";
+  el("tradeThesis").value = "Teza inwestycyjna wystarczająco długa.";
   const context = {
     document: { getElementById: id => el(id) },
     currentUser: { current_cash: 0.0468 },
@@ -2387,4 +2388,94 @@ test("buy and partial sell keep consistent cash, holdings and average price on r
   assert.equal(holding.shares, 1);
   assert.equal(holding.avg_buy_price, 100);
   assert.equal(env.db.prepare("SELECT COUNT(*) AS n FROM transactions").get().n, 2);
+});
+
+// ---- Formularz zlecenia: UX zakupu (zgłoszenie z nagrania) ----------------------------------
+
+async function loadTradingSandbox({ cash = 459.46, price = 2.36, thesis = "", shares = "", amount = "" } = {}) {
+  const vm = await import("node:vm");
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const utils = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const elements = new Map();
+  const el = id => {
+    if (!elements.has(id)) {
+      const classes = new Set(["hidden"]);
+      elements.set(id, {
+        id, value: "", innerText: "", innerHTML: "", dataset: {}, disabled: false, step: "", min: "", className: "",
+        classList: { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c) },
+      });
+    }
+    return elements.get(id);
+  };
+  el("tradeShares").value = shares;
+  el("tradeAmount").value = amount;
+  el("tradeThesis").value = thesis;
+  const context = {
+    document: { getElementById: el },
+    currentUser: { current_cash: cash },
+    verifiedInstrument: { ticker: "OML.WA", price, price_ck: price, currency: "PLN", market_status: { is_open: true } },
+    currentTradeType: "BUY",
+    selectedHoldingMaxShares: 0,
+    console,
+  };
+  vm.createContext(context);
+  vm.runInContext(`${utils}\n${source}`, context);
+  return { run: code => vm.runInContext(code, context), el, context };
+}
+
+test("buy form: MAX buys the largest number of whole shares the cash allows", async () => {
+  const sandbox = await loadTradingSandbox({ cash: 459.46, price: 2.36 });
+  sandbox.run("setBuyAmountPercentage(1)");
+  assert.equal(sandbox.el("tradeShares").value, "194");
+  assert.equal(sandbox.el("tradeAmount").value, "457.84");
+  sandbox.run("setBuyAmountPercentage(0.5)");
+  assert.equal(sandbox.el("tradeShares").value, "97");
+});
+
+test("buy form: amount is normalised to the real cost and the unused remainder is explained", async () => {
+  const sandbox = await loadTradingSandbox({ shares: "194", amount: "458.1" });
+  sandbox.run("tradeInputSource = 'amount'; normalizeBuyAmount()");
+  assert.equal(sandbox.el("tradeAmount").value, "457.84");
+  assert.match(sandbox.el("tradeAmountRemainder").innerText, /194 szt\. = 457,84 CK/);
+  assert.match(sandbox.el("tradeAmountRemainder").innerText, /niewykorzystane 0,26 CK/);
+});
+
+test("buy form: the amount spinner steps by one share price", async () => {
+  const sandbox = await loadTradingSandbox({ price: 2.36 });
+  sandbox.run("configureAmountStep()");
+  assert.equal(sandbox.el("tradeAmount").step, "2.36");
+  assert.equal(sandbox.el("tradeAmount").min, "2.36");
+});
+
+test("buy form: a short thesis keeps the submit button disabled and shows a live counter", async () => {
+  const sandbox = await loadTradingSandbox({ shares: "10", thesis: "WTF" });
+  sandbox.run("updateTradeAvailability()");
+  assert.equal(sandbox.el("submitTradeBtn").disabled, true);
+  assert.equal(sandbox.el("tradeThesisCount").innerText, "3 / min. 15 znaków");
+  sandbox.el("tradeThesis").value = "Dywidenda i stabilny cashflow.";
+  sandbox.run("updateTradeAvailability()");
+  assert.equal(sandbox.el("submitTradeBtn").disabled, false);
+  assert.match(sandbox.el("tradeThesisCount").innerText, /^\d+ \/ min\. 15 znaków$/);
+});
+
+test("buy form: submit validation messages are Polish, not the browser's English tooltip", async () => {
+  const sandbox = await loadTradingSandbox({ shares: "", thesis: "Dywidenda i stabilny cashflow." });
+  await sandbox.run("submitTrade({ preventDefault() {} })");
+  assert.equal(sandbox.el("tradeError").innerText, "Podaj liczbę akcji (minimum 1 szt.).");
+
+  sandbox.el("tradeShares").value = "5";
+  sandbox.el("tradeThesis").value = "WTF";
+  await sandbox.run("submitTrade({ preventDefault() {} })");
+  assert.equal(sandbox.el("tradeError").innerText, "Teza inwestycyjna musi mieć co najmniej 15 znaków (masz 3).");
+});
+
+test("both pages disable native browser validation so Polish messages are used", async () => {
+  for (const page of ["index.html", "index-v2.html"]) {
+    const html = await readFile(new URL(`../public/${page}`, import.meta.url), "utf8");
+    assert.match(html, /<form id="tradeForm"[^>]*\snovalidate/, page);
+  }
+  const v1 = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(v1, /data-action="set-buy-percentage" data-percent="1"/);
+  assert.match(v1, /id="tradeThesisCount"/);
+  assert.match(v1, /id="tradeCashAfter"/);
 });
