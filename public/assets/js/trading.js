@@ -177,7 +177,29 @@
         (currentTradeType === "BUY" || shares <= selectedHoldingMaxShares);
       const closed = isMarketClosed();
       const submitBtn = document.getElementById("submitTradeBtn");
-      submitBtn.disabled = !verifiedInstrument || !validShares || closed;
+
+      // Kontrola salda po stronie UI: zlecenie ponad gotówkę jest blokowane z jasnym komunikatem.
+      const cash = Number(typeof currentUser !== "undefined" ? currentUser?.current_cash : NaN);
+      const unitPrice = Number(verifiedInstrument?.price_ck);
+      const cost = shares * unitPrice;
+      const overBudget = currentTradeType === "BUY" && validShares &&
+        Number.isFinite(cash) && Number.isFinite(cost) && cost - cash > 1e-9;
+      const budgetError = document.getElementById("tradeError");
+      if (budgetError && budgetError.dataset) {
+        if (overBudget) {
+          const affordable = unitPrice > 0 ? Math.max(0, Math.floor(cash / unitPrice + 1e-9)) : 0;
+          budgetError.innerText =
+            `Brakuje ${formatCKPrecise(cost - cash)}: zlecenie wymaga ${formatCKPrecise(cost)}, a masz ${formatCKPrecise(cash)}. ` +
+            `Maksymalnie możesz kupić ${affordable} szt.`;
+          budgetError.dataset.budget = "1";
+          budgetError.classList.remove("hidden");
+        } else if (budgetError.dataset.budget === "1") {
+          delete budgetError.dataset.budget;
+          budgetError.classList.add("hidden");
+          budgetError.innerText = "";
+        }
+      }
+      submitBtn.disabled = !verifiedInstrument || !validShares || closed || overBudget;
       if (submitBtn.classList) {
         const lockClasses = ["opacity-50", "cursor-not-allowed", "bg-slate-700"];
         lockClasses.forEach(c => submitBtn.classList[closed ? "add" : "remove"](c));
@@ -228,7 +250,7 @@
         document.getElementById("instTickerDisplay").innerText = verifiedInstrument.ticker;
         document.getElementById("instPriceDisplay").innerText = formatQuotePrice(verifiedInstrument.price, verifiedInstrument.currency);
         document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "USD"
-          ? `≈ ${formatCK(verifiedInstrument.price_ck, false)} / akcję`
+          ? `≈ ${formatUnitCK(verifiedInstrument.price_ck)} / akcję`
           : "Parytet 1:1 z CK";
 
         document.getElementById("verifiedInstrumentCard").classList.remove("hidden");
@@ -279,7 +301,7 @@
           document.getElementById("instTickerDisplay").innerText = verifiedInstrument.ticker;
           document.getElementById("instPriceDisplay").innerText = formatQuotePrice(verifiedInstrument.price, verifiedInstrument.currency);
           document.getElementById("instFxDisplay").innerText = verifiedInstrument.currency === "USD"
-            ? `≈ ${formatCK(verifiedInstrument.price_ck, false)} / akcję`
+            ? `≈ ${formatUnitCK(verifiedInstrument.price_ck)} / akcję`
             : "Parytet 1:1 z CK";
 
           document.getElementById("verifiedInstrumentCard").classList.remove("hidden");

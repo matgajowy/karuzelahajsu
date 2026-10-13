@@ -588,7 +588,7 @@
     });
 
     if (verifiedInstrument && verifiedInstrument.currency && verifiedInstrument.currency !== "PLN" && price > 0) {
-      $("instPriceDisplay").textContent = ck(price);
+      $("instPriceDisplay").textContent = formatUnitCK(price);
       $("instFxDisplay").textContent = `(${formatQuotePrice(verifiedInstrument.price, verifiedInstrument.currency)})`;
     }
 
@@ -615,7 +615,7 @@
       const share = total > 0 ? (postValue / total) * 100 : 0;
       if (value > cash) {
         codexState = "bad";
-        text.innerHTML = `Niewystarczające środki: zlecenie wymaga <b>${ck(value)}</b>, masz <b>${ck(cash)}</b>.`;
+        text.innerHTML = `Niewystarczające środki: brakuje <b>${formatCKPrecise(value - cash)}</b> (zlecenie wymaga <b>${formatCKPrecise(value)}</b>, masz <b>${formatCKPrecise(cash)}</b>).`;
       } else if (share > LIMIT_PCT + 0.01) {
         codexState = "bad";
         text.innerHTML = `Po zleceniu udział waloru wyniesie <b>${pct(share)}</b> portfela — przekracza limit ${LIMIT_PCT}%. Zlecenie zostanie odrzucone.`;

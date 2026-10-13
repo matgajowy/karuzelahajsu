@@ -2,6 +2,14 @@ import { jsonResponse } from "../lib/http.js";
 import { getSessionUser, logAudit } from "../lib/auth.js";
 import { getMarketInfo, marketClosedMessage, toMarketStatus } from "../lib/marketHours.js";
 
+const CASH_EPSILON_CK = 1e-9;
+
+// Kwoty poniżej 1 CK (np. akcje groszkowe) pokazujemy z 4 miejscami, żeby różnica była widoczna.
+function formatCk(value) {
+  const amount = Number(value) || 0;
+  return amount.toFixed(Math.abs(amount) >= 1 ? 2 : 4);
+}
+
 export async function handleTrade(context) {
   const { request, env, url, clientIp } = context;
   const user = await getSessionUser(request, env);
@@ -65,10 +73,11 @@ export async function handleTrade(context) {
   const totalPortfolioValueCk = (portSummary.current_cash || 0) + (portSummary.stocks_value || 0);
 
   if (type === "BUY") {
-    if (user.current_cash < totalTradeCk) {
+    // Tolerancja 1e-9 CK: błąd zmiennoprzecinkowy nie może odrzucić zlecenia na całe saldo.
+    if (totalTradeCk - user.current_cash > CASH_EPSILON_CK) {
       return jsonResponse({
         status: "error",
-        message: `Niewystarczające saldo Cyrk Koinów. Posiadasz: ${user.current_cash.toFixed(2)} CK, a zlecenie wymaga: ${totalTradeCk.toFixed(2)} CK.`,
+        message: `Niewystarczające saldo Cyrk Koinów. Posiadasz: ${formatCk(user.current_cash)} CK, a zlecenie wymaga: ${formatCk(totalTradeCk)} CK (brakuje ${formatCk(totalTradeCk - user.current_cash)} CK).`,
       }, 400);
     }
 
@@ -87,7 +96,7 @@ export async function handleTrade(context) {
 
     // Wykonanie zakupu w atomowej paczce batch()
     await env.DB.batch([
-      env.DB.prepare("UPDATE users SET current_cash = current_cash - ? WHERE id = ? AND current_cash >= ?").bind(totalTradeCk, user.id, totalTradeCk),
+      env.DB.prepare("UPDATE users SET current_cash = MAX(current_cash - ?, 0) WHERE id = ? AND current_cash >= ?").bind(totalTradeCk, user.id, totalTradeCk - CASH_EPSILON_CK),
       env.DB.prepare(`
         INSERT INTO holdings (user_id, ticker, shares, avg_buy_price)
         VALUES (?, ?, ?, ?)
