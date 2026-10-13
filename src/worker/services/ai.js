@@ -58,36 +58,48 @@ Zasady formatu: każda sekcja zaczyna się od nagłówka "## " w osobnej linii, 
 bez wstępów i pożegnań, bez linii zaczynających się od ">" (pasek faktów dodaje system), łącznie max 1100 znaków.
 Styl: żywy język, ironia, korpo-żargon pomieszany z ulicznym parkietem giełdowym.`;
 
-// Pojedyncze wywołanie Gemini dla stand-upów. Zwraca null przy braku klucza, błędzie lub timeoucie.
-async function callGemini(apiKey, prompt, systemInstruction) {
+// Wywołanie Gemini dla stand-upów z ponowieniami (429/5xx, błąd sieci, timeout).
+// Zwraca null dopiero po wyczerpaniu prób albo przy błędzie nietymczasowym (np. 400/401/404).
+const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function callGemini(apiKey, prompt, systemInstruction, { attempts = 3, baseDelayMs = 1500 } = {}) {
   if (!apiKey) return null;
   const endpoint = new URL(GEMINI_API_URL);
   endpoint.searchParams.set("key", apiKey);
-  try {
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        systemInstruction: { parts: [{ text: systemInstruction }] },
-        contents: [{ parts: [{ text: prompt }] }],
-        // 2.5-flash domyślnie "myśli"; dla krótkiego tekstu wyłączamy to (szybciej, mieści się w limicie).
-        generationConfig: { temperature: 0.9, thinkingConfig: { thinkingBudget: 0 } },
-      }),
-      signal: AbortSignal.timeout(25000),
-    });
-    if (!response.ok) {
-      console.warn("Gemini API error:", response.status, await response.text().catch(() => ""));
-      return null;
-    }
-    const data = await response.json();
-    const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
-    return text || null;
-  } catch (error) {
-    console.warn("Gemini API call failed:", error.message);
-    return null;
-  }
-}
+  const body = JSON.stringify({
+    systemInstruction: { parts: [{ text: systemInstruction }] },
+    contents: [{ parts: [{ text: prompt }] }],
+    // 2.5-flash domyślnie "myśli"; dla krótkiego tekstu wyłączamy to (szybciej, mieści się w limicie).
+    generationConfig: { temperature: 0.9, thinkingConfig: { thinkingBudget: 0 } },
+  });
 
+  for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    let retryable = true;
+    try {
+      const response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body,
+        signal: AbortSignal.timeout(20000),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
+        if (text) return text;
+        console.warn(`Gemini returned no text (attempt ${attempt}/${attempts}).`, data?.candidates?.[0]?.finishReason);
+      } else {
+        retryable = RETRYABLE_STATUS.has(response.status);
+        console.warn(`Gemini API error (attempt ${attempt}/${attempts}):`, response.status, await response.text().catch(() => ""));
+      }
+    } catch (error) {
+      console.warn(`Gemini API call failed (attempt ${attempt}/${attempts}):`, error.message);
+    }
+    if (!retryable || attempt === attempts) break;
+    await sleep(baseDelayMs * attempt);
+  }
+  return null;
+}
 
 const pl = (value, digits = 1) => Number(value).toFixed(digits).replace(".", ",");
 const shortName = name => String(name || "?").trim();
@@ -112,6 +124,40 @@ export function buildStandupFacts(context = {}) {
   return parts.length ? `> ${parts.join(" • ")}` : "";
 }
 
+
+const fmtCk = value => `${Math.round(Number(value) || 0).toLocaleString("pl-PL")} CK`;
+const signedPct = value => `${value >= 0 ? "+" : ""}${pl(value)}%`;
+
+// Fallback używany, gdy AI jest niedostępne: te same sekcje, ale wypełnione danymi z bazy.
+export function buildDataFallback(context = {}, isMorning = true) {
+  const sections = [];
+  sections.push(isMorning
+    ? "Komentarz AI jest chwilowo niedostępny, więc zamiast niego sama tabela ligi."
+    : "Komentarz AI jest chwilowo niedostępny, więc zamiast niego sama tabela ligi i ostatnie ruchy.");
+
+  const row = user =>
+    `- **${shortName(user.display_name)}** — ${fmtCk(user.total_val)} (${signedPct(returnPct(user.total_val))})`;
+  if (context.top?.length) {
+    sections.push(`## 🏆 Podium\n${context.top.map(row).join("\n")}`);
+  }
+  if (context.bottom?.length) {
+    sections.push(`## 📉 Dno tabeli\n${context.bottom.map(row).join("\n")}`);
+  }
+  if (context.cashSitters?.length) {
+    const names = context.cashSitters.map(user => `**${shortName(user.display_name)}**`).join(", ");
+    sections.push(`## 💤 Kisiciele gotówki\n${names} — nadal siedzą na gotówce bez żadnej pozycji.`);
+  }
+  if (context.recentTrades?.length) {
+    const trades = context.recentTrades.slice(0, 5).map(trade => {
+      const verb = trade.type === "SELL" ? "sprzedaje" : "kupuje";
+      const thesis = String(trade.thesis || "").replace(/\s+/g, " ").trim().slice(0, 110);
+      return `- **${shortName(trade.display_name)}** ${verb} ${trade.ticker}${thesis ? ` — „${thesis}”` : ""}`;
+    });
+    sections.push(`## 🔁 Ostatnie ruchy\n${trades.join("\n")}`);
+  }
+  return sections.join("\n\n");
+}
+
 // Składa finalną treść: pasek faktów + sekcje od AI (bez własnych linii ">").
 export function composeStandupContent(context, body) {
   const cleaned = String(body || "")
@@ -126,10 +172,9 @@ export function composeStandupContent(context, body) {
 
 export async function generateStandup(env, type = "STANDUP_MORNING") {
   const isMorning = type === "STANDUP_MORNING";
-  const tagTime = isMorning ? "08:00" : "16:00";
   const defaultTitle = isMorning
-    ? `Poranny Stand-up z Parkietu [${tagTime}]`
-    : `Popołudniowy Stand-up z Parkietu [${tagTime}]`;
+    ? "Poranny Stand-up z Parkietu"
+    : "Popołudniowy Stand-up z Parkietu";
 
   // Pobierz dane ligowe z D1 do kontekstu roastu
   let contextData = {};
@@ -203,7 +248,9 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
   let title = defaultTitle;
   let content = "";
 
-  const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT);
+  const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT, {
+    baseDelayMs: Number(env.GEMINI_RETRY_DELAY_MS ?? 1500),
+  });
   if (responseText) {
     try {
       const cleanJson = responseText.replace(/^```json\s*|\s*```$/g, "").trim();
@@ -216,10 +263,8 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
   }
 
   if (!content) {
-    // Solidny fallback (ten sam format), gdyby brakowało klucza Gemini lub nastąpił timeout
-    content = isMorning
-      ? `## 🌅 Na dzień dobry\nKawa stygnie, a wy nadal kisicie kapitał na 0%. Liderzy znowu myślą, że przypadkowy wzrost to ich geniusz inwestycyjny, a dół tabeli udaje, że „inwestuje długoterminowo”.\n\n## 🌍 Makro\n- **GPW:** rusza lada moment.\n- **Wall Street:** czeka, by zweryfikować wasze rzekome strategie.\n- **Plan dnia:** zakupy albo powrót do Excela.`
-      : `## 🌇 Przed dzwonkiem\nGPW zbliża się do dzwonka, a Wall Street właśnie zaczyna jazdę bez trzymanki. Połowa z was kisi gotówkę, jakby inflacja nie istniała, a druga połowa weszła na samej górce.\n\n## 🗣️ Teza dnia\nTeza „będzie rosło” nie ochroni was przed spadkiem. Zobaczymy, kto do jutra utrzyma się na powierzchni.`;
+    // AI niedostępne po ponowieniach: sekcje z realnych danych zamiast generycznego tekstu
+    content = buildDataFallback(contextData, isMorning);
   }
   content = composeStandupContent(contextData, content);
 

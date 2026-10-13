@@ -695,8 +695,10 @@ test("feed query includes company names from market prices", async () => {
   assert.match(eventsSource, /window\.karuzela\.copyTrade/);
 
   const renderedFeed = { innerHTML: "" };
+  const utilsSource = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const timeHelpers = utilsSource.slice(utilsSource.indexOf("const FEED_TIME_ZONE"));
   const rendered = await runInNewContext(
-    `${portfolioSource}; fetchFeed().then(() => document.getElementById("feedContainer").innerHTML);`,
+    `${timeHelpers}\n${portfolioSource}; fetchFeed().then(() => document.getElementById("feedContainer").innerHTML);`,
     {
       apiRequest: async () => ({
         status: "success",
@@ -1784,7 +1786,7 @@ test("stand-up content gets a deterministic facts bar and strips model-made quot
   assert.equal(composeStandupContent({}, "## Sekcja\ntekst"), "## Sekcja\ntekst");
 });
 
-test("stand-up fallback uses the same sectioned format and is stored with the facts bar", async () => {
+test("stand-up fallback is data-driven (same sections, real names) and stored with the facts bar", async () => {
   const { generateStandup } = await import("../src/worker/services/ai.js");
   const stored = [];
   const env = {
@@ -1793,8 +1795,12 @@ test("stand-up fallback uses the same sectioned format and is stored with the fa
         return {
           all: async () => ({
             results: sql.includes("ORDER BY total_val DESC")
-              ? [{ display_name: "Ola", total_val: 150000 }]
-              : [],
+              ? [{ display_name: "Ola", total_val: 150000 }, { display_name: "Kuba", total_val: 120000 }]
+              : sql.includes("ORDER BY total_val ASC")
+                ? [{ display_name: "Piotr", total_val: 95000 }]
+                : sql.includes("FROM transactions")
+                  ? [{ ticker: "NVDA", type: "BUY", thesis: "AI rządzi", display_name: "Ola" }]
+                  : [],
           }),
           bind: (...values) => ({ run: async () => { stored.push(values); return { success: true }; } }),
         };
@@ -1802,10 +1808,83 @@ test("stand-up fallback uses the same sectioned format and is stored with the fa
     },
   };
   const result = await generateStandup(env, "STANDUP_MORNING");
+  assert.equal(result.title, "Poranny Stand-up z Parkietu");
   assert.match(result.content, /^> 🏆 Lider: Ola \(\+50,0%\)/);
-  assert.match(result.content, /\n## 🌍 Makro\n- \*\*GPW:\*\*/);
+  assert.match(result.content, /## 🏆 Podium\n- \*\*Ola\*\* — 150.000 CK \(\+50,0%\)\n- \*\*Kuba\*\*/);
+  assert.match(result.content, /## 📉 Dno tabeli\n- \*\*Piotr\*\* — 95.000 CK \(-5,0%\)/);
+  assert.match(result.content, /## 🔁 Ostatnie ruchy\n- \*\*Ola\*\* kupuje NVDA — „AI rządzi”/);
   assert.equal(stored[0][0], "STANDUP_MORNING");
   assert.equal(stored[0][2], result.content);
+});
+
+test("Gemini calls are retried on temporary errors before falling back", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const env = {
+    GEMINI_API_KEY: "key",
+    GEMINI_RETRY_DELAY_MS: 0,
+    DB: {
+      prepare() {
+        return { all: async () => ({ results: [] }), bind: () => ({ run: async () => ({ success: true }) }) };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  const statuses = [503, 429, 200];
+  let calls = 0;
+  globalThis.fetch = async () => {
+    const status = statuses[calls++];
+    if (status !== 200) return new Response("overloaded", { status });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ title: "Po ponowieniach", content: "## 🏆 Podium\n**Ola** wygrywa." }) }] } }] }));
+  };
+  try {
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(calls, 3);
+    assert.equal(result.title, "Po ponowieniach");
+    assert.match(result.content, /\*\*Ola\*\* wygrywa\./);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("Gemini non-retryable errors (400) stop after one attempt and use the fallback", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const env = {
+    GEMINI_API_KEY: "key",
+    GEMINI_RETRY_DELAY_MS: 0,
+    DB: {
+      prepare() {
+        return { all: async () => ({ results: [] }), bind: () => ({ run: async () => ({ success: true }) }) };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return new Response("bad request", { status: 400 }); };
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = await generateStandup(env, "STANDUP_EVENING");
+    assert.equal(calls, 1);
+    assert.equal(result.title, "Popołudniowy Stand-up z Parkietu");
+    assert.match(result.content, /Komentarz AI jest chwilowo niedostępny/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
+
+test("feed timestamps are UTC from D1 and are displayed in Europe/Warsaw time", async () => {
+  const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const call = (value, now) =>
+    runInNewContext(`${source}\nformatFeedTimestamp(${JSON.stringify(value)}, new Date(${JSON.stringify(now)}))`);
+  // lato (CEST, UTC+2): 06:00:02 UTC -> 08:00
+  assert.equal(call("2026-10-13 06:00:02", "2026-10-13T08:30:00Z"), "Dziś, 08:00");
+  assert.equal(call("2026-10-12 14:00:06", "2026-10-13T08:30:00Z"), "Wczoraj, 16:00");
+  // zima (CET, UTC+1): 06:00 UTC -> 07:00
+  assert.match(call("2026-01-05 06:00:00", "2026-10-13T08:30:00Z"), /^5 sty,? 07:00$/);
+  assert.equal(call("", "2026-10-13T08:30:00Z"), "—");
+  // znacznik z oznaczeniem strefy nie jest przesuwany po raz drugi
+  assert.equal(call("2026-10-13T06:00:02Z", "2026-10-13T08:30:00Z"), "Dziś, 08:00");
 });
 
 test("both UIs render stand-ups through the shared formatter", async () => {
