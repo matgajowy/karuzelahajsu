@@ -1894,3 +1894,57 @@ test("both UIs render stand-ups through the shared formatter", async () => {
   assert.match(v2, /formatStandupHtml\(item\.content\)/);
   assert.doesNotMatch(portfolio, /whitespace-pre-line">\$\{escapeHtml\(item\.content\)/);
 });
+
+test("stand-up response parser handles fenced JSON, raw newlines and truncated output", async () => {
+  const { parseStandupResponse } = await import("../src/worker/services/ai.js");
+  const clean = parseStandupResponse(JSON.stringify({ title: "Tytuł", content: "## A\n- x" }));
+  assert.deepEqual(clean, { title: "Tytuł", content: "## A\n- x" });
+
+  const fenced = parseStandupResponse('```json\n{"title":"T","content":"## A\\n- x"}\n```');
+  assert.equal(fenced.title, "T");
+  assert.equal(fenced.content, "## A\n- x");
+
+  // surowe nowe linie wewnątrz stringa — niepoprawny JSON, którego użyło Gemini
+  const rawNewlines = parseStandupResponse('```json\n{\n  "title": "Poranek",\n  "content": "## 🌍 Makro\n- **Stopy:** a\n- **USD/PLN:** b"\n}\n```');
+  assert.equal(rawNewlines.title, "Poranek");
+  assert.equal(rawNewlines.content, "## 🌍 Makro\n- **Stopy:** a\n- **USD/PLN:** b");
+
+  // urwany JSON: tytuł i początek treści nadal da się odzyskać
+  const truncated = parseStandupResponse('{"title":"Urwany","content":"## A\\nzdanie"');
+  assert.equal(truncated.title, "Urwany");
+
+  assert.deepEqual(parseStandupResponse(""), {});
+  assert.deepEqual(parseStandupResponse("zwykły tekst"), {});
+});
+
+test("generateStandup stores parsed sections (not a raw fenced JSON block) and asks for JSON mode", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const stored = [];
+  const env = {
+    GEMINI_API_KEY: "key",
+    DB: {
+      prepare() {
+        return {
+          all: async () => ({ results: [] }),
+          bind: (...values) => ({ run: async () => { stored.push(values); return { success: true }; } }),
+        };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, init) => {
+    requestBody = JSON.parse(init.body);
+    const text = '```json\n{"title": "Z fence",\n "content": "## 🏆 Podium\n**Ola** wygrywa."}\n```';
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }));
+  };
+  try {
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(result.title, "Z fence");
+    assert.match(result.content, /^## 🏆 Podium\n\*\*Ola\*\* wygrywa\.$/);
+    assert.ok(!result.content.includes("```"));
+    assert.equal(requestBody.generationConfig.responseMimeType, "application/json");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
