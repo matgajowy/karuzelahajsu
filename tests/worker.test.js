@@ -1699,3 +1699,380 @@ test("duel ignores cash sitters and ties", async () => {
   assert.deepEqual(findDuel(players), { rank: 1, upper: "A", lower: "B", gapPp: 2 });
   assert.equal(findDuel([{ display_name: "X", positions: 0, total_val: 100000 }, { display_name: "Y", positions: 0, total_val: 100000 }]), null);
 });
+
+// ---- Zlecenia: precyzja cen, min. kurs, atomowość, UX formularza ----
+function yahooChart(price, currency = "USD", name = "Test Corp") {
+  return new Response(JSON.stringify({ chart: { result: [{ meta: { regularMarketPrice: price, currency, shortName: name } }] } }));
+}
+
+async function createSqliteTradeEnv({ cash, shares = 0 }) {
+  const { DatabaseSync } = await import("node:sqlite");
+  const db = new DatabaseSync(":memory:");
+  db.exec(`
+    CREATE TABLE users (id INTEGER PRIMARY KEY, current_cash REAL, is_admin INTEGER DEFAULT 0);
+    CREATE TABLE holdings (user_id INTEGER, ticker TEXT, shares REAL, avg_buy_price REAL, PRIMARY KEY(user_id, ticker));
+    CREATE TABLE transactions (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, ticker TEXT, type TEXT, shares REAL, price REAL, total_value_pln REAL, thesis TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE market_prices (ticker TEXT PRIMARY KEY, price REAL, currency TEXT, fx_to_pln REAL, name TEXT);
+    CREATE TABLE audit_log (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER, action TEXT, payload TEXT, ip_address TEXT, status TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
+    CREATE TABLE sessions (token TEXT, user_id INTEGER, expires_at TEXT);
+    INSERT INTO users (id, current_cash) VALUES (1, ${cash});
+    INSERT INTO market_prices VALUES ('TEST', 100, 'USD', 4, 'Test Corp');
+  `);
+  if (shares > 0) db.exec(`INSERT INTO holdings VALUES (1, 'TEST', ${shares}, 100)`);
+  // Obie "równoległe" sesje widzą ten sam, przestarzały stan salda z chwili odczytu.
+  const staleUser = { id: 1, current_cash: cash, is_admin: 0 };
+  const wrap = sql => {
+    const normalized = sql;
+    let values = [];
+    const exec = () => db.prepare(normalized).run(...values);
+    return {
+      sql: normalized,
+      bind(...v) { values = v; return this; },
+      async first() {
+        if (normalized.includes("FROM sessions")) return staleUser;
+        if (normalized.includes("u.current_cash,")) return { current_cash: staleUser.current_cash, stocks_value: 1_000_000 };
+        // równoległa sesja sprzedaży widzi pozycję z chwili odczytu (przed zleceniem konkurenta)
+        if (normalized.includes("SELECT shares FROM holdings") && shares > 0) return { shares };
+        return db.prepare(normalized).get(...values) ?? null;
+      },
+      async all() { return { results: db.prepare(normalized).all(...values) }; },
+      async run() { return { meta: { changes: Number(exec().changes) } }; },
+      _run: () => ({ meta: { changes: Number(exec().changes) } }),
+    };
+  };
+  return {
+    db,
+    DB: {
+      prepare: sql => wrap(sql),
+      async batch(statements) {
+        db.exec("BEGIN");
+        try {
+          const results = statements.map(statement => statement._run());
+          db.exec("COMMIT");
+          return results;
+        } catch (error) {
+          db.exec("ROLLBACK");
+          throw error;
+        }
+      },
+    },
+  };
+}
+
+async function loadTradingSandbox({ cash = 459.46, price = 2.36, thesis = "", shares = "", amount = "" } = {}) {
+  const vm = await import("node:vm");
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const utils = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const elements = new Map();
+  const el = id => {
+    if (!elements.has(id)) {
+      const classes = new Set(["hidden"]);
+      elements.set(id, {
+        id, value: "", innerText: "", innerHTML: "", dataset: {}, disabled: false, step: "", min: "", className: "",
+        classList: { add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c) },
+      });
+    }
+    return elements.get(id);
+  };
+  el("tradeShares").value = shares;
+  el("tradeAmount").value = amount;
+  el("tradeThesis").value = thesis;
+  const context = {
+    document: { getElementById: el },
+    currentUser: { current_cash: cash },
+    verifiedInstrument: { ticker: "OML.WA", price, price_ck: price, currency: "PLN", market_status: { is_open: true } },
+    currentTradeType: "BUY",
+    selectedHoldingMaxShares: 0,
+    console,
+  };
+  vm.createContext(context);
+  vm.runInContext(`${utils}\n${source}`, context);
+  return { run: code => vm.runInContext(code, context), el, context };
+}
+
+
+test("trade balance error shows 4 decimals for sub-CK amounts so rounding does not hide the shortfall", async () => {
+  // tani walor (0,05 USD * 3,9023 = 0,195115 CK / akcję): 2 szt. = 0,3902 CK, gotówka 0,30 CK
+  const env = createTradeEnv(0.3);
+  const instrument = { ticker: "TEST", price: 0.05, fx_to_pln: 3.9023 };
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = sql => {
+    const statement = originalPrepare(sql);
+    const first = statement.first.bind(statement);
+    statement.first = async () => (sql.startsWith("SELECT * FROM market_prices") ? instrument : first());
+    return statement;
+  };
+  const response = await submitTestBuy(env, 2);
+  const body = await response.json();
+  assert.equal(response.status, 400);
+  assert.match(body.message, /Posiadasz: 0\.3000 CK/);
+  assert.match(body.message, /wymaga: 0\.3902 CK/);
+  assert.match(body.message, /brakuje 0\.0902 CK/);
+  assert.equal(env.writes.some(({ sql }) => sql.includes("INSERT INTO transactions")), false);
+});
+
+test("trade may spend the exact cash balance (floating point tolerance)", async () => {
+  const cost = 3 * (0.05 * 3.9023);
+  const env = createTradeEnv(cost - 1e-13);
+  const instrument = { ticker: "TEST", price: 0.05, fx_to_pln: 3.9023 };
+  const originalPrepare = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = sql => {
+    const statement = originalPrepare(sql);
+    const first = statement.first.bind(statement);
+    statement.first = async () => (sql.startsWith("SELECT * FROM market_prices") ? instrument : first());
+    return statement;
+  };
+  const originalFirst = env.DB.prepare.bind(env.DB);
+  env.DB.prepare = sql => {
+    const statement = originalFirst(sql);
+    if (sql.includes("u.current_cash,")) statement.first = async () => ({ current_cash: cost, stocks_value: 1000000 });
+    return statement;
+  };
+  const response = await submitTestBuy(env, 3);
+  assert.equal(response.status, 200);
+  const update = env.writes.find(({ sql }) => sql.includes("UPDATE users SET current_cash"));
+  assert.match(update.sql, /MAX\(current_cash - \?, 0\)/);
+});
+
+test("sub-cent prices and shortfalls are displayed with enough precision", async () => {
+  const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const run = expr => runInNewContext(`${source}\n${expr}`);
+  assert.equal(run('formatQuotePrice(0.0001, "USD")'), "0,0001 USD");
+  assert.equal(run('formatQuotePrice(0.119, "USD")'), "0,119 USD");
+  assert.equal(run('formatQuotePrice(157.3, "PLN")'), "157,30 CK");
+  assert.equal(run('formatQuotePrice(548.5, "USD")'), "548,50 USD");
+  assert.equal(run("formatUnitCK(0.00039023)"), "0,00039 CK");
+  assert.equal(run("formatUnitCK(0.0546)"), "0,0546 CK");
+  assert.equal(run("formatUnitCK(157.3)"), "157,30 CK");
+  assert.equal(run("formatCKPrecise(0.0546)"), "0,0546 CK");
+  assert.equal(run("formatCKPrecise(0.007832)"), "0,0078 CK");
+  assert.equal(run("formatCKPrecise(0.00004)"), "0,00004 CK");
+  assert.equal(run("formatCKPrecise(1234.5)"), "1234,50 CK");
+  assert.equal(run("formatCKPrecise(0)"), "0,00 CK");
+});
+
+test("trade form blocks buys above available cash and explains the shortfall", async () => {
+  const source = await readFile(new URL("../public/assets/js/trading.js", import.meta.url), "utf8");
+  const utils = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const elements = new Map();
+  const el = (id, extra = {}) => {
+    if (!elements.has(id)) {
+      const classes = new Set(["hidden"]);
+      elements.set(id, { id, value: "", innerText: "", dataset: {}, disabled: false, classList: {
+        add: c => classes.add(c), remove: c => classes.delete(c), contains: c => classes.has(c),
+      }, ...extra });
+    }
+    return elements.get(id);
+  };
+  el("tradeShares").value = "140";
+  el("tradeThesis").value = "Teza inwestycyjna wystarczająco długa.";
+  const context = {
+    document: { getElementById: id => el(id) },
+    currentUser: { current_cash: 0.0468 },
+    verifiedInstrument: { price_ck: 0.00039023, market_status: { is_open: true } },
+    currentTradeType: "BUY",
+    selectedHoldingMaxShares: 0,
+    console,
+  };
+  const vm = await import("node:vm");
+  vm.createContext(context);
+  vm.runInContext(`${utils}\n${source}\nupdateTradeAvailability();`, context);
+  const error = el("tradeError");
+  assert.equal(el("submitTradeBtn").disabled, true);
+  assert.ok(!error.classList.contains("hidden"));
+  assert.match(error.innerText, /Brakuje 0,0078 CK/);
+  assert.match(error.innerText, /Maksymalnie możesz kupić 119 szt\./);
+
+  // po zmniejszeniu ilości komunikat znika, a przycisk się odblokowuje
+  el("tradeShares").value = "119";
+  vm.runInContext("updateTradeAvailability();", context);
+  assert.equal(el("submitTradeBtn").disabled, false);
+  assert.ok(error.classList.contains("hidden"));
+});
+
+test("instrument search rejects penny stocks below 0,01 USD with a concrete message", async () => {
+  const env = createEnv({ devAuthBypass: true, demoUser: { id: 1, github_login: "demo_marta", display_name: "M", avatar_url: null, current_cash: 100, is_admin: 0 } });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => yahooChart(0.0001, "USD", "ASSOCIATES FIRST CAPITAL CORP");
+  try {
+    const response = await worker.fetch(new Request("https://dev.example/api/instruments/search?q=ASFZ"), env, {});
+    const body = await response.json();
+    assert.equal(response.status, 400);
+    assert.equal(body.code, "PRICE_TOO_LOW");
+    assert.match(body.message, /Walor ASFZ jest niedostępny/);
+    assert.match(body.message, /0,0001 USD/);
+    assert.match(body.message, /poniżej minimum 0,01 USD/);
+    assert.match(body.message, /Akcje groszkowe są wyłączone z handlu/);
+    assert.equal(env.writes.some(({ sql }) => sql.includes("market_prices")), false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("instrument search accepts a price exactly at the minimum", async () => {
+  const env = createEnv({ devAuthBypass: true, demoUser: { id: 1, github_login: "demo_marta", display_name: "M", avatar_url: null, current_cash: 100, is_admin: 0 } });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => (String(url).includes("PLN%3DX") ? yahooChart(4, "PLN") : yahooChart(0.01, "USD", "Cheap Corp"));
+  try {
+    const response = await worker.fetch(new Request("https://dev.example/api/instruments/search?q=CHEAP"), env, {});
+    const body = await response.json();
+    assert.equal(response.status, 200);
+    assert.equal(body.data.ticker, "CHEAP");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("autocomplete does not suggest sub-minimum penny stocks", async () => {
+  const env = {
+    DB: {
+      prepare() {
+        return {
+          bind() {
+            return {
+              all: async () => ({
+                results: [
+                  { ticker: "ASFZ", name: "ASSOCIATES FIRST CAPITAL CORP", price: 0.0001, currency: "USD", fx_to_pln: 3.9 },
+                  { ticker: "ADBT", name: "Advasa Holdings", price: 0.119, currency: "USD", fx_to_pln: 3.9 },
+                ],
+              }),
+            };
+          },
+        };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ quotes: [] }));
+  try {
+    const response = await worker.fetch(new Request("https://dev.example/api/instruments/search?q=A&autocomplete=1"), env, {});
+    const body = await response.json();
+    assert.deepEqual(body.data.map(item => item.ticker), ["ADBT"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("trade API blocks buying penny stocks but still lets users sell an existing position", async () => {
+  const pennyInstrument = { ticker: "TEST", price: 0.0001, fx_to_pln: 3.9023, currency: "USD" };
+  const withPenny = env => {
+    const originalPrepare = env.DB.prepare.bind(env.DB);
+    env.DB.prepare = sql => {
+      const statement = originalPrepare(sql);
+      const first = statement.first.bind(statement);
+      statement.first = async () => {
+        if (sql.startsWith("SELECT * FROM market_prices")) return pennyInstrument;
+        if (sql.includes("SELECT shares FROM holdings")) return { shares: 10 };
+        return first();
+      };
+      return statement;
+    };
+    return env;
+  };
+
+  const buyEnv = withPenny(createTradeEnv(1000));
+  const buy = await submitTestTrade(buyEnv, 5, "BUY");
+  const buyBody = await buy.json();
+  assert.equal(buy.status, 400);
+  assert.equal(buyBody.code, "PRICE_TOO_LOW");
+  assert.match(buyBody.message, /Walor TEST jest niedostępny/);
+  assert.ok(buyEnv.writes.every(({ sql }) => !sql.includes("UPDATE users")));
+
+  const sellEnv = withPenny(createTradeEnv(1000));
+  const sell = await submitTestTrade(sellEnv, 5, "SELL");
+  assert.equal(sell.status, 200);
+});
+
+test("race: second buy with a stale balance is rejected and creates no holding or transaction", async () => {
+  const env = await createSqliteTradeEnv({ cash: 1000 });
+  // 2 szt. * 100 USD * 4 = 800 CK; dwa zlecenia widzą saldo 1000, ale starczy tylko na jedno
+  const first = await submitTestBuy(env, 2);
+  assert.equal(first.status, 200);
+  const second = await submitTestBuy(env, 2);
+  const body = await second.json();
+  assert.equal(second.status, 409);
+  assert.equal(body.code, "BALANCE_CHANGED");
+
+  assert.equal(env.db.prepare("SELECT current_cash AS c FROM users WHERE id = 1").get().c, 200);
+  assert.equal(env.db.prepare("SELECT shares AS s FROM holdings WHERE ticker = 'TEST'").get().s, 2);
+  assert.equal(env.db.prepare("SELECT COUNT(*) AS n FROM transactions").get().n, 1);
+});
+
+test("race: second sell of the same position is rejected and pays out only once", async () => {
+  const env = await createSqliteTradeEnv({ cash: 0, shares: 3 });
+  const first = await submitTestTrade(env, 3, "SELL");
+  assert.equal(first.status, 200);
+  const second = await submitTestTrade(env, 3, "SELL");
+  const body = await second.json();
+  assert.equal(second.status, 409);
+  assert.equal(body.code, "POSITION_CHANGED");
+
+  assert.equal(env.db.prepare("SELECT current_cash AS c FROM users WHERE id = 1").get().c, 1200);
+  assert.equal(env.db.prepare("SELECT COUNT(*) AS n FROM holdings").get().n, 0);
+  assert.equal(env.db.prepare("SELECT COUNT(*) AS n FROM transactions").get().n, 1);
+});
+
+test("buy and partial sell keep consistent cash, holdings and average price on real SQLite", async () => {
+  const env = await createSqliteTradeEnv({ cash: 2000 });
+  assert.equal((await submitTestBuy(env, 2)).status, 200);
+  assert.equal((await submitTestTrade(env, 1, "SELL")).status, 200);
+  assert.equal(env.db.prepare("SELECT current_cash AS c FROM users WHERE id = 1").get().c, 1600);
+  const holding = env.db.prepare("SELECT shares, avg_buy_price FROM holdings WHERE ticker = 'TEST'").get();
+  assert.equal(holding.shares, 1);
+  assert.equal(holding.avg_buy_price, 100);
+  assert.equal(env.db.prepare("SELECT COUNT(*) AS n FROM transactions").get().n, 2);
+});
+
+test("buy form: MAX buys the largest number of whole shares the cash allows", async () => {
+  const sandbox = await loadTradingSandbox({ cash: 459.46, price: 2.36 });
+  sandbox.run("setBuyAmountPercentage(1)");
+  assert.equal(sandbox.el("tradeShares").value, "194");
+  assert.equal(sandbox.el("tradeAmount").value, "457.84");
+  sandbox.run("setBuyAmountPercentage(0.5)");
+  assert.equal(sandbox.el("tradeShares").value, "97");
+});
+
+test("buy form: amount is normalised to the real cost and the unused remainder is explained", async () => {
+  const sandbox = await loadTradingSandbox({ shares: "194", amount: "458.1" });
+  sandbox.run("tradeInputSource = 'amount'; normalizeBuyAmount()");
+  assert.equal(sandbox.el("tradeAmount").value, "457.84");
+  assert.match(sandbox.el("tradeAmountRemainder").innerText, /194 szt\. = 457,84 CK/);
+  assert.match(sandbox.el("tradeAmountRemainder").innerText, /niewykorzystane 0,26 CK/);
+});
+
+test("buy form: the amount spinner steps by one share price", async () => {
+  const sandbox = await loadTradingSandbox({ price: 2.36 });
+  sandbox.run("configureAmountStep()");
+  assert.equal(sandbox.el("tradeAmount").step, "2.36");
+  assert.equal(sandbox.el("tradeAmount").min, "2.36");
+});
+
+test("buy form: a short thesis keeps the submit button disabled and shows a live counter", async () => {
+  const sandbox = await loadTradingSandbox({ shares: "10", thesis: "WTF" });
+  sandbox.run("updateTradeAvailability()");
+  assert.equal(sandbox.el("submitTradeBtn").disabled, true);
+  assert.equal(sandbox.el("tradeThesisCount").innerText, "3 / min. 15 znaków");
+  sandbox.el("tradeThesis").value = "Dywidenda i stabilny cashflow.";
+  sandbox.run("updateTradeAvailability()");
+  assert.equal(sandbox.el("submitTradeBtn").disabled, false);
+  assert.match(sandbox.el("tradeThesisCount").innerText, /^\d+ \/ min\. 15 znaków$/);
+});
+
+test("buy form: submit validation messages are Polish, not the browser's English tooltip", async () => {
+  const sandbox = await loadTradingSandbox({ shares: "", thesis: "Dywidenda i stabilny cashflow." });
+  await sandbox.run("submitTrade({ preventDefault() {} })");
+  assert.equal(sandbox.el("tradeError").innerText, "Podaj liczbę akcji (minimum 1 szt.).");
+
+  sandbox.el("tradeShares").value = "5";
+  sandbox.el("tradeThesis").value = "WTF";
+  await sandbox.run("submitTrade({ preventDefault() {} })");
+  assert.equal(sandbox.el("tradeError").innerText, "Teza inwestycyjna musi mieć co najmniej 15 znaków (masz 3).");
+});
+
+test("trade page disables native browser validation and offers MAX, thesis counter and cash-after", async () => {
+  const html = await readFile(new URL("../public/index.html", import.meta.url), "utf8");
+  assert.match(html, /<form id="tradeForm"[^>]*\snovalidate/);
+  assert.match(html, /data-action="set-buy-percentage" data-percent="1"/);
+  assert.match(html, /id="tradeThesisCount"/);
+  assert.match(html, /id="tradeCashAfter"/);
+});
