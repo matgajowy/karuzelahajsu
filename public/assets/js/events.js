@@ -14,6 +14,7 @@ const clickActions = {
   "set-trade-type": element => setTradeType(element.dataset.tradeType),
   "verify-ticker": () => verifyTicker(),
   "set-sell-share-percentage": element => setSellSharePercentage(Number(element.dataset.percent)),
+  "set-buy-percentage": element => setBuyAmountPercentage(Number(element.dataset.percent)),
   "manual-sync": () => triggerManualSync(),
   "open-benchmark-reset": () => openBenchmarkResetModal(),
   "close-benchmark-reset": () => closeBenchmarkResetModal(),
@@ -64,6 +65,9 @@ document.addEventListener("input", event => {
       event.target.id === "tradeTickerInput") {
     if (typeof onTickerInputDebounced === "function") onTickerInputDebounced(event);
   }
+  if (event.target instanceof HTMLTextAreaElement && event.target.id === "tradeThesis") {
+    if (typeof updateTradeAvailability === "function") updateTradeAvailability();
+  }
   if (event.target instanceof HTMLInputElement &&
       event.target.dataset.action === "update-estimated-cost") {
     if (event.target.id === "tradeShares") {
@@ -77,6 +81,9 @@ document.addEventListener("input", event => {
 });
 
 document.addEventListener("change", event => {
+  if (event.target instanceof HTMLInputElement && event.target.id === "tradeAmount") {
+    if (typeof normalizeBuyAmount === "function") normalizeBuyAmount();
+  }
   if (event.target instanceof HTMLSelectElement &&
       event.target.dataset.action === "holding-selected") {
     onHoldingSelected();
