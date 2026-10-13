@@ -1984,6 +1984,13 @@ test("lens rotates deterministically per slot and only picks lenses with materia
     ids.add(pickLens(context, offset % 2 ? "STANDUP_EVENING" : "STANDUP_MORNING", new Date(day.getTime() + offset * 86400000)).id);
   }
   assert.ok(ids.size >= 4, `lenses used: ${[...ids].join(",")}`);
+  // kolejne wydania (rosnące id ostatniego wpisu) nigdy nie dostają tego samego motywu
+  let previousLens = null;
+  for (let lastId = 10; lastId < 40; lastId += 1) {
+    const lens = pickLens({ ...context, previous: [{ id: lastId }] }, "STANDUP_MORNING", day);
+    assert.notEqual(lens.id, previousLens, `edition ${lastId}`);
+    previousLens = lens.id;
+  }
   assert.equal(pickLens({ benchmarks: [], playerCount: 0 }, "STANDUP_MORNING", day), null);
   assert.equal(findDuel(players).upper, "Ola");
   assert.equal(findDuel(players).lower, "Kuba");
@@ -2059,4 +2066,32 @@ test("freshness gate: a repetitive first draft triggers one rewrite and the fres
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("dry-run mode returns the stand-up without writing to the database", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const db = standupDb({ board: PLAYERS });
+  const log = console.log;
+  const lines = [];
+  console.log = (...args) => lines.push(args.join(" "));
+  try {
+    const result = await generateStandup({ STANDUP_DRY_RUN: "1", STANDUP_MARKET_OVERRIDE: [], DB: db.DB }, "STANDUP_EVENING");
+    assert.ok(result.content.startsWith("> 🏆 Lider: Ola"));
+  } finally {
+    console.log = log;
+  }
+  assert.equal(db.inserted.length, 0);
+  assert.ok(lines.some(line => line.startsWith("STANDUP_DRY_RUN")));
+});
+
+test("duel ignores cash sitters and ties", async () => {
+  const { findDuel } = await import("../src/worker/services/standupContext.js");
+  const players = [
+    { display_name: "A", positions: 2, total_val: 102400 },
+    { display_name: "B", positions: 1, total_val: 100400 },
+    { display_name: "Ada", positions: 0, total_val: 100000 },
+    { display_name: "Lukasz", positions: 0, total_val: 100000 },
+  ];
+  assert.deepEqual(findDuel(players), { rank: 1, upper: "A", lower: "B", gapPp: 2 });
+  assert.equal(findDuel([{ display_name: "X", positions: 0, total_val: 100000 }, { display_name: "Y", positions: 0, total_val: 100000 }]), null);
 });

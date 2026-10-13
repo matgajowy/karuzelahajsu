@@ -43,14 +43,17 @@ export async function fetchMarketMoves(fetchImpl = fetch) {
 }
 
 // Najbliższa para sąsiadów w rankingu graczy (pojedynek o miejsce).
-export function findDuel(players) {
+export function findDuel(allPlayers) {
+  // Tylko gracze z otwartymi pozycjami: kisiciele gotówki (0,0%) nie toczą żadnego pojedynku.
+  const players = allPlayers.filter(player => Number(player.positions) > 0);
   let best = null;
   for (let index = 0; index < players.length - 1; index += 1) {
     const upper = players[index];
     const lower = players[index + 1];
     const gap = retPct(upper.total_val) - retPct(lower.total_val);
+    if (gap < 0.1) continue; // remis w zaokrągleniu — nie ma o co walczyć
     if (best === null || gap < best.gapPp) {
-      best = { rank: index + 1, upper: upper.display_name, lower: lower.display_name, gapPp: round1(gap) };
+      best = { rank: allPlayers.indexOf(upper) + 1, upper: upper.display_name, lower: lower.display_name, gapPp: round1(gap) };
     }
   }
   return best;
@@ -197,8 +200,11 @@ export function pickLens(context, type, now = new Date()) {
     });
   }
   if (!lenses.length) return null;
-  const day = now.toISOString().slice(0, 10);
-  return lenses[hash(`${day}:${type}`) % lenses.length];
+  // Licznik wydań (id ostatniego wpisu) przesuwa motyw o 1 przy każdym wydaniu, więc kolejne
+  // stand-upy nigdy nie mają tego samego motywu; bez historii wybór jest deterministyczny wg daty.
+  const lastId = Number(context.previous?.[0]?.id);
+  const index = Number.isFinite(lastId) ? lastId + 1 : hash(`${now.toISOString().slice(0, 10)}:${type}`);
+  return lenses[index % lenses.length];
 }
 
 // ---------- pamięć poprzednich wydań ----------
