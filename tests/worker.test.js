@@ -1624,26 +1624,15 @@ test("feed endpoint returns market news next to transactions", async () => {
 });
 
 test("scheduled stand-up crons write a market_news row and fall back without Gemini", async () => {
-  const inserts = [];
-  const env = {
-    DB: {
-      prepare(sql) {
-        return {
-          all: async () => ({ results: [] }),
-          bind: (...values) => ({
-            run: async () => { if (sql.includes("INSERT INTO market_news")) inserts.push(values); return { success: true }; },
-          }),
-        };
-      },
-    },
-  };
+  const db = standupDb({ board: PLAYERS });
+  const env = { STANDUP_MARKET_OVERRIDE: [], DB: db.DB };
   const pending = [];
   const ctx = { waitUntil: promise => pending.push(promise) };
   await worker.scheduled({ cron: "0 6 * * MON-FRI" }, env, ctx);
   await worker.scheduled({ cron: "0 14 * * MON-FRI" }, env, ctx);
   await Promise.all(pending);
-  assert.deepEqual(inserts.map(values => values[0]), ["STANDUP_MORNING", "STANDUP_EVENING"]);
-  assert.ok(inserts.every(values => values[1] && values[2]));
+  assert.deepEqual(db.inserted.map(values => values[0]), ["STANDUP_MORNING", "STANDUP_EVENING"]);
+  assert.ok(db.inserted.every(values => values[1] && values[2]));
 });
 
 test("ticker autocomplete is wired in both UIs", async () => {
