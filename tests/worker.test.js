@@ -408,8 +408,10 @@ test("feed query includes company names from market prices", async () => {
   assert.match(eventsSource, /window\.karuzela\.copyTrade/);
 
   const renderedFeed = { innerHTML: "" };
+  const utilsSource = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const timeHelpers = utilsSource.slice(utilsSource.indexOf("const FEED_TIME_ZONE"));
   const rendered = await runInNewContext(
-    `${portfolioSource}; fetchFeed().then(() => document.getElementById("feedContainer").innerHTML);`,
+    `${timeHelpers}\n${portfolioSource}; fetchFeed().then(() => document.getElementById("feedContainer").innerHTML);`,
     {
       apiRequest: async () => ({
         status: "success",
@@ -1324,7 +1326,15 @@ test("stand-up content gets a deterministic facts bar and strips model-made quot
   assert.equal(composeStandupContent({}, "## Sekcja\ntekst"), "## Sekcja\ntekst");
 });
 
-test("stand-up fallback uses the same sectioned format and is stored with the facts bar", async () => {
+
+
+test("stand-ups render through the shared formatter in the feed", async () => {
+  const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+  assert.match(portfolio, /formatStandupHtml\(item\.content\)/);
+  assert.doesNotMatch(portfolio, /whitespace-pre-line">\$\{escapeHtml\(item\.content\)/);
+});
+
+test("stand-up fallback is data-driven (same sections, real names) and stored with the facts bar", async () => {
   const { generateStandup } = await import("../src/worker/services/ai.js");
   const stored = [];
   const env = {
@@ -1333,8 +1343,12 @@ test("stand-up fallback uses the same sectioned format and is stored with the fa
         return {
           all: async () => ({
             results: sql.includes("ORDER BY total_val DESC")
-              ? [{ display_name: "Ola", total_val: 150000 }]
-              : [],
+              ? [{ display_name: "Ola", total_val: 150000 }, { display_name: "Kuba", total_val: 120000 }]
+              : sql.includes("ORDER BY total_val ASC")
+                ? [{ display_name: "Piotr", total_val: 95000 }]
+                : sql.includes("FROM transactions")
+                  ? [{ ticker: "NVDA", type: "BUY", thesis: "AI rządzi", display_name: "Ola" }]
+                  : [],
           }),
           bind: (...values) => ({ run: async () => { stored.push(values); return { success: true }; } }),
         };
@@ -1342,15 +1356,199 @@ test("stand-up fallback uses the same sectioned format and is stored with the fa
     },
   };
   const result = await generateStandup(env, "STANDUP_MORNING");
+  assert.equal(result.title, "Poranny Stand-up z Parkietu");
   assert.match(result.content, /^> 🏆 Lider: Ola \(\+50,0%\)/);
-  assert.match(result.content, /\n## 🌍 Makro\n- \*\*GPW:\*\*/);
+  assert.match(result.content, /## 🏆 Podium\n- \*\*Ola\*\* — 150.000 CK \(\+50,0%\)\n- \*\*Kuba\*\*/);
+  assert.match(result.content, /## 📉 Dno tabeli\n- \*\*Piotr\*\* — 95.000 CK \(-5,0%\)/);
+  assert.match(result.content, /## 🔁 Ostatnie ruchy\n- \*\*Ola\*\* kupuje NVDA — „AI rządzi”/);
   assert.equal(stored[0][0], "STANDUP_MORNING");
   assert.equal(stored[0][2], result.content);
 });
 
+test("Gemini calls are retried on temporary errors before falling back", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const env = {
+    GEMINI_API_KEY: "key",
+    GEMINI_RETRY_DELAY_MS: 0,
+    DB: {
+      prepare() {
+        return { all: async () => ({ results: [] }), bind: () => ({ run: async () => ({ success: true }) }) };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  const statuses = [503, 429, 200];
+  let calls = 0;
+  globalThis.fetch = async () => {
+    const status = statuses[calls++];
+    if (status !== 200) return new Response("overloaded", { status });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify({ title: "Po ponowieniach", content: "## 🏆 Podium\n**Ola** wygrywa." }) }] } }] }));
+  };
+  try {
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(calls, 3);
+    assert.equal(result.title, "Po ponowieniach");
+    assert.match(result.content, /\*\*Ola\*\* wygrywa\./);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
 
-test("stand-ups render through the shared formatter in the feed", async () => {
-  const portfolio = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
-  assert.match(portfolio, /formatStandupHtml\(item\.content\)/);
-  assert.doesNotMatch(portfolio, /whitespace-pre-line">\$\{escapeHtml\(item\.content\)/);
+test("Gemini non-retryable errors (400) stop after one attempt and use the fallback", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const env = {
+    GEMINI_API_KEY: "key",
+    GEMINI_RETRY_DELAY_MS: 0,
+    DB: {
+      prepare() {
+        return { all: async () => ({ results: [] }), bind: () => ({ run: async () => ({ success: true }) }) };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async () => { calls += 1; return new Response("bad request", { status: 400 }); };
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = await generateStandup(env, "STANDUP_EVENING");
+    assert.equal(calls, 1);
+    assert.equal(result.title, "Popołudniowy Stand-up z Parkietu");
+    assert.match(result.content, /Komentarz AI jest chwilowo niedostępny/);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = originalWarn;
+  }
+});
+
+test("feed timestamps are UTC from D1 and are displayed in Europe/Warsaw time", async () => {
+  const source = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const call = (value, now) =>
+    runInNewContext(`${source}\nformatFeedTimestamp(${JSON.stringify(value)}, new Date(${JSON.stringify(now)}))`);
+  // lato (CEST, UTC+2): 06:00:02 UTC -> 08:00
+  assert.equal(call("2026-10-13 06:00:02", "2026-10-13T08:30:00Z"), "Dziś, 08:00");
+  assert.equal(call("2026-10-12 14:00:06", "2026-10-13T08:30:00Z"), "Wczoraj, 16:00");
+  // zima (CET, UTC+1): 06:00 UTC -> 07:00
+  assert.match(call("2026-01-05 06:00:00", "2026-10-13T08:30:00Z"), /^5 sty,? 07:00$/);
+  assert.equal(call("", "2026-10-13T08:30:00Z"), "—");
+  // znacznik z oznaczeniem strefy nie jest przesuwany po raz drugi
+  assert.equal(call("2026-10-13T06:00:02Z", "2026-10-13T08:30:00Z"), "Dziś, 08:00");
+});
+
+test("stand-up response parser handles fenced JSON, raw newlines and truncated output", async () => {
+  const { parseStandupResponse } = await import("../src/worker/services/ai.js");
+  const clean = parseStandupResponse(JSON.stringify({ title: "Tytuł", content: "## A\n- x" }));
+  assert.deepEqual(clean, { title: "Tytuł", content: "## A\n- x" });
+
+  const fenced = parseStandupResponse('```json\n{"title":"T","content":"## A\\n- x"}\n```');
+  assert.equal(fenced.title, "T");
+  assert.equal(fenced.content, "## A\n- x");
+
+  // surowe nowe linie wewnątrz stringa — niepoprawny JSON, którego użyło Gemini
+  const rawNewlines = parseStandupResponse('```json\n{\n  "title": "Poranek",\n  "content": "## 🌍 Makro\n- **Stopy:** a\n- **USD/PLN:** b"\n}\n```');
+  assert.equal(rawNewlines.title, "Poranek");
+  assert.equal(rawNewlines.content, "## 🌍 Makro\n- **Stopy:** a\n- **USD/PLN:** b");
+
+  // urwany JSON: tytuł i początek treści nadal da się odzyskać
+  const truncated = parseStandupResponse('{"title":"Urwany","content":"## A\\nzdanie"');
+  assert.equal(truncated.title, "Urwany");
+
+  assert.deepEqual(parseStandupResponse(""), {});
+  assert.deepEqual(parseStandupResponse("zwykły tekst"), {});
+});
+
+test("generateStandup stores parsed sections (not a raw fenced JSON block) and asks for JSON mode", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const stored = [];
+  const env = {
+    GEMINI_API_KEY: "key",
+    DB: {
+      prepare() {
+        return {
+          all: async () => ({ results: [] }),
+          bind: (...values) => ({ run: async () => { stored.push(values); return { success: true }; } }),
+        };
+      },
+    },
+  };
+  const originalFetch = globalThis.fetch;
+  let requestBody;
+  globalThis.fetch = async (_url, init) => {
+    requestBody = JSON.parse(init.body);
+    const text = '```json\n{"title": "Z fence",\n "content": "## 🏆 Podium\n**Ola** wygrywa."}\n```';
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text }] } }] }));
+  };
+  try {
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(result.title, "Z fence");
+    assert.match(result.content, /^## 🏆 Podium\n\*\*Ola\*\* wygrywa\.$/);
+    assert.ok(!result.content.includes("```"));
+    assert.equal(requestBody.generationConfig.responseMimeType, "application/json");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+function standupEnv({ existing = false } = {}) {
+  const inserted = [];
+  return {
+    inserted,
+    DB: {
+      prepare(sql) {
+        return {
+          first: async () => null,
+          all: async () => ({ results: [] }),
+          bind: (...values) => ({
+            first: async () => (sql.includes("FROM market_news") && existing ? { id: 1 } : null),
+            run: async () => { if (sql.includes("INSERT INTO market_news")) inserted.push(values[0]); return { success: true }; },
+            all: async () => ({ results: [] }),
+          }),
+        };
+      },
+    },
+  };
+}
+
+async function runScheduled(cron, iso, env) {
+  const pending = [];
+  await worker.scheduled({ cron, scheduledTime: Date.parse(iso) }, env, { waitUntil: promise => pending.push(promise) });
+  await Promise.all(pending);
+}
+
+test("stand-ups run at 08:00 and 16:00 Warsaw time in summer (CEST) and winter (CET)", async () => {
+  const morning = "0 6,7 * * MON-FRI";
+  const evening = "0 14,15 * * MON-FRI";
+  const cases = [
+    // [cron, scheduledTime (UTC), czy ma się wykonać]
+    [morning, "2026-10-13T06:00:00Z", true],   // CEST: 06:00 UTC = 08:00
+    [morning, "2026-10-13T07:00:00Z", false],  // CEST: 07:00 UTC = 09:00
+    [evening, "2026-10-13T14:00:00Z", true],   // CEST: 14:00 UTC = 16:00
+    [evening, "2026-10-13T15:00:00Z", false],  // CEST: 15:00 UTC = 17:00
+    [morning, "2026-11-03T06:00:00Z", false],  // CET: 06:00 UTC = 07:00
+    [morning, "2026-11-03T07:00:00Z", true],   // CET: 07:00 UTC = 08:00
+    [evening, "2026-11-03T14:00:00Z", false],  // CET: 14:00 UTC = 15:00
+    [evening, "2026-11-03T15:00:00Z", true],   // CET: 15:00 UTC = 16:00
+    // przełączenie czasu: 25.10.2026 (niedziela) -> poniedziałek 26.10 już CET
+    [morning, "2026-10-26T07:00:00Z", true],
+    [morning, "2026-10-26T06:00:00Z", false],
+  ];
+  for (const [cron, iso, shouldRun] of cases) {
+    const env = standupEnv();
+    await runScheduled(cron, iso, env);
+    assert.equal(env.inserted.length, shouldRun ? 1 : 0, `${cron} @ ${iso}`);
+  }
+});
+
+test("scheduled stand-up is skipped when one of the same type was created in the last hours", async () => {
+  const env = standupEnv({ existing: true });
+  await runScheduled("0 6,7 * * MON-FRI", "2026-10-13T06:00:00Z", env);
+  assert.equal(env.inserted.length, 0);
+});
+
+test("stand-up crons are registered in production config as one trigger per slot", async () => {
+  const toml = await readFile(new URL("../wrangler.toml", import.meta.url), "utf8");
+  const top = toml.slice(0, toml.indexOf("[env.dev]"));
+  assert.match(top, /crons = \[[^\]]*"0 6,7 \* \* MON-FRI"[^\]]*"0 14,15 \* \* MON-FRI"[^\]]*\]/);
+  const count = (top.match(/crons = \[([^\]]*)\]/)[1].match(/"/g) || []).length / 2;
+  assert.ok(count <= 5, "account cron limit is 5");
 });

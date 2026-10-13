@@ -161,3 +161,28 @@ function formatStandupHtml(content) {
   flushList();
   return out.join("");
 }
+
+// Znaczniki czasu z D1 ("2026-10-13 06:00:02") są w UTC, ale bez oznaczenia strefy:
+// new Date(...) potraktowałoby je jako czas lokalny. Dopisujemy "Z" i pokazujemy czas Europe/Warsaw.
+const FEED_TIME_ZONE = "Europe/Warsaw";
+
+function parseDbTimestamp(value) {
+  if (!value) return null;
+  const text = String(value);
+  const normalized = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(text) ? text : `${text.replace(" ", "T")}Z`;
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatFeedTimestamp(value, now = new Date()) {
+  const date = parseDbTimestamp(value);
+  if (!date) return "—";
+  const dayKey = d => new Intl.DateTimeFormat("sv-SE", { timeZone: FEED_TIME_ZONE }).format(d);
+  const time = date.toLocaleTimeString("pl-PL", { timeZone: FEED_TIME_ZONE, hour: "2-digit", minute: "2-digit" });
+  const dayMs = 86400000;
+  const today = dayKey(now);
+  if (dayKey(date) === today) return `Dziś, ${time}`;
+  if (dayKey(date) === dayKey(new Date(now.getTime() - dayMs))) return `Wczoraj, ${time}`;
+  const day = date.toLocaleDateString("pl-PL", { timeZone: FEED_TIME_ZONE, day: "numeric", month: "short" });
+  return `${day}, ${time}`;
+}
