@@ -61,6 +61,10 @@ Format wyjściowy (zwróć WYŁĄCZNIE JSON z polami 'title' i 'content'):
 Zasady:
 - Wydanie PORANNE to zapowiedź dnia, POPOŁUDNIOWE to rozliczenie dnia — dopasuj ton i treść.
 - Opieraj się na liczbach z danych; niczego nie zmyślaj (ruchów, kwot, nazwisk).
+- Liczby zapisuj z przecinkiem dziesiętnym i znakiem (np. +45,9%, -6,6%, 12 386 CK).
+- Każdy fakt padnie tylko raz: Podium i Dno to krótkie ujęcie, a "Motyw dnia" musi wnosić NOWĄ informację
+  (nie powtarzaj w nim liczby graczy bijących indeksy ani wyników z Podium/Dno).
+- W "Makro" zacznij każdy punkt od pogrubionej etykiety, np. "- **S&P 500 (-0,06%):** ...".
 - Nie powtarzaj żartów, porównań, puent ani tytułów z POPRZEDNICH WYDAŃ; nie używaj WYCZERPANYCH SŁÓW.
 - Każda sekcja zaczyna się od nagłówka "## " w osobnej linii, między sekcjami pusta linia.
 - Bez wstępów i pożegnań, bez linii zaczynających się od ">" (pasek faktów dodaje system), łącznie max 1500 znaków.
@@ -288,6 +292,12 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
   }
   content = composeStandupContent(contextData, content);
 
+  if (env.STANDUP_DRY_RUN) {
+    // Podgląd na danych środowiska bez zapisu do bazy (wrangler dev --var STANDUP_DRY_RUN:1).
+    console.log("STANDUP_DRY_RUN", JSON.stringify({ type, title, lens: lens?.id || null, content }));
+    return { type, title, content, lens: lens?.id || null, prompt };
+  }
+
   try {
     await env.DB.prepare(`
       INSERT INTO market_news (type, title, content)
@@ -297,5 +307,5 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
     console.error("Failed to insert market_news:", err);
   }
 
-  return { type, title, content, lens: lens?.id || null };
+  return { type, title, content, lens: lens?.id || null, prompt };
 }
