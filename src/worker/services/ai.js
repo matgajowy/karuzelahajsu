@@ -71,7 +71,11 @@ async function callGemini(apiKey, prompt, systemInstruction, { attempts = 3, bas
     systemInstruction: { parts: [{ text: systemInstruction }] },
     contents: [{ parts: [{ text: prompt }] }],
     // 2.5-flash domyślnie "myśli"; dla krótkiego tekstu wyłączamy to (szybciej, mieści się w limicie).
-    generationConfig: { temperature: 0.9, thinkingConfig: { thinkingBudget: 0 } },
+    generationConfig: {
+      temperature: 0.9,
+      responseMimeType: "application/json",
+      thinkingConfig: { thinkingBudget: 0 },
+    },
   });
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
@@ -170,6 +174,54 @@ export function composeStandupContent(context, body) {
   return [facts, cleaned].filter(Boolean).join("\n\n");
 }
 
+
+// Odpowiedź modelu bywa: owinięta w ```json, z surowymi nowymi liniami w stringach (niepoprawny JSON)
+// albo urwana. Zwraca { title?, content? } — nigdy nie rzuca.
+export function parseStandupResponse(raw) {
+  const text = String(raw || "").replace(/^\s*```(?:json)?\s*/i, "").replace(/\s*```\s*$/i, "").trim();
+  if (!text) return {};
+
+  const pick = parsed => ({
+    title: typeof parsed?.title === "string" ? parsed.title.trim() : undefined,
+    content: typeof parsed?.content === "string" ? parsed.content.trim() : undefined,
+  });
+
+  try {
+    return pick(JSON.parse(text));
+  } catch {
+    // próba naprawy: surowe znaki sterujące wewnątrz stringów -> sekwencje escape
+    let repaired = "";
+    let inString = false;
+    let escaped = false;
+    for (const char of text) {
+      if (inString) {
+        if (escaped) { repaired += char; escaped = false; continue; }
+        if (char === "\\") { repaired += char; escaped = true; continue; }
+        if (char === '"') { repaired += char; inString = false; continue; }
+        if (char === "\n") { repaired += "\\n"; continue; }
+        if (char === "\r") { continue; }
+        if (char === "\t") { repaired += "\\t"; continue; }
+        repaired += char;
+      } else {
+        if (char === '"') inString = true;
+        repaired += char;
+      }
+    }
+    try {
+      return pick(JSON.parse(repaired));
+    } catch {
+      // ostatnia deska ratunku: wyciągnij pola regexem (np. urwany JSON)
+      const unescape = value => value.replace(/\\n/g, "\n").replace(/\\"/g, '"').replace(/\\\\/g, "\\");
+      const title = text.match(/"title"\s*:\s*"((?:[^"\\]|\\.)*)"/);
+      const content = text.match(/"content"\s*:\s*"([\s\S]*?)"\s*}?\s*$/);
+      const result = {};
+      if (title) result.title = unescape(title[1]).trim();
+      if (content) result.content = unescape(content[1]).trim();
+      return result;
+    }
+  }
+}
+
 export async function generateStandup(env, type = "STANDUP_MORNING") {
   const isMorning = type === "STANDUP_MORNING";
   const defaultTitle = isMorning
@@ -252,13 +304,12 @@ Napisz stand-up i zwróć JSON: {"title": "...", "content": "..."}`;
     baseDelayMs: Number(env.GEMINI_RETRY_DELAY_MS ?? 1500),
   });
   if (responseText) {
-    try {
-      const cleanJson = responseText.replace(/^```json\s*|\s*```$/g, "").trim();
-      const parsed = JSON.parse(cleanJson);
-      if (parsed.title) title = parsed.title;
-      if (parsed.content) content = parsed.content;
-    } catch {
-      content = responseText;
+    const parsed = parseStandupResponse(responseText);
+    if (parsed.title) title = parsed.title;
+    if (parsed.content) {
+      content = parsed.content;
+    } else if (!/^\s*[{`]/.test(responseText)) {
+      content = responseText; // zwykły tekst bez JSON-a
     }
   }
 
