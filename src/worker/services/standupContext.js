@@ -59,7 +59,7 @@ export function findDuel(allPlayers) {
   return best;
 }
 
-export async function loadStandupContext(env, type, { fetchMarket = fetchMarketMoves } = {}) {
+export async function loadStandupContext(env, type, { fetchMarket = fetchMarketMoves, excludeId = null } = {}) {
   const isMorning = type === "STANDUP_MORNING";
   const db = env.DB;
 
@@ -74,9 +74,10 @@ export async function loadStandupContext(env, type, { fetchMarket = fetchMarketM
       GROUP BY u.id
       ORDER BY total_val DESC
     `).all(), { results: [] }),
+    // excludeId: przy naprawie wpisu awaryjnego pomijamy ten wpis (nie jest "poprzednim wydaniem")
     safe("previous", () => db.prepare(`
-      SELECT id, type, created_at, title, content FROM market_news ORDER BY id DESC LIMIT 3
-    `).all(), { results: [] }),
+      SELECT id, type, created_at, title, content FROM market_news WHERE id != ? ORDER BY id DESC LIMIT 3
+    `).bind(excludeId ?? -1).all(), { results: [] }),
     safe("positions", () => db.prepare(`
       SELECT u.display_name, h.ticker, h.shares, p.name,
         ((p.price - h.avg_buy_price) / h.avg_buy_price * 100) AS return_pct,

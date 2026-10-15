@@ -26,6 +26,12 @@
 
       items.sort((a, b) => (parseDbTimestamp(b.created_at) || 0) - (parseDbTimestamp(a.created_at) || 0));
 
+      // Najnowszy stand-up jest przypięty na górze (inaczej ginie pod świeżymi transakcjami graczy).
+      if (activeFeedFilter === "all") {
+        const pinnedIndex = items.findIndex(item => item.feedItemType === "NEWS");
+        if (pinnedIndex > 0) items.unshift(...items.splice(pinnedIndex, 1));
+      }
+
       if (items.length === 0) {
         container.innerHTML = '<div class="text-center text-slate-400 text-xs py-6">Brak wpisów dla wybranego filtra.</div>';
         return;

@@ -1,7 +1,7 @@
 import { jsonResponse } from "./lib/http.js";
 import { allowedMethods, findRoute } from "./routes/index.js";
 import { syncAllMarketPrices } from "./services/pricing.js";
-import { generateStandup } from "./services/ai.js";
+import { generateStandup, repairFallbackStandup } from "./services/ai.js";
 import { sendEveningRecap, sendMorningBriefing } from "./services/slackBriefing.js";
 
 export default {
@@ -32,6 +32,10 @@ export default {
     }
     ctx.waitUntil(syncAllMarketPrices(env).catch(error => {
       console.error("Scheduled market price sync failed.", error);
+    }));
+    // Samoleczenie: wpis awaryjny stand-upu (AI było niedostępne) zostaje podmieniony na wersję od AI.
+    ctx.waitUntil(repairFallbackStandup(env).catch(error => {
+      console.error("Stand-up repair failed.", error);
     }));
   },
 
