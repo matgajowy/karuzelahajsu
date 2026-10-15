@@ -1,7 +1,7 @@
 import { jsonResponse } from "./lib/http.js";
 import { allowedMethods, findRoute } from "./routes/index.js";
 import { syncAllMarketPrices } from "./services/pricing.js";
-import { generateStandup } from "./services/ai.js";
+import { generateStandup, repairFallbackStandup } from "./services/ai.js";
 import { warsawClock } from "./lib/localTime.js";
 
 
@@ -52,6 +52,10 @@ export default {
       }));
     } else {
       ctx.waitUntil(syncAllMarketPrices(env));
+      // Samoleczenie: wpis awaryjny stand-upu (AI było niedostępne) zostaje podmieniony na wersję od AI.
+      ctx.waitUntil(repairFallbackStandup(env).catch(error => {
+        console.error("Stand-up repair failed.", error);
+      }));
     }
   },
 

@@ -30,49 +30,67 @@ Zasady:
 - Bez wstępów i pożegnań, bez linii zaczynających się od ">" (pasek faktów dodaje system), łącznie max 1500 znaków.
 Styl: żywy język, ironia, korpo-żargon pomieszany z ulicznym parkietem giełdowym.`;
 
-// Wywołanie Gemini dla stand-upów z ponowieniami (429/5xx, błąd sieci, timeout).
-// Zwraca null dopiero po wyczerpaniu prób albo przy błędzie nietymczasowym (np. 400/401/404).
+// Wywołanie Gemini dla stand-upów. Gemini potrafi zwracać 503 "high demand" przez dłuższą chwilę,
+// więc: do 5 prób z rosnącym odstępem (2/4/8/16 s) i łańcuch modeli — po dwie próby na model;
+// 404 (model niedostępny) przechodzi od razu do następnego, inne błędy 4xx kończą wywołanie.
 const RETRYABLE_STATUS = new Set([408, 425, 429, 500, 502, 503, 504]);
+const GEMINI_MODEL_CHAIN = ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-flash-latest"];
+const ATTEMPTS_PER_MODEL = 2;
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
+const endpointFor = model =>
+  `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`;
 
-async function callGemini(apiKey, prompt, systemInstruction, { attempts = 3, baseDelayMs = 1500, temperature = 0.9 } = {}) {
+async function callGemini(apiKey, prompt, systemInstruction, {
+  attempts = 5,
+  baseDelayMs = 2000,
+  temperature = 0.9,
+  models = GEMINI_MODEL_CHAIN,
+} = {}) {
   if (!apiKey) return null;
-  const endpoint = new URL(GEMINI_API_URL);
-  endpoint.searchParams.set("key", apiKey);
-  const body = JSON.stringify({
-    systemInstruction: { parts: [{ text: systemInstruction }] },
-    contents: [{ parts: [{ text: prompt }] }],
-    // 2.5-flash domyślnie "myśli"; dla krótkiego tekstu wyłączamy to (szybciej, mieści się w limicie).
-    generationConfig: {
-      temperature,
-      responseMimeType: "application/json",
-      thinkingConfig: { thinkingBudget: 0 },
-    },
-  });
+  let modelIndex = 0;
+  let triesOnModel = 0;
 
   for (let attempt = 1; attempt <= attempts; attempt += 1) {
+    const model = models[Math.min(modelIndex, models.length - 1)];
+    triesOnModel += 1;
+    const endpoint = new URL(endpointFor(model));
+    endpoint.searchParams.set("key", apiKey);
+    const generationConfig = { temperature, responseMimeType: "application/json" };
+    // thinkingBudget istnieje tylko w rodzinie 2.5; dla krótkiego tekstu wyłączamy "myślenie".
+    if (model.includes("2.5")) generationConfig.thinkingConfig = { thinkingBudget: 0 };
+
     let retryable = true;
+    let nextModelNow = false;
     try {
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body,
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemInstruction }] },
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig,
+        }),
         signal: AbortSignal.timeout(20000),
       });
       if (response.ok) {
         const data = await response.json();
         const text = data?.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("").trim();
         if (text) return text;
-        console.warn(`Gemini returned no text (attempt ${attempt}/${attempts}).`, data?.candidates?.[0]?.finishReason);
+        console.warn(`Gemini ${model} returned no text (attempt ${attempt}/${attempts}).`, data?.candidates?.[0]?.finishReason);
       } else {
-        retryable = RETRYABLE_STATUS.has(response.status);
-        console.warn(`Gemini API error (attempt ${attempt}/${attempts}):`, response.status, await response.text().catch(() => ""));
+        nextModelNow = response.status === 404;
+        retryable = RETRYABLE_STATUS.has(response.status) || nextModelNow;
+        console.warn(`Gemini ${model} error (attempt ${attempt}/${attempts}):`, response.status, await response.text().catch(() => ""));
       }
     } catch (error) {
-      console.warn(`Gemini API call failed (attempt ${attempt}/${attempts}):`, error.message);
+      console.warn(`Gemini ${model} call failed (attempt ${attempt}/${attempts}):`, error.message);
     }
     if (!retryable || attempt === attempts) break;
-    await sleep(baseDelayMs * attempt);
+    if (nextModelNow || triesOnModel >= ATTEMPTS_PER_MODEL) {
+      modelIndex += 1;
+      triesOnModel = 0;
+    }
+    if (!nextModelNow) await sleep(baseDelayMs * 2 ** (attempt - 1));
   }
   return null;
 }
@@ -201,7 +219,7 @@ const MAX_OVERUSED_IN_RESULT = 3;
 
 async function requestStandup(env, prompt, temperature) {
   const responseText = await callGemini(env.GEMINI_API_KEY, prompt, STANDUP_SYSTEM_PROMPT, {
-    baseDelayMs: Number(env.GEMINI_RETRY_DELAY_MS ?? 1500),
+    baseDelayMs: Number(env.GEMINI_RETRY_DELAY_MS ?? 2000),
     temperature,
   });
   if (!responseText) return null;
@@ -211,7 +229,10 @@ async function requestStandup(env, prompt, temperature) {
   return null;
 }
 
-export async function generateStandup(env, type = "STANDUP_MORNING") {
+// Znacznik wpisu awaryjnego (AI niedostępne) — po nim kolejne odpalenie crona próbuje go naprawić.
+export const STANDUP_FALLBACK_MARKER = "Komentarz AI jest chwilowo niedostępny";
+
+export async function generateStandup(env, type = "STANDUP_MORNING", { replaceId = null } = {}) {
   const isMorning = type === "STANDUP_MORNING";
   let title = isMorning ? "Poranny Stand-up z Parkietu" : "Popołudniowy Stand-up z Parkietu";
   let content = "";
@@ -219,6 +240,7 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
   let contextData = { isMorning };
   try {
     contextData = await loadStandupContext(env, type, {
+      excludeId: replaceId,
       // STANDUP_MARKET_OVERRIDE: tablica notowań wstrzykiwana w testach (bez zapytań do Yahoo)
       ...(Array.isArray(env.STANDUP_MARKET_OVERRIDE) ? { fetchMarket: async () => env.STANDUP_MARKET_OVERRIDE } : {}),
     });
@@ -246,11 +268,20 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
     content = result.content;
   }
 
+  let usedFallback = false;
   if (!content) {
     // AI niedostępne po ponowieniach: sekcje z realnych danych zamiast generycznego tekstu
     content = buildDataFallback(contextData, isMorning);
+    usedFallback = true;
   }
   content = composeStandupContent(contextData, content);
+
+  if (replaceId !== null) {
+    // Naprawa wpisu awaryjnego: zastępujemy go tylko pełnowartościową wersją od AI.
+    if (usedFallback) return { type, title, content, repaired: false };
+    await env.DB.prepare("UPDATE market_news SET title = ?, content = ? WHERE id = ?").bind(title, content, replaceId).run();
+    return { type, title, content, lens: lens?.id || null, repaired: true };
+  }
 
   if (env.STANDUP_DRY_RUN) {
     // Podgląd na danych środowiska bez zapisu do bazy (wrangler dev --var STANDUP_DRY_RUN:1).
@@ -268,4 +299,16 @@ export async function generateStandup(env, type = "STANDUP_MORNING") {
   }
 
   return { type, title, content, lens: lens?.id || null, prompt };
+}
+
+// Wpis awaryjny z ostatnich godzin (np. Gemini 503 o 8:00) jest podmieniany na wersję AI przy najbliższym
+// odpaleniu crona synchronizacji (co 15 min). Zwraca null, gdy nie ma czego naprawiać.
+export async function repairFallbackStandup(env, { windowHours = 6 } = {}) {
+  const row = await env.DB.prepare(`
+    SELECT id, type FROM market_news
+    WHERE content LIKE ? AND created_at >= datetime('now', ?)
+    ORDER BY id DESC LIMIT 1
+  `).bind(`%${STANDUP_FALLBACK_MARKER}%`, `-${windowHours} hours`).first();
+  if (!row) return null;
+  return generateStandup(env, row.type, { replaceId: row.id });
 }

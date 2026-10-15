@@ -1230,7 +1230,9 @@ test("other cron schedules still run the price sync, not a stand-up", async () =
   const pending = [];
   await worker.scheduled({ cron: "*/15 6-21 * * MON-FRI" }, env, { waitUntil: promise => pending.push(promise) });
   await Promise.allSettled(pending);
-  assert.ok(!queries.some(sql => sql.includes("market_news")));
+  // synchronizacja nie generuje stand-upu; jedynie sprawdza, czy nie ma wpisu awaryjnego do naprawy
+  assert.ok(!queries.some(sql => sql.includes("INSERT INTO market_news")));
+  assert.ok(queries.some(sql => sql.includes("content LIKE ?")), "repair check runs on the sync cron");
 });
 
 test("instruments autocomplete returns suggestions with market status", async () => {
@@ -2075,4 +2077,187 @@ test("trade page disables native browser validation and offers MAX, thesis count
   assert.match(html, /data-action="set-buy-percentage" data-percent="1"/);
   assert.match(html, /id="tradeThesisCount"/);
   assert.match(html, /id="tradeCashAfter"/);
+});
+
+// ---- Odporność stand-upów na przeciążenia Gemini ----
+function geminiOk(payload) {
+  return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: JSON.stringify(payload) }] } }] }));
+}
+
+function repairDb({ fallbackRow = null } = {}) {
+  const updates = [];
+  const base = standupDb({ board: PLAYERS });
+  return {
+    updates, inserted: base.inserted, sqls: base.sqls,
+    DB: {
+      prepare(sql) {
+        const statement = base.DB.prepare(sql);
+        if (sql.includes("content LIKE ?")) {
+          return { bind: () => ({ first: async () => fallbackRow }) };
+        }
+        if (sql.startsWith("UPDATE market_news")) {
+          return { bind: (...values) => ({ run: async () => { updates.push(values); return { success: true }; } }) };
+        }
+        return statement;
+      },
+    },
+  };
+}
+
+test("Gemini 503 overload: 5 attempts across the model chain, falling to a lighter model", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const db = standupDb({ board: PLAYERS });
+  const env = { GEMINI_API_KEY: "k", GEMINI_RETRY_DELAY_MS: 0, STANDUP_MARKET_OVERRIDE: [], DB: db.DB };
+  const originalFetch = globalThis.fetch;
+  const models = [];
+  globalThis.fetch = async url => {
+    const model = String(url).match(/models\/([^:]+):/)[1];
+    models.push(model);
+    if (models.length <= 3) return new Response(JSON.stringify({ error: { status: "UNAVAILABLE" } }), { status: 503 });
+    return geminiOk({ title: "Po przeciążeniu", content: "## 🏆 Podium\n**Ola** wygrywa." });
+  };
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(result.title, "Po przeciążeniu");
+    // 2 próby na gemini-2.5-flash, potem lżejszy model
+    assert.deepEqual(models, ["gemini-2.5-flash", "gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-2.5-flash-lite"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = warn;
+  }
+});
+
+test("Gemini 404 (model unavailable) jumps straight to the next model without waiting", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const db = standupDb({ board: PLAYERS });
+  const env = { GEMINI_API_KEY: "k", GEMINI_RETRY_DELAY_MS: 60000, STANDUP_MARKET_OVERRIDE: [], DB: db.DB };
+  const originalFetch = globalThis.fetch;
+  const models = [];
+  globalThis.fetch = async url => {
+    const model = String(url).match(/models\/([^:]+):/)[1];
+    models.push(model);
+    if (model === "gemini-2.5-flash") return new Response("not found", { status: 404 });
+    return geminiOk({ title: "Z drugiego modelu", content: "## 🏆 Podium\n**Ola** wygrywa." });
+  };
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const started = Date.now();
+    const result = await generateStandup(env, "STANDUP_MORNING");
+    assert.equal(result.title, "Z drugiego modelu");
+    assert.deepEqual(models, ["gemini-2.5-flash", "gemini-2.5-flash-lite"]);
+    assert.ok(Date.now() - started < 2000, "404 must not trigger the backoff delay");
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = warn;
+  }
+});
+
+test("thinkingConfig is sent only to 2.5-family models", async () => {
+  const { generateStandup } = await import("../src/worker/services/ai.js");
+  const db = standupDb({ board: PLAYERS });
+  const env = { GEMINI_API_KEY: "k", GEMINI_RETRY_DELAY_MS: 0, STANDUP_MARKET_OVERRIDE: [], DB: db.DB };
+  const originalFetch = globalThis.fetch;
+  const configs = [];
+  globalThis.fetch = async (url, init) => {
+    configs.push({ model: String(url).match(/models\/([^:]+):/)[1], config: JSON.parse(init.body).generationConfig });
+    return new Response("busy", { status: 503 });
+  };
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    await generateStandup(env, "STANDUP_MORNING");
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = warn;
+  }
+  assert.equal(configs.length, 5);
+  for (const { model, config } of configs) {
+    assert.equal(Boolean(config.thinkingConfig), model.includes("2.5"), model);
+  }
+  assert.equal(configs[4].model, "gemini-flash-latest");
+});
+
+test("fallback stand-up is repaired in place once Gemini is available again", async () => {
+  const { repairFallbackStandup } = await import("../src/worker/services/ai.js");
+  const db = repairDb({ fallbackRow: { id: 9, type: "STANDUP_MORNING" } });
+  const env = { GEMINI_API_KEY: "k", STANDUP_MARKET_OVERRIDE: [], DB: db.DB };
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => geminiOk({ title: "Naprawiony", content: "## 🏆 Podium\n**Ola** wygrywa." });
+  try {
+    const result = await repairFallbackStandup(env);
+    assert.equal(result.repaired, true);
+    assert.equal(db.updates.length, 1);
+    assert.equal(db.updates[0][0], "Naprawiony");
+    assert.equal(db.updates[0][2], 9);
+    assert.equal(db.inserted.length, 0, "repair must not create a duplicate entry");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("repair keeps the existing entry when the AI is still unavailable, and does nothing without a fallback", async () => {
+  const { repairFallbackStandup } = await import("../src/worker/services/ai.js");
+  const stillDown = repairDb({ fallbackRow: { id: 9, type: "STANDUP_MORNING" } });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response("busy", { status: 503 });
+  const warn = console.warn;
+  console.warn = () => {};
+  try {
+    const result = await repairFallbackStandup({ GEMINI_API_KEY: "k", GEMINI_RETRY_DELAY_MS: 0, STANDUP_MARKET_OVERRIDE: [], DB: stillDown.DB });
+    assert.equal(result.repaired, false);
+    assert.equal(stillDown.updates.length, 0);
+    assert.equal(stillDown.inserted.length, 0);
+
+    const nothing = repairDb({ fallbackRow: null });
+    assert.equal(await repairFallbackStandup({ GEMINI_API_KEY: "k", STANDUP_MARKET_OVERRIDE: [], DB: nothing.DB }), null);
+  } finally {
+    globalThis.fetch = originalFetch;
+    console.warn = warn;
+  }
+});
+
+test("repair excludes the fallback entry from the 'previous editions' it is compared against", async () => {
+  const { loadStandupContext } = await import("../src/worker/services/standupContext.js");
+  const db = standupDb({ board: PLAYERS });
+  await loadStandupContext({ DB: db.DB }, "STANDUP_MORNING", { fetchMarket: async () => [], excludeId: 9 });
+  assert.ok(db.binds.some(values => values[0] === 9), "excludeId must be bound to the previous-editions query");
+  assert.ok(db.sqls.some(sql => sql.includes("WHERE id != ?")));
+});
+
+test("the sync cron also triggers the stand-up repair", async () => {
+  const source = await readFile(new URL("../src/worker/index.js", import.meta.url), "utf8");
+  assert.match(source, /repairFallbackStandup\(env\)/);
+});
+
+test("feed pins the newest stand-up above fresher player trades", async () => {
+  const portfolioSource = await readFile(new URL("../public/assets/js/portfolio.js", import.meta.url), "utf8");
+  const utilsSource = await readFile(new URL("../public/assets/js/utils.js", import.meta.url), "utf8");
+  const timeHelpers = utilsSource.slice(utilsSource.indexOf("const FEED_TIME_ZONE"));
+  const container = { innerHTML: "" };
+  const rendered = await runInNewContext(
+    `${timeHelpers}\n${portfolioSource}; fetchFeed().then(() => document.getElementById("feedContainer").innerHTML);`,
+    {
+      apiRequest: async () => ({
+        status: "success",
+        data: [
+          { type: "BUY", ticker: "PCO.WA", user_name: "Wolf", shares: 1, company_name: "Pepco", created_at: "2026-10-15 07:48:10", thesis: "t1" },
+          { type: "SELL", ticker: "XTB.WA", user_name: "Wolf", shares: 1, company_name: "XTB", created_at: "2026-10-15 08:02:14", thesis: "t2" },
+        ],
+        news: [{ type: "STANDUP_MORNING", title: "Poranny stand-up", content: "## A\ntekst", created_at: "2026-10-15 06:01:28" }],
+      }),
+      document: { getElementById: () => container },
+      escapeHtml: value => String(value ?? ""),
+      formatCK: value => String(value ?? 0),
+      formatStandupHtml: value => `<p>${value}</p>`,
+      isBenchmark: () => false,
+      formatQuotePrice: String,
+      currentUser: null,
+      userHoldings: [],
+      console,
+    },
+  );
+  assert.ok(rendered.indexOf("Poranny stand-up") < rendered.indexOf("Wolf"), "stand-up must come first");
 });
